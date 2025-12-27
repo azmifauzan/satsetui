@@ -49,12 +49,14 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'credits' => 100, // Free user starts with 100 credits
+            'is_premium' => false,
         ]);
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return redirect('/wizard');
+        return redirect('/dashboard');
     }
 }

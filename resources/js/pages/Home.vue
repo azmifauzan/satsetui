@@ -370,12 +370,17 @@ const scrollToSection = (sectionId: string) => {
 
             <!-- Logged In -->
             <template v-else>
-              <!-- User Name -->
-              <div class="hidden sm:flex items-center space-x-2 text-slate-600 dark:text-slate-300">
+              <!-- Dashboard Button -->
+              <Link href="/dashboard" class="hidden sm:inline-flex items-center px-4 py-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium">
+                {{ currentLang === 'id' ? 'Dashboard' : 'Dashboard' }}
+              </Link>
+
+              <!-- User Menu -->
+              <div class="flex items-center space-x-2 text-slate-600 dark:text-slate-300">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                <span class="font-medium">{{ props.auth.user.name }}</span>
+                <span class="font-medium hidden sm:inline">{{ props.auth.user.name }}</span>
               </div>
 
               <!-- Wizard Button -->

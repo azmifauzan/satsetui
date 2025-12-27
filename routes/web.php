@@ -22,9 +22,15 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\DashboardController::class, 'index'])
+        ->name('dashboard');
+    
     Route::get('/wizard', function () {
         return Inertia::render('Wizard/Index');
     })->name('wizard.index');
+
+    Route::post('/language', [App\Http\Controllers\LanguageController::class, 'update'])
+        ->name('language.update');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');

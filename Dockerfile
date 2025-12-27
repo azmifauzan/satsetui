@@ -1,5 +1,5 @@
 # Multi-stage build for Laravel application
-FROM php:8.2-fpm AS base
+FROM php:8.4-fpm AS base
 
 # Set working directory
 WORKDIR /var/www/html
