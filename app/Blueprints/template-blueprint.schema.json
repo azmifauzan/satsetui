@@ -1,0 +1,308 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://template-aspri.local/schemas/template-blueprint.json",
+  "title": "Template Blueprint Schema",
+  "description": "Defines the complete structure of a wizard-generated template configuration. This schema represents all 11 wizard steps and enforces validation rules for deterministic template generation.",
+  "type": "object",
+  "required": [
+    "framework",
+    "category",
+    "pages",
+    "layout",
+    "theme",
+    "ui",
+    "components",
+    "interaction",
+    "responsiveness",
+    "codeStyle",
+    "outputIntent"
+  ],
+  "properties": {
+    "framework": {
+      "title": "Step 1: Framework Selection",
+      "description": "CSS framework foundation for the template. Dictates utility classes, component structure, and responsive patterns.",
+      "$comment": "MCP mapping: sets the LLM role and hard constraints (Tailwind-only vs Bootstrap-only).",
+      "type": "string",
+      "enum": ["tailwind", "bootstrap"],
+      "default": "tailwind"
+    },
+    "category": {
+      "title": "Step 2: Template Category",
+      "description": "Primary use case and content structure. Influences layout patterns and page requirement phrasing.",
+      "$comment": "MCP mapping: becomes the 'Template Category' context header and tunes page requirements (admin vs marketing vs content).",
+      "type": "string",
+      "enum": [
+        "admin-dashboard",
+        "company-profile",
+        "landing-page",
+        "saas-application",
+        "blog-content-site"
+      ],
+      "default": "admin-dashboard"
+    },
+    "pages": {
+      "title": "Step 3: Page Selection",
+      "description": "Array of specific pages to include in the template. This list drives MCP page requirements and output file list. Must contain at least one page.",
+      "$comment": "MCP mapping: produces the explicit page list plus per-page functional requirements and the /src/pages/*.vue output list.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "login",
+          "register",
+          "forgot-password",
+          "dashboard",
+          "user-management",
+          "settings",
+          "charts",
+          "tables",
+          "profile",
+          "about",
+          "contact"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "default": ["login", "dashboard"]
+    },
+    "layout": {
+      "title": "Step 4: Layout & Navigation",
+      "description": "Structural navigation patterns and layout elements.",
+      "$comment": "MCP mapping: becomes the layout requirements section (navigation pattern, breadcrumbs on/off, footer minimal/full).",
+      "type": "object",
+      "required": ["navigation", "breadcrumbs", "footer"],
+      "properties": {
+        "navigation": {
+          "description": "Primary navigation pattern.",
+          "type": "string",
+          "enum": ["sidebar", "topbar", "hybrid"],
+          "default": "sidebar"
+        },
+        "sidebarDefaultState": {
+          "description": "Default sidebar state. Only applicable when navigation is 'sidebar' or 'hybrid'.",
+          "type": "string",
+          "enum": ["collapsed", "expanded"],
+          "default": "expanded"
+        },
+        "breadcrumbs": {
+          "description": "Enable breadcrumb navigation on pages.",
+          "type": "boolean",
+          "default": true
+        },
+        "footer": {
+          "description": "Footer style and content level.",
+          "type": "string",
+          "enum": ["minimal", "full"],
+          "default": "minimal"
+        }
+      },
+      "dependencies": {
+        "sidebarDefaultState": {
+          "oneOf": [
+            {
+              "properties": {
+                "navigation": {
+                  "enum": ["sidebar", "hybrid"]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "theme": {
+      "title": "Step 5: Theme & Visual Identity",
+      "description": "Color scheme and visual mode preferences. These values are translated into MCP instructions for theme tokens and dark/light mode handling.",
+      "$comment": "MCP mapping: supplies primary/secondary tokens and light/dark default behavior, plus background style requirements.",
+      "type": "object",
+      "required": ["primary", "secondary", "mode", "background"],
+      "properties": {
+        "primary": {
+          "description": "Primary brand color in hex format.",
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "default": "#3B82F6"
+        },
+        "secondary": {
+          "description": "Secondary accent color in hex format.",
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "default": "#6366F1"
+        },
+        "mode": {
+          "description": "Color mode preference (wizard supports Light/Dark only). Drives MCP requirements for default theme and toggling behavior.",
+          "type": "string",
+          "enum": ["light", "dark"],
+          "default": "light"
+        },
+        "background": {
+          "description": "Background style for pages.",
+          "type": "string",
+          "enum": ["solid", "gradient"],
+          "default": "solid"
+        }
+      }
+    },
+    "ui": {
+      "title": "Step 6: UI Density & Style",
+      "description": "Spacing, sizing, and visual weight preferences.",
+      "$comment": "MCP mapping: translates to concrete spacing/padding defaults and border radius utility usage.",
+      "type": "object",
+      "required": ["density", "borderRadius"],
+      "properties": {
+        "density": {
+          "description": "Overall spacing and size density level.",
+          "type": "string",
+          "enum": ["compact", "comfortable", "spacious"],
+          "default": "comfortable"
+        },
+        "borderRadius": {
+          "description": "Border radius style for components.",
+          "type": "string",
+          "enum": ["sharp", "rounded"],
+          "default": "rounded"
+        }
+      }
+    },
+    "components": {
+      "title": "Step 7: Components",
+      "description": "UI components to include in the template. This list becomes explicit MCP component requirements and determines which shared components must be generated.",
+      "$comment": "MCP mapping: for each selected component, MCP includes exact required variants and behavior (modals, dropdown close-on-outside, etc.). Charts implies Chart library selection.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "buttons",
+          "forms",
+          "modals",
+          "dropdowns",
+          "alerts",
+          "cards",
+          "tabs",
+          "charts"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "default": ["buttons", "forms", "cards", "alerts"]
+    },
+    "chartLibrary": {
+      "title": "Chart Library (Charts sub-option)",
+      "description": "Required when 'charts' is included in components. Determines which library the generated template must use.",
+      "$comment": "MCP mapping: tight constraint 'Use ONLY Chart.js' or 'Use ONLY Apache ECharts' when charts are requested.",
+      "type": "string",
+      "enum": ["chartjs", "echarts"],
+      "default": "chartjs"
+    },
+    "interaction": {
+      "title": "Step 8: Interaction Level",
+      "description": "Animation and interaction richness level. Affects transitions, hover states, and micro-interactions.",
+      "$comment": "MCP mapping: sets allowed transitions/animations and their intensity (static/moderate/rich).",
+      "type": "string",
+      "enum": ["static", "moderate", "rich"],
+      "default": "moderate"
+    },
+    "responsiveness": {
+      "title": "Step 9: Responsiveness",
+      "description": "Responsive design approach and optimization priority.",
+      "$comment": "MCP mapping: defines breakpoint strategy and navigation behavior per screen size.",
+      "type": "string",
+      "enum": ["desktop-first", "mobile-first", "fully-responsive"],
+      "default": "fully-responsive"
+    },
+    "codeStyle": {
+      "title": "Step 10: Code Preferences",
+      "description": "Code style and verbosity level in generated output. Affects variable naming, comments, and code structure.",
+      "$comment": "MCP mapping: instructs verbosity and comment density (clean/minimal vs verbose/explicit vs commented/learning).",
+      "type": "string",
+      "enum": ["minimal", "verbose", "documented"],
+      "default": "minimal"
+    },
+    "outputIntent": {
+      "title": "Step 11: Output Intent",
+      "description": "Expected maturity level of generated code. Affects error handling, accessibility, and documentation depth.",
+      "$comment": "MCP mapping: sets depth of implementation (MVP scaffold vs production base vs design system starter).",
+      "type": "string",
+      "enum": ["mvp", "production", "design-system"],
+      "default": "production"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "contains": {
+              "const": "charts"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["chartLibrary"]
+      }
+    }
+  ],
+  "examples": [
+    {
+      "framework": "tailwind",
+      "category": "admin-dashboard",
+      "pages": ["dashboard", "user-management", "charts", "settings"],
+      "layout": {
+        "navigation": "sidebar",
+        "sidebarDefaultState": "expanded",
+        "breadcrumbs": true,
+        "footer": "minimal"
+      },
+      "theme": {
+        "primary": "#10B981",
+        "secondary": "#3B82F6",
+        "mode": "dark",
+        "background": "solid"
+      },
+      "ui": {
+        "density": "comfortable",
+        "borderRadius": "rounded"
+      },
+      "components": ["buttons", "forms", "modals", "cards", "charts"],
+      "chartLibrary": "chartjs",
+      "interaction": "moderate",
+      "responsiveness": "desktop-first",
+      "codeStyle": "minimal",
+      "outputIntent": "production"
+    },
+    {
+      "framework": "bootstrap",
+      "category": "landing-page",
+      "pages": ["about", "contact"],
+      "layout": {
+        "navigation": "topbar",
+        "breadcrumbs": false,
+        "footer": "full"
+      },
+      "theme": {
+        "primary": "#0D6EFD",
+        "secondary": "#6C757D",
+        "mode": "light",
+        "background": "gradient"
+      },
+      "ui": {
+        "density": "spacious",
+        "borderRadius": "rounded"
+      },
+      "components": ["buttons", "forms", "cards", "alerts"],
+      "interaction": "rich",
+      "responsiveness": "mobile-first",
+      "codeStyle": "documented",
+      "outputIntent": "mvp"
+    }
+  ],
+  "definitions": {
+    "colorHex": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$",
+      "description": "Hexadecimal color code in format #RRGGBB"
+    }
+  },
+  "$comment": "This schema is the source of truth for Blueprint validation. Any changes must be synchronized with: 1) wizardState.ts (Vue frontend), 2) McpPromptBuilder.php (Laravel service), 3) Blueprint validation rules (Laravel Form Request), 4) product-instruction.md documentation."
+}
