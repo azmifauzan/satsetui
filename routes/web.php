@@ -29,6 +29,13 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('Wizard/Index');
     })->name('wizard.index');
 
+    // Generation routes
+    Route::post('/generation/generate', [App\Http\Controllers\GenerationController::class, 'generate'])
+        ->name('generation.generate');
+    
+    Route::get('/generation/{generation}', [App\Http\Controllers\GenerationController::class, 'show'])
+        ->name('generation.show');
+
     Route::post('/language', [App\Http\Controllers\LanguageController::class, 'update'])
         ->name('language.update');
 

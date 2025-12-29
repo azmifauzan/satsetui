@@ -759,3 +759,7 @@ import { Head, Link } from '@inertiajs/vue3';
         </div>
     </div>
 </template>
+
+
+
+

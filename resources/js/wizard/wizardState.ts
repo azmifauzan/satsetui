@@ -1,7 +1,7 @@
 /**
  * Wizard State Management
  *
- * Central reactive state for the 11-step template wizard.
+ * Central reactive state for the 5-step template wizard.
  * This state is the source of truth for all wizard selections.
  *
  * IMPORTANT:
@@ -12,6 +12,13 @@
  *
  * Architecture Role:
  * Wizard UI → [wizardState] → Blueprint JSON → Backend
+ *
+ * 5-Step Wizard Structure:
+ * Step 1: Framework & Category (combined)
+ * Step 2: Pages & Layout (combined)
+ * Step 3: Theme & Styling (combined: theme + UI density + components)
+ * Step 4: Responsiveness & Interactions (combined)
+ * Step 5: Code Preferences & Output (combined)
  */
 
 import { reactive, computed, ComputedRef } from 'vue';
@@ -127,38 +134,26 @@ export interface WizardState {
   // Meta
   currentStep: number;
 
-  // Step 1: Framework
+  // Step 1: Framework & Category
   framework: Framework;
-
-  // Step 2: Category
   category: Category;
 
-  // Step 3: Pages
+  // Step 2: Pages & Layout
   pages: Page[];
-
-  // Step 4: Layout
   layout: LayoutConfig;
 
-  // Step 5: Theme
+  // Step 3: Theme & Styling (theme + UI + components)
   theme: ThemeConfig;
-
-  // Step 6: UI
   ui: UiConfig;
-
-  // Step 7: Components
   components: Component[];
   chartLibrary?: ChartLibrary; // Required if 'charts' in components
 
-  // Step 8: Interaction
+  // Step 4: Responsiveness & Interactions
+  responsiveness: ResponsivenessType;
   interaction: InteractionLevel;
 
-  // Step 9: Responsiveness
-  responsiveness: ResponsivenessType;
-
-  // Step 10: Code Style
+  // Step 5: Code Preferences & Output
   codeStyle: CodeStyle;
-
-  // Step 11: Output Intent
   outputIntent: OutputIntent;
 }
 
@@ -180,16 +175,12 @@ export interface WizardState {
 export const wizardState = reactive<WizardState>({
   currentStep: 1,
 
-  // Step 1
+  // Step 1: Framework & Category
   framework: 'tailwind',
-
-  // Step 2
   category: 'admin-dashboard',
 
-  // Step 3
+  // Step 2: Pages & Layout
   pages: ['login', 'dashboard'],
-
-  // Step 4
   layout: {
     navigation: 'sidebar',
     sidebarDefaultState: 'expanded',
@@ -197,34 +188,26 @@ export const wizardState = reactive<WizardState>({
     footer: 'minimal',
   },
 
-  // Step 5
+  // Step 3: Theme & Styling
   theme: {
     primary: '#3B82F6', // Blue-500
     secondary: '#6366F1', // Indigo-500
     mode: 'light',
     background: 'solid',
   },
-
-  // Step 6
   ui: {
     density: 'comfortable',
     borderRadius: 'rounded',
   },
-
-  // Step 7
   components: ['buttons', 'forms', 'cards', 'alerts'],
   chartLibrary: undefined,
 
-  // Step 8
+  // Step 4: Responsiveness & Interactions
+  responsiveness: 'fully-responsive',
   interaction: 'moderate',
 
-  // Step 9
-  responsiveness: 'fully-responsive',
-
-  // Step 10
+  // Step 5: Code Preferences & Output
   codeStyle: 'minimal',
-
-  // Step 11
   outputIntent: 'production',
 });
 
@@ -236,38 +219,33 @@ export const wizardState = reactive<WizardState>({
  * Check if current step is valid
  *
  * Each step has specific validation rules:
- * - Step 1: Framework must be selected (always valid, has default)
- * - Step 2: Category must be selected (always valid, has default)
- * - Step 3: At least one page must be selected
- * - Step 4: Layout must have all required fields
- * - Step 5: Theme colors must be valid hex codes
- * - Step 6: UI preferences must be set
- * - Step 7: At least one component must be selected
- * - Step 8-11: Always valid (single-select enums)
+ * - Step 1: Framework & Category (always valid, has defaults)
+ * - Step 2: Pages & Layout (at least one page, valid layout)
+ * - Step 3: Theme & Styling (valid colors, UI settings, at least one component)
+ * - Step 4: Responsiveness & Interactions (always valid, has defaults)
+ * - Step 5: Code Preferences & Output (always valid, has defaults)
  */
 export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
   switch (wizardState.currentStep) {
     case 1:
-      // Framework must be one of the enum values
-      return ['tailwind', 'bootstrap'].includes(wizardState.framework);
+      // Step 1: Framework & Category
+      return (
+        ['tailwind', 'bootstrap'].includes(wizardState.framework) &&
+        [
+          'admin-dashboard',
+          'company-profile',
+          'landing-page',
+          'saas-application',
+          'blog-content-site',
+        ].includes(wizardState.category)
+      );
 
     case 2:
-      // Category must be one of the enum values
-      return [
-        'admin-dashboard',
-        'company-profile',
-        'landing-page',
-        'saas-application',
-        'blog-content-site',
-      ].includes(wizardState.category);
-
-    case 3:
+      // Step 2: Pages & Layout
       // At least one page must be selected
-      return wizardState.pages.length > 0;
+      if (wizardState.pages.length === 0) return false;
 
-    case 4:
       // Layout must have navigation, breadcrumbs, footer
-      // If sidebar/hybrid, must have sidebarDefaultState
       const { navigation, sidebarDefaultState, breadcrumbs, footer } = wizardState.layout;
       const hasNavigation = ['sidebar', 'topbar', 'hybrid'].includes(navigation);
       const hasFooter = ['minimal', 'full'].includes(footer);
@@ -285,48 +263,46 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
 
       return hasNavigation && hasFooter && hasBreadcrumbs;
 
-    case 5:
-      // Theme colors must be valid hex codes
+    case 3:
+      // Step 3: Theme & Styling (theme + UI + components)
       const hexPattern = /^#[0-9A-Fa-f]{6}$/;
       const { primary, secondary, mode, background } = wizardState.theme;
-      return (
+      const { density, borderRadius } = wizardState.ui;
+
+      // Validate theme colors
+      const validTheme =
         hexPattern.test(primary) &&
         hexPattern.test(secondary) &&
         ['light', 'dark'].includes(mode) &&
-        ['solid', 'gradient'].includes(background)
-      );
+        ['solid', 'gradient'].includes(background);
 
-    case 6:
-      // UI preferences must be valid enum values
-      const { density, borderRadius } = wizardState.ui;
-      return (
+      // Validate UI preferences
+      const validUI =
         ['compact', 'comfortable', 'spacious'].includes(density) &&
-        ['sharp', 'rounded'].includes(borderRadius)
-      );
+        ['sharp', 'rounded'].includes(borderRadius);
 
-    case 7:
-      // At least one component must be selected
+      // Validate components
       if (wizardState.components.length === 0) return false;
       if (wizardState.components.includes('charts')) {
-        return !!wizardState.chartLibrary && ['chartjs', 'echarts'].includes(wizardState.chartLibrary);
+        const validChart = !!wizardState.chartLibrary && ['chartjs', 'echarts'].includes(wizardState.chartLibrary);
+        return validTheme && validUI && validChart;
       }
-      return true;
 
-    case 8:
-      // Interaction must be valid enum
-      return ['static', 'moderate', 'rich'].includes(wizardState.interaction);
+      return validTheme && validUI;
 
-    case 9:
-      // Responsiveness must be valid enum
-      return ['desktop-first', 'mobile-first', 'fully-responsive'].includes(wizardState.responsiveness);
+    case 4:
+      // Step 4: Responsiveness & Interactions
+      return (
+        ['desktop-first', 'mobile-first', 'fully-responsive'].includes(wizardState.responsiveness) &&
+        ['static', 'moderate', 'rich'].includes(wizardState.interaction)
+      );
 
-    case 10:
-      // Code style must be valid enum
-      return ['minimal', 'verbose', 'documented'].includes(wizardState.codeStyle);
-
-    case 11:
-      // Output intent must be valid enum
-      return ['mvp', 'production', 'design-system'].includes(wizardState.outputIntent);
+    case 5:
+      // Step 5: Code Preferences & Output
+      return (
+        ['minimal', 'verbose', 'documented'].includes(wizardState.codeStyle) &&
+        ['mvp', 'production', 'design-system'].includes(wizardState.outputIntent)
+      );
 
     default:
       return false;
@@ -337,7 +313,7 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
  * Check if wizard can proceed to next step
  */
 export const canProceedToNext: ComputedRef<boolean> = computed(() => {
-  return isCurrentStepValid.value && wizardState.currentStep < 11;
+  return isCurrentStepValid.value && wizardState.currentStep < 5;
 });
 
 /**
@@ -351,7 +327,7 @@ export const canGoBack: ComputedRef<boolean> = computed(() => {
  * Check if wizard is on final step
  */
 export const isLastStep: ComputedRef<boolean> = computed(() => {
-  return wizardState.currentStep === 11;
+  return wizardState.currentStep === 5;
 });
 
 /**
@@ -481,7 +457,7 @@ export function previousStep(): void {
  * Only allows jumping to completed steps or next step.
  */
 export function goToStep(step: number): void {
-  if (step >= 1 && step <= 11) {
+  if (step >= 1 && step <= 5) {
     wizardState.currentStep = step;
   }
 }
@@ -616,17 +592,11 @@ export function getPageLabel(page: Page): string {
  */
 export function getStepDescription(step: number): string {
   const descriptions: Record<number, string> = {
-    1: 'Choose your CSS framework foundation',
-    2: 'Select the primary use case for your template',
-    3: 'Pick the pages to include in your template',
-    4: 'Configure navigation and layout structure',
-    5: 'Define your color scheme and visual identity',
-    6: 'Set spacing density and border styles',
-    7: 'Select UI components to include',
-    8: 'Choose your animation and interaction level',
-    9: 'Define responsive design approach',
-    10: 'Set code style and verbosity preferences',
-    11: 'Choose output maturity level',
+    1: 'Choose your CSS framework and template category',
+    2: 'Select pages and configure layout structure',
+    3: 'Define theme, UI density, and components',
+    4: 'Configure responsiveness and interaction level',
+    5: 'Set code preferences and output intent',
   };
   return descriptions[step] || '';
 }
@@ -636,17 +606,11 @@ export function getStepDescription(step: number): string {
  */
 export function getStepTitle(step: number): string {
   const titles: Record<number, string> = {
-    1: 'Framework Selection',
-    2: 'Template Category',
-    3: 'Page Selection',
-    4: 'Layout & Navigation',
-    5: 'Theme & Visual Identity',
-    6: 'UI Density & Style',
-    7: 'Components',
-    8: 'Interaction Level',
-    9: 'Responsiveness',
-    10: 'Code Preferences',
-    11: 'Output Intent',
+    1: 'Framework & Category',
+    2: 'Pages & Layout',
+    3: 'Theme & Styling',
+    4: 'Responsiveness & Interactions',
+    5: 'Code Preferences & Output',
   };
   return titles[step] || '';
 }

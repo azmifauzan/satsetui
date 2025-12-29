@@ -38,26 +38,55 @@ This repository implements a **wizard-driven frontend template generator**. It i
 
 ## Wizard Structure
 
-The wizard has exactly 11 steps. When generating code related to wizard logic, use this structure:
+The wizard has exactly 5 steps. When generating code related to wizard logic, use this structure:
 
-1. Framework Selection
-2. Template Category
-3. Page Selection
-4. Layout & Navigation
-5. Theme & Visual Identity
-6. UI Density & Style
-7. Components
-8. Interaction Level
-9. Responsiveness
-10. Code Preferences
-11. Output Intent
+1. **Framework & Category** (combined) - Select CSS framework (Tailwind/Bootstrap) and template category
+2. **Pages & Layout** (combined) - Choose pages and configure navigation/layout
+3. **Theme & Styling** (combined) - Visual identity, UI density, and component preferences
+4. **Responsiveness & Interactions** (combined) - Responsive breakpoints and interaction level
+5. **Code Preferences & Output** (combined) - Code style, naming conventions, and output format
 
 See `/docs/product-instruction.md` for complete wizard specification.
 
 ## Platform Requirements (Non-Wizard)
 
-- **Bilingual UI**: Bahasa Indonesia + English. All UI strings must be translatable (no hardcoded user-facing text).
-- **Theme**: Generator UI supports dark/light.
+### CRITICAL: Always Implement These Features
+
+#### 1. Bilingual UI (Indonesian + English)
+- **MANDATORY**: ALL user-facing strings MUST use the i18n system (`@/lib/i18n.ts`)
+- **DEFAULT LANGUAGE**: Indonesian (`id`) - All pages must default to Indonesian language
+- **NEVER hardcode** text directly in components
+- **Usage**: `const { t } = useI18n()` then access via `t.value.wizard.title`
+- **New translations**: Add to both `id` and `en` objects in `i18n.ts`
+- **Validation**: Every PR must have translations for both languages
+- **Components must**:
+  - Import `useI18n` from `@/lib/i18n`
+  - Use `t.value.section.key` for all user-facing text
+  - Never use literal strings like "Save", "Cancel" - always use `t.value.common.save`
+  - Set default language to `id` (Indonesian) in all new components
+
+#### 2. Theme Support (Dark/Light)
+- **MANDATORY**: ALL components MUST support dark mode
+- **DEFAULT THEME**: Light mode - All pages must default to light theme
+- **Tailwind classes**: ALWAYS provide dark variants (e.g., `bg-white dark:bg-slate-800`)
+- **Usage**: `const { theme, toggleTheme, isDark } = useTheme()`
+- **Persistence**: Theme preference saved to localStorage
+- **System preference**: If no preference set, default to 'light' theme (NOT system preference)
+- **Components must**:
+  - Import `useTheme` from `@/lib/theme` if needed
+  - Use Tailwind dark: variants for ALL styling
+  - Never use inline styles that don't respect theme
+  - Test in both light and dark modes
+  - Initialize with light theme as default
+
+#### 3. User Layout Integration
+- **Wizard pages**: Must use `AppLayout.vue` wrapper
+- **Authenticated pages**: Always wrap with `<AppLayout>`
+- **Sidebar navigation**: Integrated in AppLayout
+- **Language switcher**: Available in AppLayout header
+- **Theme toggle**: Available in AppLayout header
+
+### Other Platform Requirements
 - **Membership**:
     - Free uses Gemini Flash (no model choice)
     - Premium can choose admin-defined models
@@ -122,6 +151,16 @@ Never generate MCPs that:
 - **Unit Tests**: Test pure functions and service logic.
 - **Feature Tests**: Test wizard flow, blueprint generation, MCP assembly.
 - **No Integration Tests**: Don't test LLM output quality (not deterministic).
+- **MANDATORY**: After completing any code implementation, ALWAYS:
+  1. Create corresponding test cases (Unit or Feature tests)
+  2. Run the tests using `php artisan test` (for PHP) or `npm run test` (for JS/TS)
+  3. Ensure all tests pass before considering the task complete
+  4. Fix any failing tests immediately
+- **Test Coverage Requirements**:
+  - Every new Controller method must have a Feature test
+  - Every new Service method must have a Unit test
+  - Every new Vue component with business logic must have a Vitest test
+  - Tests must cover both success and error scenarios
 
 ## File Organization
 
@@ -153,13 +192,16 @@ docs/
 
 ### DO
 
-- ✅ Reference wizard step numbers explicitly (e.g., "Step 3: Page Selection")
+- ✅ Reference wizard step numbers explicitly (e.g., "Step 2: Pages & Layout")
 - ✅ Validate against blueprint schema
 - ✅ Generate deterministic MCP prompts
 - ✅ Add reasoning comments in McpPromptBuilder
 - ✅ Create strongly-typed TypeScript interfaces
 - ✅ Follow Laravel best practices (Service layer, Form Requests)
 - ✅ Use Tailwind/Bootstrap utility classes appropriately
+- ✅ **ALWAYS implement bilingual support** using `useI18n()` - no hardcoded strings
+- ✅ **ALWAYS add dark mode support** using Tailwind `dark:` variants
+- ✅ **ALWAYS wrap authenticated pages** with `AppLayout.vue`
 
 ### DO NOT
 
@@ -167,6 +209,9 @@ docs/
 - ❌ Recommend AI-powered design suggestions
 - ❌ Add "smart defaults" that change based on context
 - ❌ Propose drag-and-drop UI builders
+- ❌ **NEVER hardcode user-facing text** - always use i18n
+- ❌ **NEVER omit dark mode variants** - all styling must support dark theme
+- ❌ **NEVER create authenticated pages without AppLayout** wrapper
 - ❌ Mix presentation and business logic
 - ❌ Use inline styles instead of CSS framework utilities
 - ❌ Generate code that requires manual LLM review
@@ -199,7 +244,7 @@ docs/
 **Correct Response**:
 - Explain that deterministic output is a core requirement
 - Suggest adding more wizard options for controlled variation
-- Reference Output Intent step (Step 11) for style preferences
+- Reference Output Intent step (Step 5) for style preferences
 
 ## Testing Strategy
 

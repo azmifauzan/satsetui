@@ -85,28 +85,28 @@ const t = computed(() => {
 
 const statCards = computed(() => [
   {
-    title: t.value.totalTemplates,
+    title: t.totalTemplates || 'Total Templates',
     value: props.stats.total_templates,
     icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z',
     color: 'blue' as const,
     trend: { value: 0, isPositive: true }
   },
   {
-    title: t.value.thisMonth,
+    title: t.thisMonth || 'This Month',
     value: props.stats.templates_this_month,
     icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     color: 'green' as const,
     trend: { value: 0, isPositive: true }
   },
   {
-    title: t.value.credits,
+    title: t.credits || 'Credits',
     value: props.stats.credits_remaining,
     icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'purple' as const
   },
   {
-    title: t.value.lastGenerated,
-    value: props.stats.last_generated || t.value.never,
+    title: t.lastGenerated || 'Last Generated',
+    value: props.stats.last_generated || t.never || 'Never',
     icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'orange' as const
   }
@@ -114,22 +114,22 @@ const statCards = computed(() => [
 
 const quickActions = computed(() => [
   {
-    title: t.value.newTemplate,
-    description: t.value.newTemplateDesc,
+    title: t.newTemplate || 'New Template',
+    description: t.newTemplateDesc || 'Start wizard to create new template',
     icon: 'M12 4v16m8-8H4',
     color: 'blue',
     href: '/wizard'
   },
   {
-    title: t.value.browseTemplates,
-    description: t.value.browseTemplatesDesc,
+    title: t.browseTemplates || 'Browse Templates',
+    description: t.browseTemplatesDesc || 'View and manage your templates',
     icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
     color: 'green',
     href: '#'
   },
   {
-    title: t.value.documentation,
-    description: t.value.documentationDesc,
+    title: t.documentation || 'Documentation',
+    description: t.documentationDesc || 'Learn how to use the generator',
     icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
     color: 'purple',
     href: '#'
@@ -252,3 +252,7 @@ const quickActions = computed(() => [
     </Card>
   </AppLayout>
 </template>
+
+
+
+

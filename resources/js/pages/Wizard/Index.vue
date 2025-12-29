@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import WizardLayout from '@/wizard/WizardLayout.vue';
+import WizardNavigation from '@/wizard/WizardNavigation.vue';
+import { wizardState, blueprintJSON } from '@/wizard/wizardState';
+import { useI18n } from '@/lib/i18n';
 
 interface Props {
   auth?: {
@@ -11,59 +17,139 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const { t } = useI18n();
 
-const logout = () => {
-  router.post('/logout');
-};
+const isGenerating = ref(false);
+const showBlueprintPreview = ref(false);
+const generationError = ref<string | null>(null);
+
+async function handleGenerate() {
+  isGenerating.value = true;
+  generationError.value = null;
+  
+  try {
+    const blueprint = blueprintJSON.value;
+    
+    console.log('Submitting Blueprint:', blueprint);
+    
+    // Submit to backend API
+    router.post('/generation/generate', 
+      { 
+        blueprint,
+        project_name: `Template ${new Date().toLocaleString()}`
+      },
+      {
+        onSuccess: (page) => {
+          console.log('Generation started successfully');
+        },
+        onError: (errors) => {
+          console.error('Generation failed:', errors);
+          generationError.value = errors.error || 'Failed to generate template. Please try again.';
+          isGenerating.value = false;
+        },
+      }
+    );
+    
+  } catch (error) {
+    console.error('Generation exception:', error);
+    generationError.value = 'An unexpected error occurred. Please try again.';
+    isGenerating.value = false;
+  }
+}
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-slate-900">
-    <Head title="Wizard - Template Generator" />
+  <AppLayout>
+    <Head :title="t.wizard?.title || 'Template Wizard'" />
     
-    <!-- Header -->
-    <header class="bg-white dark:bg-slate-800 shadow">
-      <div class="container mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" class="flex items-center space-x-2">
-          <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-            </svg>
+    <div class="relative">
+      <!-- Blueprint Preview Toggle Button (Fixed) -->
+      <button
+        @click="showBlueprintPreview = !showBlueprintPreview"
+        class="fixed top-20 right-6 z-30 px-4 py-2 bg-slate-900 dark:bg-slate-700 text-white rounded-lg shadow-lg hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors text-sm font-medium"
+      >
+        {{ showBlueprintPreview ? (t.wizard?.hideBlueprint || 'Hide Blueprint') : (t.wizard?.showBlueprint || 'Show Blueprint') }}
+      </button>
+
+      <!-- Blueprint Preview Sidebar -->
+      <div
+        v-if="showBlueprintPreview"
+        class="fixed right-0 top-16 bottom-0 w-96 bg-slate-900 dark:bg-slate-950 border-l border-slate-700 dark:border-slate-800 z-20 overflow-auto shadow-2xl"
+      >
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-white">{{ t.wizard?.blueprintPreview || 'Blueprint Preview' }}</h3>
+            <button
+              @click="showBlueprintPreview = false"
+              class="p-1 hover:bg-slate-800 dark:hover:bg-slate-900 rounded transition-colors"
+            >
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <span class="text-xl font-bold text-slate-900 dark:text-white">Template<span class="text-blue-600">Gen</span></span>
-        </Link>
-        
-        <div v-if="props.auth?.user" class="flex items-center space-x-4">
-          <span class="text-slate-600 dark:text-slate-300">{{ props.auth.user.name }}</span>
-          <button 
-            @click="logout"
-            class="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          <pre class="text-xs text-green-400 font-mono whitespace-pre-wrap break-words bg-slate-950 dark:bg-black p-4 rounded-lg overflow-auto">{{ JSON.stringify(blueprintJSON, null, 2) }}</pre>
+        </div>
+      </div>
+      
+      <!-- Main Content -->
+      <div :class="['transition-all duration-300', showBlueprintPreview ? 'mr-96' : 'mr-0']">
+        <WizardLayout
+          :title="t.wizard?.title || 'Template Wizard'"
+          :description="t.wizard?.description || 'Create your custom frontend template'"
+          @submit="handleGenerate"
+        />
+
+        <!-- Navigation Footer -->
+        <WizardNavigation @submit="handleGenerate" />
+      </div>
+
+      <!-- Loading Overlay -->
+      <div
+        v-if="isGenerating"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+      >
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-8 shadow-2xl max-w-md">
+          <div class="flex flex-col items-center">
+            <div class="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">
+              {{ t.wizard?.generating || 'Generating Template...' }}
+            </h3>
+            <p class="text-slate-600 dark:text-slate-400 text-center">
+              {{ t.wizard?.generatingDescription || 'Please wait while we generate your template' }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Alert -->
+      <div
+        v-if="generationError"
+        class="fixed bottom-6 right-6 z-50 max-w-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-lg"
+      >
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+          <div class="flex-1">
+            <h4 class="font-medium text-red-900 dark:text-red-200">Generation Failed</h4>
+            <p class="text-sm text-red-700 dark:text-red-300 mt-1">{{ generationError }}</p>
+          </div>
+          <button
+            @click="generationError = null"
+            class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
           >
-            Logout
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
       </div>
-    </header>
-    
-    <div class="container mx-auto px-4 py-20 text-center">
-      <h1 class="text-4xl font-bold text-slate-900 dark:text-white mb-4">
-        Template Wizard
-      </h1>
-      <p class="text-lg text-slate-600 dark:text-slate-300 mb-8">
-        Wizard page coming soon...
-      </p>
-      <p v-if="props.auth?.user" class="text-slate-500 dark:text-slate-400 mb-8">
-        Selamat datang, <strong>{{ props.auth.user.name }}</strong>!
-      </p>
-      <Link 
-        href="/" 
-        class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-      >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Kembali ke Beranda
-      </Link>
     </div>
-  </div>
+  </AppLayout>
 </template>
+
+
+
+
+

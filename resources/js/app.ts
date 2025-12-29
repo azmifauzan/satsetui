@@ -4,8 +4,14 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
+import { initLanguage } from './lib/i18n';
+import { initTheme } from './lib/theme';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+// Initialize language and theme before app creation
+initLanguage();
+initTheme();
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

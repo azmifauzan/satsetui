@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
+import { useI18n } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme';
 
 interface User {
   id: number;
@@ -11,10 +13,11 @@ interface User {
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user as User);
+const { t, currentLang, setLang } = useI18n();
+const { toggleTheme, isDark } = useTheme();
 
 const sidebarOpen = ref(true);
 const userMenuOpen = ref(false);
-const currentLang = ref(user.value?.language || 'id');
 
 const logout = () => {
   router.post('/logout');
@@ -25,7 +28,7 @@ const toggleSidebar = () => {
 };
 
 const changeLanguage = (lang: 'id' | 'en') => {
-  currentLang.value = lang;
+  setLang(lang);
   router.post('/language', { language: lang }, {
     preserveScroll: true,
     onSuccess: () => {
@@ -34,23 +37,9 @@ const changeLanguage = (lang: 'id' | 'en') => {
   });
 };
 
-const t = computed(() => {
-  return currentLang.value === 'id' ? {
-    dashboard: 'Dashboard',
-    wizard: 'Wizard',
-    profile: 'Profil',
-    logout: 'Keluar',
-  } : {
-    dashboard: 'Dashboard',
-    wizard: 'Wizard',
-    profile: 'Profile',
-    logout: 'Logout',
-  };
-});
-
 const navigation = computed(() => [
-  { name: t.value.dashboard, href: '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', current: page.url === '/dashboard' },
-  { name: t.value.wizard, href: '/wizard', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z', current: page.url === '/wizard' },
+  { name: t.value?.nav?.dashboard || 'Dashboard', href: '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', current: page.url === '/dashboard' },
+  { name: t.value?.nav?.wizard || 'Wizard', href: '/wizard', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z', current: page.url === '/wizard' },
 ]);
 </script>
 
@@ -146,8 +135,15 @@ const navigation = computed(() => [
             </div>
 
             <!-- Theme Toggle -->
-            <button class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button
+              @click="toggleTheme"
+              class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              :title="isDark ? (t.theme?.light || 'Light Mode') : (t.theme?.dark || 'Dark Mode')"
+            >
+              <svg v-if="isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             </button>
@@ -187,19 +183,19 @@ const navigation = computed(() => [
                   <p class="text-sm font-medium text-slate-900 dark:text-white">{{ user?.name }}</p>
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ user?.email }}</p>
                 </div>
-                
+
                 <Link href="/dashboard" class="flex items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                   <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
-                  {{ t.dashboard }}
+                  {{ t.nav?.dashboard || 'Dashboard' }}
                 </Link>
 
                 <Link href="/profile" class="flex items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                   <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  {{ t.profile }}
+                  {{ t.nav?.profile || 'Profile' }}
                 </Link>
 
                 <div class="border-t border-slate-200 dark:border-slate-700 my-2"></div>
@@ -211,7 +207,7 @@ const navigation = computed(() => [
                   <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
-                  {{ t.logout }}
+                  {{ t.nav?.logout || 'Logout' }}
                 </button>
               </div>
             </div>
@@ -233,3 +229,7 @@ const navigation = computed(() => [
     ></div>
   </div>
 </template>
+
+
+
+
