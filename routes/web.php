@@ -43,11 +43,33 @@ Route::middleware('auth')->group(function () {
     Route::post('/generation/{generation}/next', [App\Http\Controllers\GenerationController::class, 'generateNext'])
         ->name('generation.next');
     
+    Route::post('/generation/{generation}/background', [App\Http\Controllers\GenerationController::class, 'continueInBackground'])
+        ->name('generation.background');
+    
     Route::get('/generation/{generation}/progress', [App\Http\Controllers\GenerationController::class, 'progress'])
         ->name('generation.progress');
     
     Route::post('/generation/{generation}/refine', [App\Http\Controllers\GenerationController::class, 'refine'])
         ->name('generation.refine');
+    
+    // Templates list
+    Route::get('/templates', [App\Http\Controllers\TemplateController::class, 'index'])
+        ->name('templates.index');
+
+    // Admin Statistics (TODO: add admin middleware)
+    Route::prefix('admin')->name('admin.')->group(function () {
+        Route::get('/statistics', [App\Http\Controllers\AdminStatisticsController::class, 'index'])
+            ->name('statistics.index');
+        
+        Route::get('/statistics/costs', [App\Http\Controllers\AdminStatisticsController::class, 'costs'])
+            ->name('statistics.costs');
+        
+        Route::get('/statistics/credits', [App\Http\Controllers\AdminStatisticsController::class, 'credits'])
+            ->name('statistics.credits');
+        
+        Route::get('/statistics/failures', [App\Http\Controllers\AdminStatisticsController::class, 'failures'])
+            ->name('statistics.failures');
+    });
 
     Route::post('/language', [App\Http\Controllers\LanguageController::class, 'update'])
         ->name('language.update');

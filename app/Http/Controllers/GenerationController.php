@@ -78,10 +78,67 @@ class GenerationController extends Controller
             
             return response()->json($result);
 
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            \Log::error('Generation connection error', [
+                'generation_id' => $generation->id,
+                'error' => $e->getMessage(),
+            ]);
+            
             return response()->json([
                 'success' => false,
+                'error' => 'Unable to connect to LLM service. Please check your API configuration.',
+            ], 503);
+            
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            \Log::error('Generation request error', [
+                'generation_id' => $generation->id,
                 'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'LLM request failed: ' . ($e->response?->body() ?? $e->getMessage()),
+            ], 500);
+            
+        } catch (\Exception $e) {
+            \Log::error('Generation exception', [
+                'generation_id' => $generation->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'An error occurred during generation: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Continue generation in background
+     */
+    public function continueInBackground(Generation $generation)
+    {
+        $this->authorize('view', $generation);
+
+        try {
+            // Dispatch job to queue
+            \App\Jobs\ProcessTemplateGeneration::dispatch($generation);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Generation will continue in background. You will be notified when completed.',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to queue background generation', [
+                'generation_id' => $generation->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to queue background generation: ' . $e->getMessage(),
             ], 500);
         }
     }

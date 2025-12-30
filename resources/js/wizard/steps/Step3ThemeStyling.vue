@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { wizardState, ThemeMode, BackgroundStyle, UiDensity, BorderRadius, Component, ChartLibrary, shouldShowChartLibrary, syncChartLibrary } from '../wizardState';
-import { watch, computed } from 'vue';
+import { wizardState, ThemeMode, BackgroundStyle, UiDensity, BorderRadius, Component, PredefinedComponent, ChartLibrary, shouldShowChartLibrary, syncChartLibrary, addCustomComponent, removeCustomComponent, totalComponentsCount, MAX_BASE_COMPONENTS, extraComponentCredits } from '../wizardState';
+import { watch, computed, ref } from 'vue';
 import { useI18n } from '@/lib/i18n';
 
 const { t } = useI18n();
+
+// Custom component input state
+const showAddComponentForm = ref(false);
+const newComponentName = ref('');
+const newComponentDescription = ref('');
 
 const presetColors = [
   { name: 'Blue', value: '#3B82F6' },
@@ -65,6 +70,20 @@ function toggleComponent(component: Component) {
 
 function isSelected(component: Component): boolean {
   return wizardState.components.includes(component);
+}
+
+// Custom component functions
+function handleAddCustomComponent() {
+  if (newComponentName.value.trim().length >= 2 && newComponentDescription.value.trim().length >= 5) {
+    addCustomComponent(newComponentName.value, newComponentDescription.value);
+    newComponentName.value = '';
+    newComponentDescription.value = '';
+    showAddComponentForm.value = false;
+  }
+}
+
+function handleRemoveCustomComponent(id: string) {
+  removeCustomComponent(id);
 }
 
 watch(() => wizardState.components, () => {
@@ -464,18 +483,110 @@ watch(() => wizardState.components, () => {
       </div>
 
       <!-- Validation Message -->
-      <div v-if="wizardState.components.length === 0" class="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+      <div v-if="wizardState.components.length === 0 && wizardState.customComponents.length === 0" class="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
         <p class="text-yellow-800 dark:text-yellow-200 text-sm">
-          ⚠️ Silakan pilih minimal satu komponen untuk melanjutkan
+          ⚠️ {{ t.wizard?.steps?.components?.selectAtLeastOne || 'Silakan pilih minimal satu komponen untuk melanjutkan' }}
         </p>
       </div>
       <div v-else-if="shouldShowChartLibrary && !wizardState.chartLibrary" class="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
         <p class="text-yellow-800 dark:text-yellow-200 text-sm">
-          ⚠️ Silakan pilih library chart karena Anda telah memilih untuk menyertakan charts
+          ⚠️ {{ t.wizard?.steps?.components?.chartLibraryRequired || 'Silakan pilih library chart karena Anda telah memilih untuk menyertakan charts' }}
         </p>
       </div>
       <div v-else class="text-sm text-slate-600 dark:text-slate-400">
-        Dipilih: <strong>{{ wizardState.components.length }}</strong> komponen
+        {{ t.wizard?.steps?.components?.selectedCount || 'Dipilih' }}: <strong>{{ totalComponentsCount }}</strong> {{ t.wizard?.steps?.components?.componentsLabel || 'komponen' }}
+        <span v-if="totalComponentsCount > MAX_BASE_COMPONENTS" class="ml-2 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded text-xs">
+          +{{ extraComponentCredits }} {{ t.common?.credits || 'kredit' }} {{ t.wizard?.steps?.components?.extraCredits || '(komponen tambahan)' }}
+        </span>
+      </div>
+
+      <!-- Custom Components Section -->
+      <div class="pt-6 border-t border-slate-200 dark:border-slate-700">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ t.wizard?.steps?.components?.customTitle || 'Komponen Kustom' }}
+            </h3>
+            <p class="text-sm text-slate-600 dark:text-slate-400">
+              {{ t.wizard?.steps?.components?.customDesc || 'Tambahkan komponen khusus yang tidak tersedia di pilihan standar' }}
+            </p>
+          </div>
+          <button
+            @click="showAddComponentForm = !showAddComponentForm"
+            class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors text-sm font-medium flex items-center gap-2"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            {{ t.wizard?.steps?.components?.addCustom || 'Tambah Komponen' }}
+          </button>
+        </div>
+
+        <!-- Add Custom Component Form -->
+        <div v-if="showAddComponentForm" class="mb-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600">
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ t.wizard?.steps?.components?.customName || 'Nama Komponen' }} *
+              </label>
+              <input
+                v-model="newComponentName"
+                type="text"
+                :placeholder="t.wizard?.steps?.components?.customNamePlaceholder || 'Contoh: DataTable, FileUploader, DateRangePicker'"
+                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                {{ t.wizard?.steps?.components?.customDescLabel || 'Deskripsi Komponen' }} *
+              </label>
+              <textarea
+                v-model="newComponentDescription"
+                rows="2"
+                :placeholder="t.wizard?.steps?.components?.customDescPlaceholder || 'Jelaskan fungsionalitas dan fitur komponen ini'"
+                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500 resize-none"
+              ></textarea>
+            </div>
+            <div class="flex gap-2">
+              <button
+                @click="handleAddCustomComponent"
+                :disabled="newComponentName.trim().length < 2 || newComponentDescription.trim().length < 5"
+                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {{ t.common?.save || 'Simpan' }}
+              </button>
+              <button
+                @click="showAddComponentForm = false; newComponentName = ''; newComponentDescription = ''"
+                class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 text-sm font-medium"
+              >
+                {{ t.common?.cancel || 'Batal' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Components List -->
+        <div v-if="wizardState.customComponents.length > 0" class="space-y-2">
+          <div
+            v-for="component in wizardState.customComponents"
+            :key="component.id"
+            class="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800"
+          >
+            <div>
+              <span class="font-medium text-purple-900 dark:text-purple-100">{{ component.name }}</span>
+              <span class="ml-2 px-2 py-0.5 text-xs bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded">{{ t.wizard?.steps?.components?.customLabel || 'Kustom' }}</span>
+              <p class="text-sm text-purple-600 dark:text-purple-300 mt-1">{{ component.description }}</p>
+            </div>
+            <button
+              @click="handleRemoveCustomComponent(component.id)"
+              class="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

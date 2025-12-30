@@ -32,12 +32,20 @@ class OpenAICompatibleService
     public function generateTemplate(string $prompt, string $modelName): array
     {
         try {
-            $response = Http::timeout(180)
+            $http = Http::timeout(300)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                     'Authorization' => "Bearer {$this->apiKey}",
-                ])
-                ->post("{$this->baseUrl}/chat/completions", [
+                ]);
+            
+            // Disable SSL verification for development environment only
+            if (config('app.env') !== 'production') {
+                $http = $http->withOptions([
+                    'verify' => false,
+                ]);
+            }
+            
+            $response = $http->post("{$this->baseUrl}/chat/completions", [
                     'model' => $modelName,
                     'messages' => [
                         [
@@ -46,7 +54,7 @@ class OpenAICompatibleService
                         ],
                     ],
                     'max_tokens' => 60000,
-                    'temperature' => 0.7,
+                    'temperature' => 1.0,
                 ]);
 
             if ($response->failed()) {
@@ -88,6 +96,18 @@ class OpenAICompatibleService
                     'output_tokens' => $usage['completion_tokens'] ?? 0,
                     'total_tokens' => $usage['total_tokens'] ?? 0,
                 ],
+                'raw_request' => json_encode([
+                    'model' => $modelName,
+                    'messages' => [
+                        [
+                            'role' => 'user',
+                            'content' => $prompt,
+                        ],
+                    ],
+                    'max_tokens' => 60000,
+                    'temperature' => 1.0,
+                ]),
+                'raw_response' => $response->body(),
             ];
 
         } catch (\Exception $e) {

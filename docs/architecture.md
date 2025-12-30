@@ -18,8 +18,10 @@ This repository also includes platform capabilities around generation:
 - Bilingual UI (Bahasa Indonesia + English)
 - Generator UI dark/light theme
 - Free vs Premium membership tiers
-- Premium credit billing with configurable markup
+- Premium credit billing with configurable margins
 - Admin panel for statistics and configuration
+- Per-page generation with history recording
+- Custom page tracking for future wizard enhancements
 
 ---
 
@@ -29,7 +31,7 @@ This repository also includes platform capabilities around generation:
 
 - **Framework**: Laravel 12.x
 - **PHP Version**: 8.2+
-- **Database**: MySQL/PostgreSQL (for storing Blueprints, Projects)
+- **Database**: MySQL/PostgreSQL (for storing Blueprints, Projects, Generation History)
 - **Validation**: Form Requests, JSON Schema validation
 - **Testing**: Pest
 
@@ -43,7 +45,7 @@ This repository also includes platform capabilities around generation:
 - **Build Tool**: Vite
 - **State Management**: Reactive state (wizardState.ts)
 - **Routing**: Handled by Inertia.js (Laravel-driven)
-- **UI Framework**: Tailwind CSS for the generator UI; generated templates support Tailwind CSS or Bootstrap
+- **UI Framework**: Tailwind CSS for the generator UI; generated templates support Tailwind CSS, Bootstrap, or Pure CSS
 
 ### External Services
 
@@ -58,8 +60,8 @@ This repository also includes platform capabilities around generation:
 ### Platform Concerns (Non-Template)
 
 - **Internationalization (i18n)**: Indonesian + English for the generator UI
-- **Billing**: Premium credits + cost accounting per generation
-- **Admin**: Configuration (available models, markup) + statistics
+- **Billing**: Premium credits + cost accounting per generation with margins
+- **Admin**: Configuration (available models, error margin, profit margin) + statistics + custom page tracking
 
 ---
 
@@ -71,80 +73,111 @@ This repository also includes platform capabilities around generation:
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. USER INTERACTION (Vue.js Frontend)                       │
 │                                                              │
-│  Wizard UI (11 steps)                                       │
-│  - Step components capture structured inputs                │
+│  Wizard UI (3 steps)                                        │
+│  - Step 1: Framework, Category & Output Format              │
+│  - Step 2: Visual Design & Content (Pages, Layout, Theme,   │
+│            UI, Components)                                   │
+│  - Step 3: LLM Model Selection                              │
 │  - wizardState.ts holds reactive state                      │
 │  - Validation happens client-side (UX)                      │
-│  - Submit triggers Inertia.js POST                          │
+│  - Submit triggers POST via axios                           │
 └──────────────────────┬───────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. LARAVEL BACKEND (Validation & Persistence)               │
 │                                                              │
-│  Route: POST /api/blueprint                                 │
-│  Controller: BlueprintController@store                      │
+│  Route: POST /generation/generate                           │
+│  Controller: GenerationController@generate                  │
 │  ├─ Form Request validates structure                        │
 │  ├─ JSON Schema validator confirms blueprint format         │
+│  ├─ Record custom pages to statistics table                 │
 │  ├─ Store Blueprint model (database)                        │
 │  └─ Return Blueprint ID + validated data                    │
 └──────────────────────┬───────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. MCP PROMPT BUILDER (Core Logic)                          │
+│ 3. PER-PAGE GENERATION LOOP                                 │
 │                                                              │
-│  Service: McpPromptBuilder::buildFromBlueprint()            │
-│  ├─ Load Blueprint JSON                                     │
-│  ├─ Assemble prompt sections:                               │
-│  │   ├─ ROLE: Define LLM expertise                          │
-│  │   ├─ CONTEXT: Framework, category, pages                 │
-│  │   ├─ CONSTRAINTS: Technology limits, no decisions        │
-│  │   ├─ REQUIREMENTS: Layout, theme, components             │
-│  │   ├─ CODE STYLE: Based on Step 10 preferences            │
-│  │   └─ OUTPUT FORMAT: File structure, naming conventions   │
-│  └─ Return deterministic MCP string                         │
+│  For each page in blueprint.pages + blueprint.customPages:  │
+│  ├─ Build page-specific MCP prompt                          │
+│  ├─ Call LLM API                                            │
+│  ├─ Record prompt + response to history                     │
+│  ├─ Update generation progress                              │
+│  └─ Continue to next page or handle error                   │
 └──────────────────────┬───────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. MODEL SELECTION + BILLING (Platform Logic)               │
+│ 4. MCP PROMPT BUILDER (Core Logic - Per Page)               │
+│                                                              │
+│  Service: McpPromptBuilder::buildForPage()                  │
+│  ├─ Load Blueprint JSON                                     │
+│  ├─ Assemble prompt sections:                               │
+│  │   ├─ ROLE: Define LLM expertise                          │
+│  │   ├─ CONTEXT: Framework, category, output format         │
+│  │   ├─ CONSTRAINTS: Technology limits, no decisions        │
+│  │   ├─ REQUIREMENTS: Layout, theme, components             │
+│  │   ├─ PAGE-SPECIFIC: Current page requirements            │
+│  │   └─ OUTPUT FORMAT: Single file structure                │
+│  └─ Return deterministic MCP string for single page         │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. MODEL SELECTION + BILLING (Platform Logic)               │
 │                                                              │
 │  Service: ModelSelector + BillingCalculator                  │
 │  ├─ Determine membership tier (free/premium)                 │
-│  ├─ Free: force Gemini Flash                                 │
+│  ├─ Free: force Gemini 2.5 Flash                            │
 │  ├─ Premium: allow admin-defined model choices               │
-│  ├─ Estimate base cost (tokens * admin price)                │
-│  ├─ Apply markup percentage (admin setting)                  │
+│  ├─ Calculate base cost (model + extras)                     │
+│  ├─ Apply error margin (default 10%, admin configurable)     │
+│  ├─ Apply profit margin (default 5%, admin configurable)     │
 │  ├─ Validate premium credit balance                          │
 │  └─ Reserve/charge credits atomically                        │
 └──────────────────────┬───────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. LLM API CALL (External Service)                          │
+│ 6. LLM API CALL (External Service - Per Page)               │
 │                                                              │
-│  Service: LlmService::generate()                            │
-│  ├─ Send MCP prompt to configured LLM                       │
-│  ├─ Parse response (code blocks, file structure)            │
+│  Service: LlmService::generatePage()                        │
+│  ├─ Send page-specific MCP prompt to configured LLM         │
+│  ├─ Parse response (single page code)                       │
+│  ├─ Record token usage (input + output)                     │
 │  ├─ Validate output format                                  │
 │  └─ Return structured code result                           │
 └──────────────────────┬───────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 6. CODE STORAGE & PROCESSING                                │
+│ 7. HISTORY RECORDING (Per Page)                             │
 │                                                              │
-│  Service: TemplateProcessor::process()                      │
-│  ├─ Extract individual files from LLM response              │
-│  ├─ Store in filesystem (storage/templates/{blueprint_id})  │
-│  ├─ Update Blueprint model with file references             │
-│  └─ Generate preview metadata                               │
+│  Service: GenerationHistoryService::recordPage()            │
+│  ├─ Store MCP prompt sent                                   │
+│  ├─ Store raw LLM response                                  │
+│  ├─ Store token usage (input/output)                        │
+│  ├─ Store processing time                                   │
+│  ├─ Store success/failure status                            │
+│  └─ Update credit estimation learning data                  │
 └──────────────────────┬───────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 7. PREVIEW RENDERER (Vue.js Frontend)                       │
+│ 8. CODE STORAGE & PROCESSING                                │
+│                                                              │
+│  Service: TemplateProcessor::processPage()                  │
+│  ├─ Extract file from LLM response                          │
+│  ├─ Store in filesystem (storage/templates/{gen_id}/{page}) │
+│  ├─ Update Generation model with file reference             │
+│  └─ Continue to next page or finalize                       │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 9. PREVIEW RENDERER (Vue.js Frontend)                       │
 │                                                              │
 │  Component: TemplatePreview.vue                             │
 │  ├─ Fetch generated files via API                           │
@@ -164,8 +197,9 @@ This repository also includes platform capabilities around generation:
 
 **Controllers** (Thin, orchestration only)
 - `BlueprintController`: CRUD for blueprints
-- `TemplateController`: Generate, preview, download templates
+- `GenerationController`: Generate templates, progress tracking
 - `WizardController`: Serve wizard UI (Inertia)
+- `AdminController`: Statistics and configuration
 
 **Form Requests** (Validation)
 - `StoreBlueprintRequest`: Validates wizard inputs against rules
@@ -173,7 +207,8 @@ This repository also includes platform capabilities around generation:
 
 **API Resources** (Response formatting)
 - `BlueprintResource`: Format blueprint JSON for frontend
-- `TemplateResource`: Format generated template metadata
+- `GenerationResource`: Format generation metadata
+- `PageGenerationResource`: Format per-page generation history
 
 #### 2. Service Layer (Business Logic)
 
@@ -181,11 +216,24 @@ This repository also includes platform capabilities around generation:
 ```php
 class McpPromptBuilder
 {
-    public function buildFromBlueprint(array $blueprint): string
+    /**
+     * Build deterministic MCP prompt for a single page
+     * Auto-applies best defaults: interaction=moderate, 
+     * responsiveness=fully-responsive, codeStyle=documented
+     */
+    public function buildForPage(array $blueprint, string $pageName): string
     {
-        // Assembles deterministic MCP prompt
+        // Assembles deterministic MCP prompt for ONE page
         // No randomness, no decisions
         // Pure translation of blueprint → instructions
+    }
+    
+    /**
+     * Legacy method - builds prompt for all pages (deprecated)
+     */
+    public function buildFromBlueprint(array $blueprint): string
+    {
+        // For backward compatibility
     }
 }
 ```
@@ -203,28 +251,62 @@ class BlueprintValidator
 }
 ```
 
-**LlmService.php**
+**GenerationService.php**
 ```php
-class LlmService
+class GenerationService
 {
-  public function generate(string $mcpPrompt): LlmResponse
+    public function generateTemplate(Blueprint $blueprint): Generation
     {
-        // HTTP call to LLM API
-        // Retry logic, error handling
-        // Response parsing
+        // Orchestrates per-page generation
+        // Manages progress tracking
+        // Handles errors gracefully
+    }
+    
+    public function generatePage(Generation $generation, string $pageName): PageGeneration
+    {
+        // Generates single page
+        // Records history
+        // Updates progress
     }
 }
+```
 
-**ModelSelector.php** (platform)
+**GenerationHistoryService.php**
 ```php
-class ModelSelector
+class GenerationHistoryService
 {
-  public function selectForUser(User $user, ?string $requestedModel): SelectedModel
-  {
-    // Free: force Gemini Flash
-    // Premium: validate requested model is in admin-configured allow-list
-    // Return provider+model identifier
-  }
+    public function recordPage(Generation $generation, PageGenerationData $data): PageGeneration
+    {
+        // Records prompt, response, tokens, time
+        // Updates credit estimation data
+    }
+    
+    public function getEstimatedTokensForPage(string $pageType): int
+    {
+        // Returns estimated tokens based on historical data
+        // Uses weighted moving average
+    }
+}
+```
+
+**CustomPageStatisticsService.php**
+```php
+class CustomPageStatisticsService
+{
+    public function recordCustomPage(string $pageName, string $category): void
+    {
+        // Normalizes and records custom page usage
+    }
+    
+    public function getPopularCustomPages(int $limit = 20): array
+    {
+        // Returns most used custom pages
+    }
+    
+    public function getCandidatesForPromotion(int $threshold = 100): array
+    {
+        // Returns custom pages ready to become predefined
+    }
 }
 ```
 
@@ -232,12 +314,25 @@ class ModelSelector
 ```php
 class BillingCalculator
 {
-  public function calculateCharge(SelectedModel $model, Usage $usage, Markup $markup): Money
-  {
-    // base = tokensIn/out * pricePerToken
-    // charged = base + (base * markupPercent)
-    // charged amount reduces premium credits
-  }
+    public function calculateCharge(
+        int $modelCredits,
+        int $extraPageCredits,
+        int $extraComponentCredits
+    ): CreditBreakdown {
+        // subtotal = model + pages + components
+        // withError = subtotal × (1 + errorMargin)
+        // total = CEIL(withError × (1 + profitMargin))
+    }
+    
+    public function getErrorMargin(): float
+    {
+        // Returns admin-configured error margin (default 0.10)
+    }
+    
+    public function getProfitMargin(): float
+    {
+        // Returns admin-configured profit margin (default 0.05)
+    }
 }
 ```
 
@@ -245,23 +340,11 @@ class BillingCalculator
 ```php
 class AdminSettingsService
 {
-  public function getPremiumModels(): array {}
-  public function getMarkupPercent(): float {}
-}
-```
-```
-
-**TemplateProcessor.php**
-```php
-class TemplateProcessor
-{
-    public function process(LlmResponse $response, Blueprint $blueprint): Template
-    {
-        // Extract files from LLM response
-        // Validate file structure
-        // Store to filesystem
-        // Return Template model
-    }
+    public function getPremiumModels(): array {}
+    public function getErrorMarginPercent(): float {}
+    public function getProfitMarginPercent(): float {}
+    public function setErrorMarginPercent(float $percent): void {}
+    public function setProfitMarginPercent(float $percent): void {}
 }
 ```
 
@@ -269,34 +352,80 @@ class TemplateProcessor
 
 **Models**
 - `Blueprint`: Stores wizard selections (JSON column)
-- `Template`: Stores generated template metadata
-- `User`: Standard Laravel user (auth, projects)
+- `Generation`: Stores main generation metadata
+- `PageGeneration`: Stores per-page generation history
+- `CustomPageStatistic`: Tracks custom page usage
+- `User`: Standard Laravel user (auth, projects, credits)
+- `LlmModel`: Available LLM models and pricing
+- `AdminSetting`: Admin-configurable settings
 
 **Relationships**
 - User → hasMany(Blueprint)
-- Blueprint → hasOne(Template)
+- Blueprint → hasOne(Generation)
+- Generation → hasMany(PageGeneration)
+- Generation → belongsTo(LlmModel)
 
-**Blueprint Schema** (Database JSON column structure)
+**Generation Schema** (Database)
 ```json
 {
-  "id": "uuid",
-  "user_id": "int",
-  "name": "string",
-  "data": {
-    "framework": "string",
-    "category": "string",
-    "pages": ["array"],
-    "layout": {"object"},
-    "theme": {"object"},
-    "ui": {"object"},
-    "components": ["array"],
-    "interaction": "string",
-    "responsiveness": "string",
-    "codeStyle": "string",
-    "outputIntent": "string"
-  },
+  "id": "bigint",
+  "user_id": "bigint",
+  "project_id": "bigint",
+  "model_used": "string",
+  "credits_used": "integer",
+  "status": "enum(pending,processing,completed,failed)",
+  "mcp_prompt": "text (deprecated - see page_generations)",
+  "progress_data": "json",
+  "current_page_index": "integer",
+  "total_pages": "integer",
+  "current_status": "string",
+  "error_message": "text",
+  "processing_time": "integer",
+  "started_at": "timestamp",
+  "completed_at": "timestamp"
+}
+```
+
+**PageGeneration Schema** (Database)
+```json
+{
+  "id": "bigint",
+  "generation_id": "bigint",
+  "page_name": "string",
+  "page_type": "enum(predefined,custom)",
+  "mcp_prompt": "text",
+  "llm_response": "text",
+  "input_tokens": "integer",
+  "output_tokens": "integer",
+  "processing_time_ms": "integer",
+  "status": "enum(pending,processing,completed,failed)",
+  "error_message": "text",
   "created_at": "timestamp",
-  "updated_at": "timestamp"
+  "completed_at": "timestamp"
+}
+```
+
+**CustomPageStatistic Schema** (Database)
+```json
+{
+  "id": "bigint",
+  "page_name_normalized": "string",
+  "original_names": "json",
+  "category": "string",
+  "usage_count": "integer",
+  "first_used_at": "timestamp",
+  "last_used_at": "timestamp"
+}
+```
+
+**AdminSetting Schema** (Database)
+```json
+{
+  "id": "bigint",
+  "key": "string (unique)",
+  "value": "text",
+  "type": "enum(string,integer,float,boolean,json)",
+  "description": "text"
 }
 ```
 
@@ -309,23 +438,14 @@ class TemplateProcessor
 **Directory Structure**
 ```
 resources/js/wizard/
-├── WizardContainer.vue          # Main wizard orchestrator
-├── wizardState.ts               # Reactive state management
+├── WizardLayout.vue             # Main wizard orchestrator
+├── wizardState.ts               # Reactive state management (3 steps)
 ├── types.ts                     # TypeScript interfaces
 ├── steps/
-│   ├── Step1Framework.vue
-│   ├── Step2Category.vue
-│   ├── Step3Pages.vue
-│   ├── Step4Layout.vue
-│   ├── Step5Theme.vue
-│   ├── Step6Density.vue
-│   ├── Step7Components.vue
-│   ├── Step8Interaction.vue
-│   ├── Step9Responsiveness.vue
-│   ├── Step10CodeStyle.vue
-│   └── Step11Output.vue
+│   ├── Step1FrameworkCategoryOutput.vue
+│   ├── Step2VisualDesignContent.vue
+│   └── Step3LlmModel.vue
 └── components/
-    ├── WizardProgress.vue       # Step indicator
     ├── WizardNavigation.vue     # Back/Next buttons
     └── WizardSummary.vue        # Review before submit
 ```
@@ -337,36 +457,52 @@ import { reactive, computed } from 'vue';
 
 export const wizardState = reactive({
   currentStep: 1,
+  
+  // Step 1: Framework, Category & Output
   framework: 'tailwind',
   category: 'admin-dashboard',
-  pages: ['dashboard'],
+  customCategoryName: '',
+  customCategoryDescription: '',
+  outputFormat: 'vue',
+  customOutputFormat: '',
+  
+  // Step 2: Visual Design & Content
+  pages: ['login', 'dashboard'],
+  customPages: [],
   layout: {
     navigation: 'sidebar',
     sidebarDefaultState: 'expanded',
     breadcrumbs: true,
-    footer: 'minimal'
+    footer: 'minimal',
+    customNavItems: [],
   },
   theme: {
     primary: '#3B82F6',
     secondary: '#6366F1',
     mode: 'light',
-    background: 'solid'
+    background: 'solid',
   },
-  // ... all 11 steps
+  ui: {
+    density: 'comfortable',
+    borderRadius: 'rounded',
+  },
+  components: ['buttons', 'forms', 'cards', 'alerts'],
+  customComponents: [],
+  chartLibrary: undefined,
+  
+  // Step 3: LLM Model
+  llmModel: '',
+  modelCredits: 0,
+  calculatedCredits: 0,
+  
+  // Auto-selected (not in wizard UI)
+  interaction: 'moderate',
+  responsiveness: 'fully-responsive',
+  codeStyle: 'documented',
 });
 
-#### Internationalization (Generator UI)
-
-The generator UI is bilingual:
-- All user-facing strings in the wizard and admin/billing UI must use translation keys.
-- Language preference should be stored per user.
-
-#### Dark/Light Theme (Generator UI)
-
-The generator UI supports dark/light theme toggling independent of template generation.
-
 export const isStepValid = computed(() => {
-  // Validation logic per step
+  // Validation logic per step (3 steps)
 });
 
 export const blueprintJSON = computed(() => {
@@ -378,35 +514,47 @@ export const blueprintJSON = computed(() => {
 
 **TemplatePreview.vue**
 - Fetches generated files from API
+- Shows generation progress (per-page)
 - Renders in sandboxed iframe
 - Provides code view with syntax highlighting
 - Download as ZIP functionality
+
+**GenerationProgress.vue**
+- Shows current page being generated
+- Displays progress bar (x/total pages)
+- Real-time status updates via polling/websocket
 
 **CodeViewer.vue**
 - Syntax-highlighted code display
 - File tree navigation
 - Copy-to-clipboard per file
 
-#### 3. Shared Components
+#### 3. Admin Components
 
-**UI Elements** (styled with Tailwind)
-- `Button.vue`: Reusable button component
-- `Input.vue`: Form input wrapper
-- `Select.vue`: Dropdown selector
-- `ColorPicker.vue`: Color selection (Step 5)
-- `Card.vue`: Content container
+**CustomPageStatistics.vue**
+- Table of popular custom pages
+- Filter by category
+- Promotion candidates highlight
+
+**MarginSettings.vue**
+- Error margin input (0-50%)
+- Profit margin input (0-50%)
+- Save with validation
 
 ---
 
-## Blueprint to MCP Translation
+## Blueprint to MCP Translation (Per Page)
 
-### Blueprint JSON Structure
-
+### Blueprint JSON Structure (3-Step Wizard)
 ```json
 {
   "framework": "tailwind",
   "category": "admin-dashboard",
+  "outputFormat": "vue",
   "pages": ["dashboard", "users", "charts"],
+  "customPages": [
+    {"id": "inventory", "name": "Inventory", "description": "Stock management"}
+  ],
   "layout": {
     "navigation": "sidebar",
     "sidebarDefaultState": "expanded",
@@ -427,12 +575,13 @@ export const blueprintJSON = computed(() => {
   "chartLibrary": "chartjs",
   "interaction": "moderate",
   "responsiveness": "fully-responsive",
-  "codeStyle": "minimal",
-  "outputIntent": "production"
+  "codeStyle": "documented",
+  "llmModel": "gemini-2.5-flash",
+  "modelCredits": 0
 }
 ```
 
-### MCP Prompt Output
+### MCP Prompt Output (Per Page Example - Dashboard)
 
 ```
 You are an expert Vue.js developer specializing in Tailwind CSS.
@@ -440,19 +589,22 @@ You are an expert Vue.js developer specializing in Tailwind CSS.
 PROJECT CONTEXT:
 - Framework: Tailwind CSS (utility-first, responsive design)
 - Template Category: Admin Dashboard
-- Target Pages: Dashboard, User Management, Charts/Analytics
+- Output Format: Vue.js 3 with Composition API
+- All Pages: Dashboard, Users, Charts, Inventory (custom)
 
-CONSTRAINTS:
+CONSTRAINTS (MUST FOLLOW):
 - Use ONLY Tailwind CSS utility classes (no custom CSS)
 - Use ONLY Chart.js for data visualizations
 - Dark mode implementation required (CSS variables)
 - No external icon libraries (use Heroicons via CDN)
+- No backend logic (frontend templates only)
+- All imports must be valid (no placeholders)
 
 LAYOUT REQUIREMENTS:
 - Navigation: Collapsible sidebar (expanded by default)
 - Breadcrumbs: Enabled on all pages
 - Footer: Minimal (copyright only)
-- Sidebar items: Dashboard, Users, Charts, Settings
+- Sidebar items: Dashboard, Users, Charts, Inventory
 
 THEME SPECIFICATION:
 - Primary color: #10B981 (green-500)
@@ -463,7 +615,6 @@ THEME SPECIFICATION:
 UI DENSITY:
 - Spacing: Comfortable (Tailwind default scale)
 - Border radius: Rounded (rounded-lg for cards, rounded-md for buttons)
-- Font size: Base (text-base for body, text-sm for secondary)
 
 COMPONENT REQUIREMENTS:
 - Buttons: Primary (filled), Secondary (outline), Destructive (red)
@@ -475,155 +626,82 @@ COMPONENT REQUIREMENTS:
 INTERACTION LEVEL: Moderate
 - Hover states: bg/text color shifts, opacity changes
 - Transitions: 150ms ease-in-out for interactive elements
-- No complex animations, no parallax, no loading skeletons
 
 RESPONSIVENESS: Fully responsive
 - Mobile (<640px): Hamburger menu, stacked layout
 - Tablet (640-1024px): Collapsible sidebar, responsive grid
 - Desktop (>1024px): Expanded sidebar, multi-column layout
 
-CODE STYLE: Minimal
-- Concise variable names
-- No comments unless complex logic
-- Use Vue Composition API (<script setup>)
-- TypeScript interfaces for props
+CODE STYLE: Documented
+- Clear comments explaining code sections
+- JSDoc comments for functions
+- TypeScript interfaces with descriptions
 
-OUTPUT FORMAT:
-Generate the following file structure:
+=== GENERATE THIS PAGE: Dashboard ===
 
-src/
-├── pages/
-│   ├── Dashboard.vue
-│   ├── Users.vue
-│   └── Charts.vue
-├── components/
-│   ├── Sidebar.vue
-│   ├── Topbar.vue
-│   ├── Button.vue
-│   ├── Card.vue
-│   └── Modal.vue
-├── composables/
-│   └── useTheme.ts
-└── types/
-    └── index.ts
-
-For each file:
-1. Start with filename comment: // src/pages/Dashboard.vue
-2. Implement full functionality (no TODO comments)
-3. Include all imports
-4. Export as default
-
-Dashboard page must include:
+PAGE REQUIREMENTS:
 - 4 metric cards (users, revenue, orders, growth)
 - Line chart (last 7 days trend)
 - Recent activity table (5 rows)
-
-Users page must include:
-- Data table with columns: Avatar, Name, Email, Role, Status, Actions
-- Search filter
-- Add user button (opens modal)
-- Edit/Delete actions
-
-Charts page must include:
-- Line chart (revenue over time)
-- Bar chart (products by category)
-- Doughnut chart (traffic sources)
-
-All pages must:
 - Include breadcrumbs
 - Use consistent spacing (p-6 for page content)
 - Implement dark mode using Tailwind dark: classes
 
-Begin output with Dashboard.vue:
+OUTPUT FORMAT:
+Generate a single Vue 3 component file.
+Start with: // src/pages/Dashboard.vue
+Use <script setup lang="ts"> syntax.
+Include all imports.
+Implement full functionality (no TODO comments).
 ```
 
 **Key Properties of MCP**:
-1. **Deterministic**: Same blueprint = same MCP, character-for-character
+1. **Deterministic**: Same blueprint + page = same MCP, character-for-character
 2. **Exhaustive**: No missing requirements (LLM has no questions)
 3. **Constrained**: Explicit technology boundaries (no improvisation)
 4. **Actionable**: Direct instructions, not descriptions
+5. **Page-Focused**: Single page per generation call
 
 ---
 
-## Why This Architecture Works
+## Credit Estimation Learning
 
-### 1. Separation of Concerns
+### How It Works
 
-| Layer | Responsibility | Decision Authority |
-|-------|----------------|-------------------|
-| Wizard UI | Capture user choices | User |
-| Blueprint | Store structured data | None (data only) |
-| MCP Builder | Translate to instructions | None (logic only) |
-| LLM | Implement code | None (follows instructions) |
+1. **Initial Estimation**
+   - Based on model pricing × estimated tokens
+   - Default estimates per page type (dashboard=2000 tokens, login=500 tokens, etc.)
 
-No layer makes subjective decisions. The wizard is the only source of creative input.
+2. **Actual Recording**
+   - Every page generation records actual input/output tokens
+   - Stored in `page_generations` table
 
-### 2. Determinism Guarantees
+3. **Learning Algorithm**
+   ```
+   estimated_tokens = weighted_average(
+     last_100_generations_of_same_page_type,
+     weights = [0.1, 0.15, 0.2, ..., 0.3] // newer = higher weight
+   )
+   ```
 
-**Wizard State** → Immutable after submission
-**Blueprint JSON** → Validated against schema
-**MCP Prompt** → Pure function of Blueprint (no external state)
-**LLM Output** → Seeded if API supports (for reproducibility)
+4. **Application**
+   - When calculating credits, use learned estimates
+   - Show comparison: "Estimated: 12 credits (based on 87 similar generations)"
 
-Test: `blueprint_hash(A) === blueprint_hash(B)` implies `output(A) === output(B)`
+### Database Structure
 
-### 3. Testability
-
-**Unit Tests**:
-- Each wizard step validation
-- Blueprint schema validation
-- MCP builder prompt assembly
-
-**Feature Tests**:
-- Complete wizard submission flow
-- Blueprint → MCP conversion
-- LLM response parsing
-
-**Integration Tests** (limited):
-- LLM API connectivity (not output quality)
-
-**Not Tested**:
-- Subjective design quality (not measurable)
-- LLM output correctness (external dependency)
-
-### 4. Scalability
-
-**Horizontal Scaling**:
-- Stateless API (Laravel)
-- Blueprint generation is fast (no LLM call)
-- LLM calls can be queued (async jobs)
-- Preview rendering is client-side
-
-**Performance Bottlenecks**:
-- LLM API latency (5-30 seconds per generation)
-- Filesystem I/O for large templates
-
-**Mitigation**:
-- Cache generated templates by Blueprint hash
-- Lazy-load preview (only when user views)
-- Rate-limit generation requests per user
-
-### 5. Extensibility
-
-**Adding a New Wizard Step**:
-1. Update `/docs/product-instruction.md`
-2. Add field to `template-blueprint.schema.json`
-3. Create Vue component in `resources/js/wizard/steps/`
-4. Update `wizardState.ts`
-5. Modify `McpPromptBuilder.php` to use new field
-6. Add validation rules
-7. Update tests
-
-**Adding a New Framework** (e.g., Bulma):
-1. Add to Step 1 options
-2. Update Blueprint schema enum
-3. Add Bulma-specific MCP templates in McpPromptBuilder
-4. Update documentation
-
-**Adding a New LLM Provider**:
-1. Create adapter class (implements `LlmInterface`)
-2. Add to `config/services.php`
-3. No changes to MCP builder (provider-agnostic)
+```sql
+CREATE TABLE credit_estimations (
+    id BIGINT PRIMARY KEY,
+    page_type VARCHAR(50),          -- 'login', 'dashboard', 'custom', etc.
+    category VARCHAR(50),           -- 'admin-dashboard', etc.
+    model_id VARCHAR(100),          -- 'gemini-2.5-flash', etc.
+    avg_input_tokens INT,
+    avg_output_tokens INT,
+    sample_count INT,
+    last_updated_at TIMESTAMP
+);
+```
 
 ---
 
@@ -634,6 +712,7 @@ Test: `blueprint_hash(A) === blueprint_hash(B)` implies `output(A) === output(B)
 - **Client-Side**: UX-focused validation (instant feedback)
 - **Server-Side**: Authoritative validation (Form Requests + JSON Schema)
 - **Blueprint Schema**: Strict types, enums, required fields
+- **Custom Page Names**: Sanitized and normalized
 
 ### LLM API Security
 
@@ -652,10 +731,17 @@ Test: `blueprint_hash(A) === blueprint_hash(B)` implies `output(A) === output(B)
 - **Blueprint Storage**: User-owned, not shared by default
 - **Generated Templates**: Stored per user, not publicly accessible
 - **LLM Requests**: No PII in MCP prompts (only structured data)
+- **History**: Prompt/response history is user-owned
 
 ---
 
 ## Error Handling
+
+### Per-Page Error Recovery
+
+- **Single Page Failure**: Mark page as failed, continue with others
+- **Retry Logic**: Automatic retry once with exponential backoff
+- **Partial Success**: User can download successful pages, retry failed ones
 
 ### Wizard Submission Errors
 
@@ -664,20 +750,9 @@ Test: `blueprint_hash(A) === blueprint_hash(B)` implies `output(A) === output(B)
 
 ### LLM API Errors
 
-- **Timeout**: Retry once, then fail gracefully with error message
+- **Timeout**: Retry once, then mark page as failed
 - **Rate Limit**: Queue request for later, notify user
 - **Invalid Response**: Log error, return "generation failed" message
-
-### Preview Rendering Errors
-
-- **Malformed Code**: Show syntax error overlay, allow code download anyway
-- **Missing Files**: Display warning, show available files
-
-### General Error Strategy
-
-- **User-Facing**: Clear, actionable error messages (no stack traces)
-- **Logging**: All errors logged to `storage/logs/laravel.log`
-- **Monitoring**: (Future) Integration with Sentry/Bugsnag
 
 ---
 
@@ -700,20 +775,33 @@ php artisan test
 npm run test
 ```
 
-### Directory Structure for New Features
+### Directory Structure
 
 ```
 app/
-├── Services/              # Business logic (add new services here)
 ├── Blueprints/            # Schema definitions
-└── Http/
-    ├── Controllers/       # Thin orchestration
-    └── Requests/          # Validation logic
+├── Http/
+│   ├── Controllers/       # Thin orchestration
+│   └── Requests/          # Validation logic
+├── Services/
+│   ├── McpPromptBuilder.php
+│   ├── GenerationService.php
+│   ├── GenerationHistoryService.php
+│   ├── CustomPageStatisticsService.php
+│   └── BillingCalculator.php
+└── Models/
+    ├── Generation.php
+    ├── PageGeneration.php
+    ├── CustomPageStatistic.php
+    └── AdminSetting.php
 
 resources/js/
-├── wizard/                # Wizard-specific components
-│   ├── steps/             # One component per wizard step
-│   └── wizardState.ts     # Central state (update for new steps)
+├── wizard/                # 3-step wizard
+│   ├── steps/
+│   │   ├── Step1FrameworkCategoryOutput.vue
+│   │   ├── Step2VisualDesignContent.vue
+│   │   └── Step3LlmModel.vue
+│   └── wizardState.ts
 ├── preview/               # Preview rendering
 └── lib/                   # Shared utilities
 
@@ -724,53 +812,19 @@ tests/
 
 ---
 
-## Deployment Considerations
-
-### Production Environment
-
-- **Web Server**: Nginx + PHP-FPM
-- **Queue Worker**: Laravel Horizon (for async LLM calls)
-- **Database**: PostgreSQL (JSONB support for blueprints)
-- **Storage**: S3 or similar (generated templates)
-- **CDN**: CloudFront for static assets
-
-### Environment Variables
-
-```env
-# LLM API
-LLM_PROVIDER=openai          # openai | anthropic
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-...
-
-# Rate Limiting
-GENERATION_RATE_LIMIT=10     # per hour per user
-
-# Storage
-FILESYSTEM_DISK=s3           # local | s3
-AWS_BUCKET=templates-bucket
-```
-
-### Performance Optimization
-
-- **Blueprint Caching**: Cache identical blueprints by hash
-- **MCP Caching**: Cache prompts per blueprint (rebuild if schema changes)
-- **Static Assets**: Vite build optimization
-- **Database Indexing**: Index `blueprints.user_id`, `templates.blueprint_id`
-
----
-
 ## Conclusion
 
 This architecture ensures **deterministic, reproducible, and maintainable** template generation by:
 
-1. **Explicit Decision Capture**: Wizard UI with 11 structured steps
+1. **Explicit Decision Capture**: Wizard UI with 3 focused steps
 2. **Zero-Ambiguity Translation**: Blueprint → MCP with no interpretation
-3. **LLM as Tool**: Implementation only, no creative authority
-4. **Separation of Concerns**: Each layer has single, clear responsibility
-5. **Testability**: Pure functions, validatable schemas, mockable LLM
+3. **Per-Page Generation**: Better context, progress tracking, error recovery
+4. **History Recording**: All prompts and responses stored for learning
+5. **Credit Learning**: Estimates improve over time with real usage data
+6. **Custom Page Tracking**: Popular custom pages become predefined options
 
 The system is **not** an AI design tool. It is a **configuration-to-code translator** that happens to use an LLM for implementation efficiency.
 
-Wizard decides. Blueprint stores. MCP instructs. LLM implements. Preview displays.
+Wizard decides. Blueprint stores. MCP instructs. LLM implements (per page). History records. Preview displays.
 
 Simple. Deterministic. Scalable.

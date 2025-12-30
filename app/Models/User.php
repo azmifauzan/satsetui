@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\OpenAICompatibleService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -65,7 +66,7 @@ class User extends Authenticatable
      */
     public function getAvailableModels(): array
     {
-        return app(\App\Services\OpenAICompatibleService::class)
+        return app(OpenAICompatibleService::class)
             ->getAvailableModels($this->hasPremiumAccess());
     }
 

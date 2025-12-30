@@ -16,20 +16,22 @@ This repository implements a **wizard-driven frontend template generator**. It i
    - Wizard UI → Blueprint JSON → MCP → LLM → Preview
    - Each step is explicit and traceable
 
+5. **Per-Page Generation**: Each page is generated separately with its own MCP prompt, enabling better context, progress tracking, and error recovery.
+
 ## Technology Constraints
 
 ### ALLOWED Technologies
 
 - **Backend**: Laravel (current version in composer.json)
 - **Frontend**: Vue.js with TypeScript
-- **CSS Frameworks**: Tailwind CSS, Bootstrap ONLY
+- **CSS Frameworks**: Tailwind CSS, Bootstrap, Pure CSS ONLY
 - **Charts**: Chart.js, Apache ECharts ONLY
 - **Build Tool**: Vite
 - **Testing**: Pest (PHP), Vitest (JS/TS)
 
 ### FORBIDDEN Technologies
 
-- ❌ React, Angular, Svelte (Vue only)
+- ❌ React, Angular, Svelte (Vue only for generator UI)
 - ❌ Other CSS frameworks (no Bulma, Material, etc.)
 - ❌ Drag-and-drop builders
 - ❌ Visual editors
@@ -38,13 +40,31 @@ This repository implements a **wizard-driven frontend template generator**. It i
 
 ## Wizard Structure
 
-The wizard has exactly 5 steps. When generating code related to wizard logic, use this structure:
+The wizard has exactly **3 steps**. When generating code related to wizard logic, use this structure:
 
-1. **Framework & Category** (combined) - Select CSS framework (Tailwind/Bootstrap) and template category
-2. **Pages & Layout** (combined) - Choose pages and configure navigation/layout
-3. **Theme & Styling** (combined) - Visual identity, UI density, and component preferences
-4. **Responsiveness & Interactions** (combined) - Responsive breakpoints and interaction level
-5. **Code Preferences & Output** (combined) - Code style, naming conventions, and output format
+1. **Step 1: Framework, Category & Output Format**
+   - Select CSS framework (Tailwind/Bootstrap/Pure CSS)
+   - Select template category (admin-dashboard, landing-page, etc.)
+   - Select output format (HTML+CSS, React, Vue, Angular, Svelte, Custom)
+
+2. **Step 2: Visual Design & Content**
+   - Choose pages (predefined + custom)
+   - Configure layout & navigation
+   - Set theme & visual identity (colors, mode)
+   - Configure UI density & style
+   - Select components (buttons, forms, charts, etc.)
+
+3. **Step 3: LLM Model Selection**
+   - Choose AI model for generation
+   - View credit breakdown with margins
+   - See estimated cost
+
+### Auto-Selected Values (NOT in wizard)
+
+The following are auto-applied with best defaults:
+- `responsiveness`: "fully-responsive"
+- `interaction`: "moderate"
+- `codeStyle`: "documented"
 
 See `/docs/product-instruction.md` for complete wizard specification.
 
@@ -87,18 +107,31 @@ See `/docs/product-instruction.md` for complete wizard specification.
 - **Theme toggle**: Available in AppLayout header
 
 ### Other Platform Requirements
+
 - **Membership**:
-    - Free uses Gemini Flash (no model choice)
+    - Free uses Gemini 2.5 Flash (no model choice)
     - Premium can choose admin-defined models
-- **Billing**: Premium uses credits; premium generation cost includes admin-configurable markup percentage.
-- **Admin Panel**: Statistics and settings (premium models allow-list, markup percentage).
+- **Billing**: 
+    - Premium uses credits
+    - Credit calculation includes error margin (10% default) and profit margin (5% default)
+    - Margins are admin-configurable
+- **Admin Panel**: 
+    - Statistics and settings
+    - Custom page statistics for promotion candidates
+    - Margin configuration (error %, profit %)
+    - Generation history with prompts/responses
 
 ## Code Generation Rules
 
 ### When Generating Laravel Code
 
 - **Controllers**: Keep thin. Delegate to Services.
-- **Services**: Business logic lives here. McpPromptBuilder is the core service.
+- **Services**: Business logic lives here. Key services:
+  - `McpPromptBuilder`: Core prompt generation (per-page)
+  - `GenerationService`: Orchestrates per-page generation
+  - `GenerationHistoryService`: Records prompts/responses
+  - `CustomPageStatisticsService`: Tracks custom page usage
+  - `BillingCalculator`: Credit calculation with margins
 - **Validation**: Use Form Requests for wizard input validation.
 - **Routes**: RESTful structure. Use route model binding where appropriate.
 - **Blueprint Schema**: Must match `/app/Blueprints/template-blueprint.schema.json` exactly.
@@ -113,7 +146,7 @@ See `/docs/product-instruction.md` for complete wizard specification.
 
 ### When Generating MCP Prompts
 
-The MCP prompt structure is critical:
+The MCP prompt structure is critical. **Prompts are generated PER PAGE**:
 
 ```
 SYSTEM ROLE
@@ -121,23 +154,29 @@ SYSTEM ROLE
 ├── PROJECT CONTEXT (from Blueprint)
 │   ├── Framework choice
 │   ├── Template category
-│   └── Selected pages
+│   ├── Output format
+│   └── Full page list (for navigation)
 │
 ├── CONSTRAINTS
 │   ├── Technology boundaries
-│   ├── Code style preferences
-│   └── Output format rules
+│   ├── Auto-selected code style (documented)
+│   └── Auto-selected responsiveness (fully-responsive)
 │
 ├── REQUIREMENTS
 │   ├── Layout specification
 │   ├── Theme configuration
 │   ├── Component list
-│   └── Responsiveness rules
+│   └── Auto-selected interaction level (moderate)
+│
+├── PAGE-SPECIFIC REQUIREMENTS
+│   ├── Current page name and purpose
+│   ├── Page-specific functionality
+│   └── Components needed for this page
 │
 └── OUTPUT FORMAT
-    ├── File structure
+    ├── Single file output
     ├── Naming conventions
-    └── Expected deliverables
+    └── Expected structure
 ```
 
 Never generate MCPs that:
@@ -145,6 +184,7 @@ Never generate MCPs that:
 - Include vague requirements
 - Allow creative freedom
 - Mix concerns
+- Generate multiple pages at once (always per-page)
 
 ### When Generating Tests
 
@@ -171,30 +211,45 @@ app/
 │   ├── Controllers/      # Wizard controllers
 │   ├── Requests/         # Wizard validation
 │   └── Resources/        # API responses
-├── Services/             # McpPromptBuilder, BlueprintValidator, etc.
-└── Models/               # User, Project, Blueprint (if persisted)
+├── Services/
+│   ├── McpPromptBuilder.php         # Per-page MCP generation
+│   ├── GenerationService.php        # Generation orchestration
+│   ├── GenerationHistoryService.php # History recording
+│   ├── CustomPageStatisticsService.php # Custom page tracking
+│   └── BillingCalculator.php        # Credit calculation
+└── Models/
+    ├── User.php
+    ├── Project.php
+    ├── Generation.php
+    ├── PageGeneration.php      # Per-page history
+    ├── CustomPageStatistic.php # Custom page stats
+    └── AdminSetting.php        # Admin config
 
 resources/js/
 ├── wizard/               # Wizard-specific Vue components
-│   ├── steps/            # Individual step components
+│   ├── steps/
+│   │   ├── Step1FrameworkCategoryOutput.vue
+│   │   ├── Step2VisualDesignContent.vue
+│   │   └── Step3LlmModel.vue
 │   ├── wizardState.ts    # Central state management
 │   └── types.ts          # TypeScript interfaces
 ├── preview/              # Preview rendering components
 └── lib/                  # Shared utilities
 
 docs/
-├── product-instruction.md
-├── architecture.md
-└── mvp-plan.md
+├── product-instruction.md  # 3-step wizard spec
+├── architecture.md         # Per-page generation
+├── mvp-plan.md
+└── llm-credit-system.md    # Credit calculation
 ```
 
 ## Behavior Guidelines for Copilot
 
 ### DO
 
-- ✅ Reference wizard step numbers explicitly (e.g., "Step 2: Pages & Layout")
+- ✅ Reference wizard step numbers explicitly (e.g., "Step 2: Visual Design & Content")
 - ✅ Validate against blueprint schema
-- ✅ Generate deterministic MCP prompts
+- ✅ Generate deterministic MCP prompts (per page)
 - ✅ Add reasoning comments in McpPromptBuilder
 - ✅ Create strongly-typed TypeScript interfaces
 - ✅ Follow Laravel best practices (Service layer, Form Requests)
@@ -202,6 +257,8 @@ docs/
 - ✅ **ALWAYS implement bilingual support** using `useI18n()` - no hardcoded strings
 - ✅ **ALWAYS add dark mode support** using Tailwind `dark:` variants
 - ✅ **ALWAYS wrap authenticated pages** with `AppLayout.vue`
+- ✅ **ALWAYS generate per-page** - never all pages in one MCP
+- ✅ **ALWAYS record history** - prompts and responses stored
 
 ### DO NOT
 
@@ -215,45 +272,52 @@ docs/
 - ❌ Mix presentation and business logic
 - ❌ Use inline styles instead of CSS framework utilities
 - ❌ Generate code that requires manual LLM review
+- ❌ **NEVER generate multiple pages in one LLM call**
 
 ## Example Scenarios
 
 ### Scenario 1: User asks to "add a new wizard step"
 
 **Correct Response**:
-1. Update `/docs/product-instruction.md` with step definition
-2. Update `/app/Blueprints/template-blueprint.schema.json`
-3. Update `/resources/js/wizard/wizardState.ts`
-4. Create Vue component in `/resources/js/wizard/steps/`
-5. Update McpPromptBuilder to handle new blueprint field
-6. Add validation in Form Request
-7. Update tests
+- Explain that wizard is fixed at 3 steps
+- Suggest adding the feature to existing step (Step 2 for content, Step 1 for format)
+- If absolutely needed, update all documentation:
+  1. Update `/docs/product-instruction.md`
+  2. Update `/app/Blueprints/template-blueprint.schema.json`
+  3. Update `/resources/js/wizard/wizardState.ts`
+  4. Create/update Vue component in `steps/`
+  5. Update McpPromptBuilder
+  6. Update tests
 
-### Scenario 2: User asks to "improve the design"
-
-**Correct Response**:
-- Ask for specificity: Which wizard step? Which component?
-- Reference existing wizard options (theme, density, interaction level)
-- Suggest changes within existing wizard structure
-- Never add free-form customization
-
-### Scenario 3: User asks to "make the output more creative"
-
-**Incorrect Response**: Add randomness or LLM-based variation
+### Scenario 2: User asks to "generate all pages at once"
 
 **Correct Response**:
-- Explain that deterministic output is a core requirement
-- Suggest adding more wizard options for controlled variation
-- Reference Output Intent step (Step 5) for style preferences
+- Explain that per-page generation is a core architecture decision
+- Benefits: better context, progress tracking, error recovery
+- All prompts and responses are recorded for credit learning
+- Cannot change to batch generation
+
+### Scenario 3: User asks about credit calculation
+
+**Correct Response**:
+- Explain the formula with margins:
+  ```
+  subtotal = model + extraPages + extraComponents
+  total = CEIL(subtotal × (1 + errorMargin) × (1 + profitMargin))
+  ```
+- Error margin: 10% default (admin configurable)
+- Profit margin: 5% default (admin configurable)
+- All calculations done in `BillingCalculator.php`
 
 ## Testing Strategy
 
 ### Must Test
 
-- Wizard state transitions
+- Wizard state transitions (3 steps)
 - Blueprint validation
-- MCP prompt assembly
-- Each wizard step independently
+- Per-page MCP prompt assembly
+- Credit calculation with margins
+- History recording
 
 ### Don't Test
 
@@ -265,8 +329,8 @@ docs/
 
 - Wizard state should be client-side until final submission
 - Blueprint generation is synchronous (fast)
-- MCP generation is synchronous (fast)
-- LLM call is async (slow) - handle with proper loading states
+- MCP generation is synchronous (fast, per page)
+- LLM call is async (slow, ~30s per page) - handle with progress tracking
 - Cache generated templates per Blueprint hash
 
 ## Security Notes
@@ -276,6 +340,7 @@ docs/
 - Rate-limit LLM API calls
 - Never expose LLM API keys client-side
 - User-generated templates should be sandboxed for preview
+- Custom page names are normalized before storage
 
 ## References
 
@@ -283,3 +348,4 @@ docs/
 - Architecture overview: `/docs/architecture.md`
 - Blueprint schema: `/app/Blueprints/template-blueprint.schema.json`
 - MVP roadmap: `/docs/mvp-plan.md`
+- Credit system: `/docs/llm-credit-system.md`

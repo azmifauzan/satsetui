@@ -28,8 +28,16 @@ class GeminiService
         $model = $isPremium ? $this->premiumModel : $this->freeModel;
         
         try {
-            $response = Http::timeout(120)
-                ->post("{$this->baseUrl}/models/{$model}:generateContent?key={$this->apiKey}", [
+            $http = Http::timeout(240);
+            
+            // Disable SSL verification for development environment only
+            if (config('app.env') !== 'production') {
+                $http = $http->withOptions([
+                    'verify' => false,
+                ]);
+            }
+            
+            $response = $http->post("{$this->baseUrl}/models/{$model}:generateContent?key={$this->apiKey}", [
                     'contents' => [
                         [
                             'parts' => [
@@ -38,7 +46,7 @@ class GeminiService
                         ]
                     ],
                     'generationConfig' => [
-                        'temperature' => 0.7,
+                        'temperature' => 1.0,
                         'topK' => 40,
                         'topP' => 0.95,
                         'maxOutputTokens' => 8192,
@@ -67,11 +75,35 @@ class GeminiService
             }
 
             $generatedText = $data['candidates'][0]['content']['parts'][0]['text'];
+            
+            // Extract usage metadata if available
+            $usageMetadata = $data['usageMetadata'] ?? null;
 
             return [
                 'success' => true,
                 'content' => $generatedText,
                 'model' => $model,
+                'usage' => [
+                    'input_tokens' => $usageMetadata['promptTokenCount'] ?? 0,
+                    'output_tokens' => $usageMetadata['candidatesTokenCount'] ?? 0,
+                    'total_tokens' => $usageMetadata['totalTokenCount'] ?? 0,
+                ],
+                'raw_request' => json_encode([
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt]
+                            ]
+                        ]
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 1.0,
+                        'topK' => 40,
+                        'topP' => 0.95,
+                        'maxOutputTokens' => 8192,
+                    ],
+                ]),
+                'raw_response' => $response->body(),
             ];
 
         } catch (\Exception $e) {

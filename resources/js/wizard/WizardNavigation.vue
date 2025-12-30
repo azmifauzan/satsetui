@@ -1,13 +1,24 @@
 <script setup lang="ts">
-import { wizardState, canGoBack, canProceedToNext, isLastStep, isCurrentStepValid, previousStep, nextStep, getStepTitle } from './wizardState';
+import { wizardState, canGoBack, canProceedToNext, isLastStep, isCurrentStepValid, previousStep, nextStep } from './wizardState';
 import { useI18n } from '@/lib/i18n';
+import { computed } from 'vue';
 
 const emit = defineEmits<{
   (e: 'submit'): void;
 }>();
 
 const { t } = useI18n();
-const allSteps = Array.from({ length: 5 }, (_, i) => i + 1);
+const allSteps = Array.from({ length: 3 }, (_, i) => i + 1);
+
+// Get localized step title
+const currentStepTitle = computed(() => {
+  const titles: Record<number, string> = {
+    1: t.value.wizard?.stepTitles?.step1 || 'Framework, Category & Output',
+    2: t.value.wizard?.stepTitles?.step2 || 'Visual Design & Content',
+    3: t.value.wizard?.stepTitles?.step3 || 'LLM Model Selection',
+  };
+  return titles[wizardState.currentStep] || '';
+});
 
 function goToPreviousStep() {
   if (canGoBack.value) {
@@ -33,16 +44,16 @@ function handleGenerate() {
       <div class="mb-4">
         <div class="flex items-center justify-between mb-2">
           <span class="text-sm font-medium text-slate-600 dark:text-slate-400">
-            {{ t.wizard?.stepOf || 'Step' }} {{ wizardState.currentStep }} {{ t.common?.of || 'of' }} 5
+            {{ t.wizard?.stepOf || 'Step' }} {{ wizardState.currentStep }} {{ t.common?.of || 'of' }} 3
           </span>
           <span class="text-sm text-slate-500 dark:text-slate-500">
-            {{ getStepTitle(wizardState.currentStep) }}
+            {{ currentStepTitle }}
           </span>
         </div>
         <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
           <div
             class="bg-blue-600 h-full transition-all duration-300 ease-out"
-            :style="{ width: `${(wizardState.currentStep / 5) * 100}%` }"
+            :style="{ width: `${(wizardState.currentStep / 3) * 100}%` }"
           />
         </div>
       </div>

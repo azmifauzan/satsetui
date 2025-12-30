@@ -23,6 +23,7 @@ const { t } = useI18n();
 const isGenerating = ref(false);
 const showBlueprintPreview = ref(false);
 const generationError = ref<string | null>(null);
+const currentGenerationId = ref<number | null>(null);
 const generationProgress = ref({
   currentPage: '',
   percentage: 0,
@@ -33,17 +34,28 @@ const generationProgress = ref({
 async function handleGenerate() {
   isGenerating.value = true;
   generationError.value = null;
+  generationProgress.value = {
+    currentPage: '',
+    percentage: 0,
+    currentIndex: 0,
+    totalPages: 0,
+  };
   
   try {
     const blueprint = blueprintJSON.value;
+    
+    // Use template name from wizard or generate default
+    const templateName = wizardState.templateName || `Template ${new Date().toLocaleString()}`;
     
     console.log('Submitting Blueprint:', blueprint);
     
     // Submit to backend API using axios (handles CSRF automatically)
     const response = await axios.post('/generation/generate', {
       blueprint,
-      project_name: `Template ${new Date().toLocaleString()}`,
+      project_name: templateName,
       model_name: wizardState.llmModel // Send selected model
+    }, {
+      timeout: 60000, // 1 minute for initial request
     });
 
     const result = response.data;
@@ -53,6 +65,7 @@ async function handleGenerate() {
     }
 
     const generationId = result.generation_id;
+    currentGenerationId.value = generationId;
     generationProgress.value.totalPages = result.total_pages;
 
     // Start progressive generation
@@ -63,7 +76,23 @@ async function handleGenerate() {
     
   } catch (error) {
     console.error('Generation exception:', error);
-    generationError.value = error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.';
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timeout. Please try again.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response) {
+        errorMessage = `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'No response from server. Please check your connection.';
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
+    generationError.value = errorMessage;
     isGenerating.value = false;
   }
 }
@@ -72,29 +101,66 @@ async function progressiveGenerate(generationId: number) {
   try {
     // Keep generating until all pages are done
     while (generationProgress.value.currentIndex < generationProgress.value.totalPages) {
-      // Call next generation using axios
-      const response = await axios.post(`/generation/${generationId}/next`);
+      try {
+        // Call next generation using axios with longer timeout (5 minutes per page)
+        const response = await axios.post(`/generation/${generationId}/next`, {}, {
+          timeout: 300000, // 5 minutes per page
+        });
 
-      const result = response.data;
+        const result = response.data;
 
-      if (!result.success) {
-        throw new Error(result.error || 'Generation failed');
+        if (!result.success) {
+          throw new Error(result.error || 'Generation failed');
+        }
+
+        // Update progress
+        generationProgress.value.currentPage = result.page;
+        generationProgress.value.currentIndex = result.current_index;
+        generationProgress.value.percentage = result.progress_percentage;
+
+        if (result.completed) {
+          break;
+        }
+
+        // Small delay between pages
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        // Better error handling
+        if (axios.isAxiosError(error)) {
+          if (error.code === 'ECONNABORTED') {
+            throw new Error('Request timeout. Server took too long to respond. Please try again with a simpler template or fewer pages.');
+          } else if (error.response) {
+            throw new Error(error.response.data.error || `Server error: ${error.response.status}`);
+          } else if (error.request) {
+            throw new Error('No response from server. Please check your connection.');
+          }
+        }
+        throw error;
       }
-
-      // Update progress
-      generationProgress.value.currentPage = result.page;
-      generationProgress.value.currentIndex = result.current_index;
-      generationProgress.value.percentage = result.progress_percentage;
-
-      if (result.completed) {
-        break;
-      }
-
-      // Small delay between pages
-      await new Promise(resolve => setTimeout(resolve, 300));
     }
   } catch (error) {
     throw error;
+  }
+}
+
+async function continueInBackground() {
+  if (!currentGenerationId.value) return;
+
+  try {
+    const response = await axios.post(`/generation/${currentGenerationId.value}/background`);
+    
+    if (response.data.success) {
+      isGenerating.value = false;
+      
+      // Show success message
+      alert(t.value.wizard?.backgroundNotification || 'Template akan dilanjutkan di background. Anda akan menerima notifikasi ketika selesai.');
+      
+      // Redirect to dashboard or templates list
+      router.visit('/templates');
+    }
+  } catch (error) {
+    console.error('Failed to continue in background:', error);
+    alert('Failed to continue in background. Please try again.');
   }
 }
 </script>
@@ -178,9 +244,18 @@ async function progressiveGenerate(generationId: number) {
               </div>
             </div>
 
-            <p class="text-slate-600 dark:text-slate-400 text-center text-sm mt-2">
+            <p class="text-slate-600 dark:text-slate-400 text-center text-sm mt-2 mb-4">
               {{ t.wizard?.generatingDescription || 'Please wait while we generate your template' }}
             </p>
+
+            <!-- Continue in Background Button -->
+            <button
+              v-if="currentGenerationId && generationProgress.currentIndex > 0"
+              @click="continueInBackground"
+              class="w-full px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm font-medium"
+            >
+              {{ t.wizard?.continueInBackground || 'Lanjutkan di Background' }}
+            </button>
           </div>
         </div>
       </div>

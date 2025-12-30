@@ -2,35 +2,33 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://template-aspri.local/schemas/template-blueprint.json",
   "title": "Template Blueprint Schema",
-  "description": "Defines the complete structure of a wizard-generated template configuration. This schema represents all 11 wizard steps and enforces validation rules for deterministic template generation.",
+  "description": "Defines the complete structure of a wizard-generated template configuration. This schema represents the simplified 3-step wizard and enforces validation rules for deterministic template generation.",
   "type": "object",
   "required": [
     "framework",
     "category",
+    "outputFormat",
     "pages",
     "layout",
     "theme",
     "ui",
     "components",
-    "interaction",
-    "responsiveness",
-    "outputFormat",
     "llmModel",
-    "modelTier"
+    "modelCredits"
   ],
   "properties": {
     "framework": {
       "title": "Step 1: Framework Selection",
       "description": "CSS framework foundation for the template. Dictates utility classes, component structure, and responsive patterns.",
-      "$comment": "MCP mapping: sets the LLM role and hard constraints (Tailwind-only vs Bootstrap-only).",
+      "$comment": "MCP mapping: sets the LLM role and hard constraints (Tailwind-only vs Bootstrap-only vs Pure CSS).",
       "type": "string",
       "enum": ["tailwind", "bootstrap", "pure-css"],
       "default": "tailwind"
     },
     "category": {
-      "title": "Step 2: Template Category",
-      "description": "Primary use case and content structure. Influences layout patterns and page requirement phrasing.",
-      "$comment": "MCP mapping: becomes the 'Template Category' context header and tunes page requirements (admin vs marketing vs content).",
+      "title": "Step 1: Template Category",
+      "description": "Primary use case and content structure. Influences layout patterns and page requirement phrasing. Can be a predefined category or 'custom' for user-defined categories.",
+      "$comment": "MCP mapping: becomes the 'Template Category' context header and tunes page requirements (admin vs marketing vs content). When 'custom', customCategoryName and customCategoryDescription are required.",
       "type": "string",
       "enum": [
         "admin-dashboard",
@@ -38,14 +36,42 @@
         "landing-page",
         "saas-application",
         "blog-content-site",
-        "e-commerce"
+        "e-commerce",
+        "custom"
       ],
       "default": "admin-dashboard"
     },
+    "customCategoryName": {
+      "title": "Custom Category Name",
+      "description": "Name of the custom template category when category is 'custom'.",
+      "$comment": "Required when category is 'custom'. Min 3 characters.",
+      "type": "string",
+      "minLength": 3
+    },
+    "customCategoryDescription": {
+      "title": "Custom Category Description",
+      "description": "Detailed description of the custom template category.",
+      "$comment": "Provides context for MCP prompt when using custom category.",
+      "type": "string"
+    },
+    "outputFormat": {
+      "title": "Step 1: Output Format",
+      "description": "Technology framework or format for the generated template output. Can be a predefined format or 'custom' for user-defined formats.",
+      "$comment": "MCP mapping: instructs which framework syntax to use. When 'custom', customOutputFormat is required.",
+      "type": "string",
+      "enum": ["html-css", "react", "vue", "angular", "svelte", "custom"],
+      "default": "vue"
+    },
+    "customOutputFormat": {
+      "title": "Custom Output Format Description",
+      "description": "Detailed description of the custom output format when outputFormat is 'custom'.",
+      "$comment": "Provides context for MCP prompt when using custom output format.",
+      "type": "string"
+    },
     "pages": {
-      "title": "Step 3: Page Selection",
+      "title": "Step 2: Page Selection",
       "description": "Array of specific pages to include in the template. This list drives MCP page requirements and output file list. Must contain at least one page.",
-      "$comment": "MCP mapping: produces the explicit page list plus per-page functional requirements and the /src/pages/*.vue output list.",
+      "$comment": "MCP mapping: produces the explicit page list plus per-page functional requirements and the output file list.",
       "type": "array",
       "items": {
         "type": "string",
@@ -67,8 +93,34 @@
       "uniqueItems": true,
       "default": ["login", "dashboard"]
     },
+    "customPages": {
+      "title": "Custom Pages",
+      "description": "Array of user-defined custom pages to include in the template. These are recorded for admin statistics.",
+      "$comment": "MCP mapping: added to the page list with user-provided descriptions for generation. Custom pages are tracked for future wizard options.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the custom page"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the custom page",
+            "minLength": 2
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the page's purpose and content"
+          }
+        }
+      },
+      "default": []
+    },
     "layout": {
-      "title": "Step 4: Layout & Navigation",
+      "title": "Step 2: Layout & Navigation",
       "description": "Structural navigation patterns and layout elements.",
       "$comment": "MCP mapping: becomes the layout requirements section (navigation pattern, breadcrumbs on/off, footer minimal/full).",
       "type": "object",
@@ -96,6 +148,34 @@
           "type": "string",
           "enum": ["minimal", "full"],
           "default": "minimal"
+        },
+        "customNavItems": {
+          "description": "Array of user-defined custom navigation items.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "route"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for the navigation item"
+              },
+              "label": {
+                "type": "string",
+                "description": "Display label for the menu item",
+                "minLength": 2
+              },
+              "route": {
+                "type": "string",
+                "description": "Route/URL for the navigation item"
+              },
+              "icon": {
+                "type": "string",
+                "description": "Optional icon name for the navigation item"
+              }
+            }
+          },
+          "default": []
         }
       },
       "dependencies": {
@@ -113,7 +193,7 @@
       }
     },
     "theme": {
-      "title": "Step 5: Theme & Visual Identity",
+      "title": "Step 2: Theme & Visual Identity",
       "description": "Color scheme and visual mode preferences. These values are translated into MCP instructions for theme tokens and dark/light mode handling.",
       "$comment": "MCP mapping: supplies primary/secondary tokens and light/dark default behavior, plus background style requirements.",
       "type": "object",
@@ -146,7 +226,7 @@
       }
     },
     "ui": {
-      "title": "Step 6: UI Density & Style",
+      "title": "Step 2: UI Density & Style",
       "description": "Spacing, sizing, and visual weight preferences.",
       "$comment": "MCP mapping: translates to concrete spacing/padding defaults and border radius utility usage.",
       "type": "object",
@@ -167,9 +247,9 @@
       }
     },
     "components": {
-      "title": "Step 7: Components",
+      "title": "Step 2: Components",
       "description": "UI components to include in the template. This list becomes explicit MCP component requirements and determines which shared components must be generated.",
-      "$comment": "MCP mapping: for each selected component, MCP includes exact required variants and behavior (modals, dropdown close-on-outside, etc.). Charts implies Chart library selection.",
+      "$comment": "MCP mapping: for each selected component, MCP includes exact required variants and behavior. Charts implies Chart library selection.",
       "type": "array",
       "items": {
         "type": "string",
@@ -188,6 +268,32 @@
       "uniqueItems": true,
       "default": ["buttons", "forms", "cards", "alerts"]
     },
+    "customComponents": {
+      "title": "Custom Components",
+      "description": "Array of user-defined custom UI components to include in the template.",
+      "$comment": "MCP mapping: added to the component list with user-provided descriptions for generation.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the custom component"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the custom component",
+            "minLength": 2
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the component's purpose and features"
+          }
+        }
+      },
+      "default": []
+    },
     "chartLibrary": {
       "title": "Chart Library (Charts sub-option)",
       "description": "Required when 'charts' is included in components. Determines which library the generated template must use.",
@@ -196,45 +302,105 @@
       "enum": ["chartjs", "echarts"],
       "default": "chartjs"
     },
+    "llmModel": {
+      "title": "Step 3: LLM Model Selection",
+      "description": "AI model to use for generation. Dynamic string fetched from API. Free users get gemini-flash only, premium users can choose from multiple models.",
+      "$comment": "MCP mapping: determines which LLM API to call for generation. Premium models require user credits.",
+      "type": "string",
+      "default": ""
+    },
+    "modelCredits": {
+      "title": "Model Credits Required",
+      "description": "Base credits required for the selected model.",
+      "$comment": "Used for credit deduction and validation.",
+      "type": "number",
+      "default": 0
+    },
+    "calculatedCredits": {
+      "title": "Total Calculated Credits",
+      "description": "Total credits calculated based on model, pages, and components. Includes base model cost plus extra credits for pages/components exceeding base quota, plus error margin and profit margin.",
+      "$comment": "Formula: (base + extras) * (1 + errorMargin) * (1 + profitMargin). Base quota: 5 pages, 6 components. Extra page: +1 credit, Extra component: +0.5 credit. Default margins: 10% error, 5% profit.",
+      "type": "number",
+      "default": 0
+    },
+    "creditBreakdown": {
+      "title": "Credit Breakdown",
+      "description": "Detailed breakdown of credit calculation for transparency including margins.",
+      "type": "object",
+      "properties": {
+        "modelCost": {
+          "type": "number",
+          "description": "Base cost for the selected LLM model"
+        },
+        "totalPages": {
+          "type": "number",
+          "description": "Total number of pages (predefined + custom)"
+        },
+        "extraPages": {
+          "type": "number",
+          "description": "Pages exceeding base quota (max 5 included)"
+        },
+        "extraPageCredits": {
+          "type": "number",
+          "description": "Credits for extra pages (1 credit per extra page)"
+        },
+        "totalComponents": {
+          "type": "number",
+          "description": "Total number of components (predefined + custom)"
+        },
+        "extraComponents": {
+          "type": "number",
+          "description": "Components exceeding base quota (max 6 included)"
+        },
+        "extraComponentCredits": {
+          "type": "number",
+          "description": "Credits for extra components (0.5 credit per extra component)"
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Subtotal before margins"
+        },
+        "errorMarginPercent": {
+          "type": "number",
+          "description": "Error margin percentage (default 10%, configurable in admin)"
+        },
+        "errorMarginCredits": {
+          "type": "number",
+          "description": "Credits added for error margin"
+        },
+        "profitMarginPercent": {
+          "type": "number",
+          "description": "Profit margin percentage (default 5%, configurable in admin)"
+        },
+        "profitMarginCredits": {
+          "type": "number",
+          "description": "Credits added for profit margin"
+        }
+      }
+    },
     "interaction": {
-      "title": "Step 8: Interaction Level",
-      "description": "Animation and interaction richness level. Affects transitions, hover states, and micro-interactions.",
-      "$comment": "MCP mapping: sets allowed transitions/animations and their intensity (static/moderate/rich).",
+      "title": "Auto-Selected: Interaction Level",
+      "description": "Animation and interaction richness level. Auto-selected as 'moderate' for best results.",
+      "$comment": "Not shown in wizard. Default best value is used.",
       "type": "string",
       "enum": ["static", "moderate", "rich"],
       "default": "moderate"
     },
     "responsiveness": {
-      "title": "Step 9: Responsiveness",
-      "description": "Responsive design approach and optimization priority.",
-      "$comment": "MCP mapping: defines breakpoint strategy and navigation behavior per screen size.",
+      "title": "Auto-Selected: Responsiveness",
+      "description": "Responsive design approach. Auto-selected as 'fully-responsive' for best results.",
+      "$comment": "Not shown in wizard. Default best value is used.",
       "type": "string",
       "enum": ["desktop-first", "mobile-first", "fully-responsive"],
       "default": "fully-responsive"
     },
-    "outputFormat": {
-      "title": "Step 10: Output Format",
-      "description": "Technology framework or format for the generated template output.",
-      "$comment": "MCP mapping: instructs which framework syntax to use (HTML+CSS, React, Vue, Angular, or Svelte).",
+    "codeStyle": {
+      "title": "Auto-Selected: Code Style",
+      "description": "Code style and verbosity. Auto-selected as 'documented' for best results.",
+      "$comment": "Not shown in wizard. Default best value is used.",
       "type": "string",
-      "enum": ["html-css", "react", "vue", "angular", "svelte"],
-      "default": "vue"
-    },
-    "llmModel": {
-      "title": "Step 11: LLM Model Selection",
-      "description": "AI model to use for generation. Free models (gemini-flash) or premium models (gemini-pro, gpt-4, claude-3).",
-      "$comment": "MCP mapping: determines which LLM API to call for generation. Premium models require user credits.",
-      "type": "string",
-      "enum": ["gemini-flash", "gemini-pro", "gpt-4", "claude-3"],
-      "default": "gemini-flash"
-    },
-    "modelTier": {
-      "title": "Model Tier (free/premium)",
-      "description": "Whether the selected model is free or premium tier.",
-      "$comment": "Used for credit calculation and validation.",
-      "type": "string",
-      "enum": ["free", "premium"],
-      "default": "free"
+      "enum": ["minimal", "verbose", "documented"],
+      "default": "documented"
     }
   },
   "allOf": [
@@ -257,6 +423,7 @@
     {
       "framework": "tailwind",
       "category": "admin-dashboard",
+      "outputFormat": "vue",
       "pages": ["dashboard", "user-management", "charts", "settings"],
       "layout": {
         "navigation": "sidebar",
@@ -277,14 +444,15 @@
       "components": ["buttons", "forms", "modals", "cards", "charts"],
       "chartLibrary": "chartjs",
       "interaction": "moderate",
-      "responsiveness": "desktop-first",
-      "outputFormat": "vue",
-      "llmModel": "gemini-flash",
-      "modelTier": "free"
+      "responsiveness": "fully-responsive",
+      "codeStyle": "documented",
+      "llmModel": "gemini-2.5-flash",
+      "modelCredits": 0
     },
     {
       "framework": "bootstrap",
       "category": "landing-page",
+      "outputFormat": "react",
       "pages": ["about", "contact"],
       "layout": {
         "navigation": "topbar",
@@ -302,11 +470,11 @@
         "borderRadius": "rounded"
       },
       "components": ["buttons", "forms", "cards", "alerts"],
-      "interaction": "rich",
-      "responsiveness": "mobile-first",
-      "outputFormat": "react",
-      "llmModel": "gpt-4",
-      "modelTier": "premium"
+      "interaction": "moderate",
+      "responsiveness": "fully-responsive",
+      "codeStyle": "documented",
+      "llmModel": "gpt-5.1-codex",
+      "modelCredits": 10
     }
   ],
   "definitions": {
@@ -316,5 +484,5 @@
       "description": "Hexadecimal color code in format #RRGGBB"
     }
   },
-  "$comment": "This schema is the source of truth for Blueprint validation. Any changes must be synchronized with: 1) wizardState.ts (Vue frontend), 2) McpPromptBuilder.php (Laravel service), 3) Blueprint validation rules (Laravel Form Request), 4) product-instruction.md documentation."
+  "$comment": "This schema is the source of truth for Blueprint validation. 3-Step Wizard: Step 1 (Framework, Category, Output Format), Step 2 (Pages, Layout, Theme, UI, Components), Step 3 (LLM Model). Auto-selected values: interaction=moderate, responsiveness=fully-responsive, codeStyle=documented. Any changes must be synchronized with: 1) wizardState.ts (Vue frontend), 2) McpPromptBuilder.php (Laravel service), 3) Blueprint validation rules (Laravel Form Request), 4) product-instruction.md documentation."
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import { wizardState, OutputFormat } from '../wizardState';
+import { computed, ref, onMounted, watch } from 'vue';
+import { wizardState, OutputFormat, PredefinedOutputFormat, totalCalculatedCredits, syncCalculatedCredits, totalPagesCount, totalComponentsCount, MAX_BASE_PAGES, MAX_BASE_COMPONENTS, extraPageCredits, extraComponentCredits } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
 import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -52,35 +52,41 @@ async function fetchModels() {
 
 onMounted(() => {
   fetchModels();
+  syncCalculatedCredits();
 });
 
-const outputFormatOptions = computed(() => [
+// Watch for changes that affect credit calculation
+watch([() => wizardState.pages, () => wizardState.customPages, () => wizardState.components, () => wizardState.customComponents, () => wizardState.modelCredits], () => {
+  syncCalculatedCredits();
+}, { deep: true });
+
+const predefinedOutputFormats = computed(() => [
   {
-    value: 'html-css' as OutputFormat,
+    value: 'html-css' as PredefinedOutputFormat,
     label: t.value.wizard?.steps?.outputFormat?.htmlCss || 'HTML + CSS',
     description: t.value.wizard?.steps?.outputFormat?.htmlCssDesc || 'Pure HTML dengan CSS murni, tanpa framework JS',
     icon: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4',
   },
   {
-    value: 'react' as OutputFormat,
+    value: 'react' as PredefinedOutputFormat,
     label: t.value.wizard?.steps?.outputFormat?.react || 'React JS',
     description: t.value.wizard?.steps?.outputFormat?.reactDesc || 'React components dengan JSX dan hooks',
     icon: 'M12 14l9-5-9-5-9 5 9 5z',
   },
   {
-    value: 'vue' as OutputFormat,
+    value: 'vue' as PredefinedOutputFormat,
     label: t.value.wizard?.steps?.outputFormat?.vue || 'Vue.js',
     description: t.value.wizard?.steps?.outputFormat?.vueDesc || 'Vue 3 components dengan Composition API',
     icon: 'M12 2L2 19.5h20L12 2z',
   },
   {
-    value: 'angular' as OutputFormat,
+    value: 'angular' as PredefinedOutputFormat,
     label: t.value.wizard?.steps?.outputFormat?.angular || 'Angular',
     description: t.value.wizard?.steps?.outputFormat?.angularDesc || 'Angular components dengan TypeScript',
     icon: 'M3 3l18 18M9 9l12 12',
   },
   {
-    value: 'svelte' as OutputFormat,
+    value: 'svelte' as PredefinedOutputFormat,
     label: t.value.wizard?.steps?.outputFormat?.svelte || 'Svelte',
     description: t.value.wizard?.steps?.outputFormat?.svelteDesc || 'Svelte components dengan compile-time optimization',
     icon: 'M13 10V3L4 14h7v7l9-11h-7z',
@@ -99,20 +105,26 @@ const allModels = computed(() => {
 
 function selectOutputFormat(format: OutputFormat) {
   wizardState.outputFormat = format;
+  if (format !== 'custom') {
+    wizardState.customOutputFormat = '';
+  }
 }
 
 function selectModel(modelId: string, creditsRequired: number) {
-  // Check if user has enough credits
-  if (creditsRequired > 0 && userCredits.value < creditsRequired) {
+  // Check if user has enough credits for total calculated credits
+  const totalRequired = creditsRequired + extraPageCredits.value + extraComponentCredits.value;
+  if (totalRequired > 0 && userCredits.value < totalRequired) {
     return; // Don't allow selection
   }
   
   wizardState.llmModel = modelId;
   wizardState.modelCredits = creditsRequired;
+  syncCalculatedCredits();
 }
 
 function isModelDisabled(creditsRequired: number): boolean {
-  return creditsRequired > 0 && userCredits.value < creditsRequired;
+  const totalRequired = creditsRequired + extraPageCredits.value + extraComponentCredits.value;
+  return totalRequired > 0 && userCredits.value < totalRequired;
 }
 </script>
 
@@ -130,8 +142,9 @@ function isModelDisabled(creditsRequired: number): boolean {
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Predefined Output Formats -->
         <button
-          v-for="format in outputFormatOptions"
+          v-for="format in predefinedOutputFormats"
           :key="format.value"
           @click="selectOutputFormat(format.value)"
           :class="[
@@ -176,6 +189,73 @@ function isModelDisabled(creditsRequired: number): boolean {
             {{ format.description }}
           </p>
         </button>
+
+        <!-- Custom Output Format Option -->
+        <button
+          @click="selectOutputFormat('custom')"
+          :class="[
+            'p-5 rounded-xl border-2 text-left transition-all hover:shadow-lg',
+            wizardState.outputFormat === 'custom'
+              ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
+              : 'border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-purple-400'
+          ]"
+        >
+          <div class="flex items-start justify-between mb-3">
+            <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+              <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            </div>
+            <div
+              :class="[
+                'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                wizardState.outputFormat === 'custom'
+                  ? 'border-purple-600 bg-purple-600'
+                  : 'border-slate-300 dark:border-slate-600'
+              ]"
+            >
+              <svg
+                v-if="wizardState.outputFormat === 'custom'"
+                class="w-3 h-3 text-white"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </div>
+          </div>
+          <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-300 mb-2">
+            {{ t.wizard?.steps?.outputFormat?.custom || 'Format Kustom' }}
+          </h3>
+          <p class="text-slate-600 dark:text-slate-400 text-sm">
+            {{ t.wizard?.steps?.outputFormat?.customDesc || 'Tentukan format output kustom sesuai kebutuhan Anda' }}
+          </p>
+        </button>
+      </div>
+
+      <!-- Custom Output Format Input -->
+      <div
+        v-if="wizardState.outputFormat === 'custom'"
+        class="p-5 rounded-xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20"
+      >
+        <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          {{ t.wizard?.steps?.outputFormat?.customInputTitle || 'Deskripsi Format Kustom' }}
+        </h3>
+        <textarea
+          v-model="wizardState.customOutputFormat"
+          :placeholder="t.wizard?.steps?.outputFormat?.customPlaceholder || 'Contoh: PHP dengan Laravel Blade templates dan Alpine.js untuk interaktivitas. Gunakan Tailwind CSS untuk styling. Sertakan helper functions dan Eloquent models.'"
+          class="w-full h-32 px-4 py-3 border border-purple-300 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+        ></textarea>
+        <p class="mt-2 text-sm text-purple-600 dark:text-purple-400">
+          {{ t.wizard?.steps?.outputFormat?.customHint || 'Jelaskan teknologi, framework, atau format spesifik yang Anda inginkan.' }}
+        </p>
       </div>
     </div>
 
@@ -288,9 +368,61 @@ function isModelDisabled(creditsRequired: number): boolean {
 
       <!-- Summary Box -->
       <div class="p-6 rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">
           🎉 {{ t.wizard?.steps?.llmModel?.ready || 'Siap untuk Generate!' }}
         </h3>
+        
+        <!-- Credit Breakdown -->
+        <div class="space-y-3 mb-4">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-600 dark:text-slate-400">
+              {{ t.wizard?.steps?.llmModel?.modelCost || 'Biaya Model:' }}
+            </span>
+            <span class="font-medium text-slate-900 dark:text-white">
+              💎 {{ wizardState.modelCredits }} {{ t.common?.credits || 'kredit' }}
+            </span>
+          </div>
+          
+          <!-- Pages count -->
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-600 dark:text-slate-400">
+              {{ t.wizard?.steps?.llmModel?.pagesCount || 'Jumlah Halaman:' }}
+              <span class="text-xs ml-1 text-slate-500">
+                ({{ totalPagesCount }}/{{ MAX_BASE_PAGES }} {{ t.wizard?.steps?.llmModel?.included || 'termasuk' }})
+              </span>
+            </span>
+            <span v-if="extraPageCredits > 0" class="font-medium text-amber-600 dark:text-amber-400">
+              +{{ extraPageCredits }} {{ t.common?.credits || 'kredit' }}
+            </span>
+            <span v-else class="text-green-600 dark:text-green-400 text-xs">✓ {{ t.wizard?.steps?.llmModel?.included || 'Termasuk' }}</span>
+          </div>
+          
+          <!-- Components count -->
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-600 dark:text-slate-400">
+              {{ t.wizard?.steps?.llmModel?.componentsCount || 'Jumlah Komponen:' }}
+              <span class="text-xs ml-1 text-slate-500">
+                ({{ totalComponentsCount }}/{{ MAX_BASE_COMPONENTS }} {{ t.wizard?.steps?.llmModel?.included || 'termasuk' }})
+              </span>
+            </span>
+            <span v-if="extraComponentCredits > 0" class="font-medium text-amber-600 dark:text-amber-400">
+              +{{ extraComponentCredits }} {{ t.common?.credits || 'kredit' }}
+            </span>
+            <span v-else class="text-green-600 dark:text-green-400 text-xs">✓ {{ t.wizard?.steps?.llmModel?.included || 'Termasuk' }}</span>
+          </div>
+          
+          <div class="border-t border-blue-300 dark:border-blue-700 pt-3 mt-3">
+            <div class="flex justify-between items-center">
+              <span class="font-semibold text-slate-900 dark:text-white">
+                {{ t.wizard?.steps?.llmModel?.totalCost || 'Total Biaya:' }}
+              </span>
+              <span class="text-lg font-bold text-blue-600 dark:text-blue-400">
+                💎 {{ totalCalculatedCredits }} {{ t.common?.credits || 'kredit' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
         <p class="text-slate-600 dark:text-slate-400 text-sm">
           {{ t.wizard?.steps?.llmModel?.readyDesc || 'Anda telah menyelesaikan semua 5 langkah. Klik tombol "Generate Template" untuk membuat template kustom Anda.' }}
         </p>

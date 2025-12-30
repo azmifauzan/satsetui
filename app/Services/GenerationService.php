@@ -17,7 +17,9 @@ class GenerationService
 {
     public function __construct(
         private OpenAICompatibleService $llmService,
-        private McpPromptBuilder $mcpPromptBuilder
+        private McpPromptBuilder $mcpPromptBuilder,
+        private CreditService $creditService,
+        private CostTrackingService $costTrackingService
     ) {}
 
     /**
@@ -34,7 +36,8 @@ class GenerationService
         ?string $modelName = null,
         ?string $projectName = null
     ): array {
-        $pages = $blueprint['pages'] ?? ['home'];
+        // Get all pages to generate (includes regular pages, custom pages, and component showcase pages)
+        $pages = $this->mcpPromptBuilder->getPageList($blueprint);
         $totalPages = count($pages);
         
         // Auto-select model if not provided
@@ -89,9 +92,14 @@ class GenerationService
                 'started_at' => now(),
             ]);
 
-            // Deduct credits upfront if premium model
+            // Charge credits upfront if premium model
             if (!$model->is_free) {
-                $user->decrement('credits', $model->estimated_credits_per_generation);
+                $this->creditService->charge(
+                    $user,
+                    $model->estimated_credits_per_generation,
+                    $generation,
+                    "Template generation: {$projectName}"
+                );
             }
 
             DB::commit();
@@ -112,8 +120,10 @@ class GenerationService
 
     /**
      * Generate next page in sequence
+     * 
+     * @param int $retryCount Current retry attempt (for handling timeouts)
      */
-    public function generateNextPage(Generation $generation): array
+    public function generateNextPage(Generation $generation, int $retryCount = 0): array
     {
         $progressData = $generation->progress_data;
         $currentIndex = $generation->current_page_index;
@@ -129,6 +139,8 @@ class GenerationService
         $pages = array_keys($progressData);
         $currentPage = $pages[$currentIndex];
         
+        $maxRetries = 3; // Max retry attempts for timeout errors
+        
         // Update status
         $progressData[$currentPage]['status'] = 'generating';
         $generation->update([
@@ -137,12 +149,48 @@ class GenerationService
         ]);
 
         try {
-            // Build prompt for current page only
+            // Get model details to check context length
+            $model = $this->llmService->getModel($generation->model_used);
+            $contextLimit = $model ? $model->context_length : 8192; // Default 8k tokens
+            
+            // Build prompt for current page with context from previous pages
             $project = $generation->project;
             $blueprint = $project->blueprint;
             $blueprint['pages'] = [$currentPage]; // Focus on one page
             
             $mcpPrompt = $this->mcpPromptBuilder->buildFromBlueprint($blueprint);
+            
+            // Add context from previously generated pages
+            $previousContext = $this->buildPreviousPageContext($generation, $currentIndex);
+            if ($previousContext) {
+                $mcpPrompt .= "\n\n=== CONTEXT FROM PREVIOUSLY GENERATED PAGES ===\n\n";
+                $mcpPrompt .= $previousContext;
+                $mcpPrompt .= "\n\nPlease ensure the {$currentPage} page follows the same style, structure, and naming conventions as the pages above.\n";
+            }
+            
+            // Add strict instruction to return ONLY code
+            $mcpPrompt .= "\n\n=== CRITICAL OUTPUT REQUIREMENTS ===\n";
+            $mcpPrompt .= "- Return ONLY the complete, working code\n";
+            $mcpPrompt .= "- DO NOT include any explanations, comments, or markdown formatting\n";
+            $mcpPrompt .= "- DO NOT wrap code in ```html or ``` blocks\n";
+            $mcpPrompt .= "- DO NOT add introductory text like 'Here is...' or 'This code...'\n";
+            $mcpPrompt .= "- Start directly with <!DOCTYPE html> or the opening tag\n";
+            $mcpPrompt .= "- End directly with the closing </html> tag or final closing tag\n";
+            
+            // Trim prompt if exceeds context length (reserve 20% for output)
+            $maxInputTokens = (int) ($contextLimit * 0.8);
+            $mcpPrompt = $this->trimPromptToFit($mcpPrompt, $maxInputTokens);
+            
+            // Create PageGeneration record to track prompt/response
+            $pageGeneration = \App\Models\PageGeneration::create([
+                'generation_id' => $generation->id,
+                'page_name' => $currentPage,
+                'page_type' => 'predefined', // TODO: detect custom pages
+                'page_index' => $currentIndex,
+                'mcp_prompt' => $mcpPrompt,
+                'status' => 'generating',
+                'started_at' => now(),
+            ]);
             
             // Generate with LLM
             $startTime = microtime(true);
@@ -150,10 +198,39 @@ class GenerationService
             $processingTime = (int) ((microtime(true) - $startTime) * 1000);
 
             if (!$result['success']) {
+                // Check if error is timeout (524) and should retry
+                $isTimeoutError = str_contains($result['error'], '524') || 
+                                  str_contains(strtolower($result['error']), 'timeout');
+                
+                if ($isTimeoutError && $retryCount < $maxRetries) {
+                    // Log retry attempt
+                    \Illuminate\Support\Facades\Log::info("Retrying generation for page '{$currentPage}' (attempt " . ($retryCount + 1) . "/{$maxRetries})", [
+                        'generation_id' => $generation->id,
+                        'page' => $currentPage,
+                        'error' => $result['error'],
+                    ]);
+                    
+                    // Wait a bit before retry (exponential backoff)
+                    sleep(pow(2, $retryCount)); // 1s, 2s, 4s
+                    
+                    // Retry the generation
+                    return $this->generateNextPage($generation, $retryCount + 1);
+                }
+                
+                // Update PageGeneration record with failure
+                $pageGeneration->update([
+                    'llm_response' => json_encode($result),
+                    'status' => 'failed',
+                    'error_message' => $result['error'],
+                    'processing_time_ms' => $processingTime,
+                    'completed_at' => now(),
+                ]);
+                
                 // Mark page as failed
                 $progressData[$currentPage]['status'] = 'failed';
                 $progressData[$currentPage]['error'] = $result['error'];
                 $progressData[$currentPage]['processing_time'] = $processingTime;
+                $progressData[$currentPage]['retry_count'] = $retryCount;
                 
                 $generation->update([
                     'progress_data' => $progressData,
@@ -164,9 +241,40 @@ class GenerationService
                     'success' => false,
                     'error' => $result['error'],
                     'page' => $currentPage,
+                    'retry_count' => $retryCount,
                 ];
             }
 
+            // Update PageGeneration record with success
+            $pageGeneration->update([
+                'llm_response' => json_encode($result),
+                'generated_content' => $result['content'],
+                'status' => 'completed',
+                'input_tokens' => $result['usage']['input_tokens'] ?? 0,
+                'output_tokens' => $result['usage']['output_tokens'] ?? 0,
+                'processing_time_ms' => $processingTime,
+                'completed_at' => now(),
+            ]);
+
+            // Record cost tracking
+            $inputTokens = $result['usage']['input_tokens'] ?? 0;
+            $outputTokens = $result['usage']['output_tokens'] ?? 0;
+            $creditsChargedThisPage = 0; // Per-page cost calculation if needed
+            
+            $this->costTrackingService->recordCost(
+                $pageGeneration,
+                $generation,
+                $generation->user,
+                $generation->model_used,
+                $this->getProviderName($generation->model_used),
+                $inputTokens,
+                $outputTokens,
+                $creditsChargedThisPage,
+                $processingTime,
+                $result['raw_request'] ?? null,
+                $result['raw_response'] ?? null
+            );
+            
             // Mark page as completed and store content
             $progressData[$currentPage]['status'] = 'completed';
             $progressData[$currentPage]['content'] = $result['content'];
@@ -210,6 +318,27 @@ class GenerationService
             ];
 
         } catch (\Exception $e) {
+            // Record failure
+            $failure = \App\Models\GenerationFailure::create([
+                'generation_id' => $generation->id,
+                'user_id' => $generation->user_id,
+                'page_generation_id' => $pageGeneration->id ?? null,
+                'failure_type' => 'generation_error',
+                'error_code' => $e->getCode(),
+                'error_message' => $e->getMessage(),
+                'error_stack_trace' => $e->getTraceAsString(),
+                'model_used' => $generation->model_used,
+                'page_name' => $currentPage,
+                'page_index' => $currentIndex,
+                'attempt_number' => 1,
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'additional_context' => [
+                    'blueprint' => $generation->project->blueprint,
+                    'current_page' => $currentPage,
+                ],
+            ]);
+            
             // Mark page as failed
             $progressData[$currentPage]['status'] = 'failed';
             $progressData[$currentPage]['error'] = $e->getMessage();
@@ -226,9 +355,14 @@ class GenerationService
 
             // Refund credits if premium model
             $model = $this->llmService->getModel($generation->model_used);
-            if ($model && !$model->is_free) {
-                // Refund the estimated credits since generation failed
-                $generation->user->increment('credits', $generation->credits_used);
+            if ($model && !$model->is_free && $generation->credits_used > 0) {
+                $this->creditService->refund(
+                    $generation->user,
+                    $generation->credits_used,
+                    $generation,
+                    $failure,
+                    "Generation failed at page '{$currentPage}': {$e->getMessage()}"
+                );
             }
 
             return [
@@ -306,5 +440,132 @@ class GenerationService
             ];
         }
         return $data;
+    }
+
+    /**
+     * Build context from previously generated pages
+     */
+    private function buildPreviousPageContext(Generation $generation, int $currentIndex): string
+    {
+        if ($currentIndex === 0) {
+            return ''; // No previous pages
+        }
+        
+        $context = '';
+        $progressData = $generation->progress_data;
+        $pages = array_keys($progressData);
+        
+        // Include last 2 pages for context (not all to keep prompt size reasonable)
+        $startIndex = max(0, $currentIndex - 2);
+        
+        for ($i = $startIndex; $i < $currentIndex; $i++) {
+            $pageName = $pages[$i];
+            $pageData = $progressData[$pageName];
+            
+            if (isset($pageData['content']) && $pageData['status'] === 'completed') {
+                $context .= "--- Page: {$pageName} ---\n";
+                
+                // Extract key elements (first 500 chars and structure)
+                $content = $pageData['content'];
+                
+                // Get head section (css/styling)
+                if (preg_match('/<head[^>]*>(.*?)<\/head>/is', $content, $headMatch)) {
+                    $context .= "Head section:\n" . substr($headMatch[1], 0, 500) . "...\n\n";
+                }
+                
+                // Get main structure overview
+                if (preg_match('/<body[^>]*>(.*?)<\/body>/is', $content, $bodyMatch)) {
+                    // Extract class names and structure
+                    preg_match_all('/class="([^"]+)"/i', $bodyMatch[1], $classMatches);
+                    $classes = array_unique(array_slice($classMatches[1], 0, 10));
+                    $context .= "CSS classes used: " . implode(', ', $classes) . "\n";
+                    
+                    // Extract component structure (first 300 chars)
+                    $bodyPreview = strip_tags(substr($bodyMatch[1], 0, 300));
+                    $context .= "Structure preview: " . trim($bodyPreview) . "...\n";
+                }
+                
+                $context .= "\n";
+            }
+        }
+        
+        return $context;
+    }
+    
+    /**
+     * Trim prompt to fit within context length limit
+     * 
+     * Uses approximate token counting (4 chars = 1 token as rough estimate)
+     * Prioritizes keeping instructions and current page info, trims context if needed
+     */
+    private function trimPromptToFit(string $prompt, int $maxTokens): string
+    {
+        // Approximate token count (4 chars per token is rough average)
+        $estimatedTokens = strlen($prompt) / 4;
+        
+        if ($estimatedTokens <= $maxTokens) {
+            return $prompt; // Fits within limit
+        }
+        
+        // Need to trim - extract sections
+        $sections = [];
+        
+        // Split by major sections
+        if (preg_match('/^(.*?)(=== CONTEXT FROM PREVIOUSLY GENERATED PAGES ===.*?)(=== CRITICAL OUTPUT REQUIREMENTS ===.*)$/s', $prompt, $matches)) {
+            $sections['core'] = $matches[1]; // Main prompt + requirements
+            $sections['context'] = $matches[2]; // Previous pages context
+            $sections['output'] = $matches[3]; // Output requirements
+        } else {
+            // Fallback if pattern doesn't match
+            return substr($prompt, 0, $maxTokens * 4); // Simple truncation
+        }
+        
+        // Calculate token allocation
+        $coreTokens = strlen($sections['core']) / 4;
+        $outputTokens = strlen($sections['output']) / 4;
+        $contextTokens = strlen($sections['context']) / 4;
+        
+        // Core + output requirements are essential
+        $essentialTokens = $coreTokens + $outputTokens;
+        
+        if ($essentialTokens > $maxTokens) {
+            // Even without context, we're over limit - trim core
+            $allowedChars = (int) ($maxTokens * 4 * 0.9); // 90% for safety
+            return substr($sections['core'], 0, $allowedChars) . $sections['output'];
+        }
+        
+        // Calculate available tokens for context
+        $availableForContext = $maxTokens - $essentialTokens;
+        
+        if ($contextTokens <= $availableForContext) {
+            return $prompt; // All fits
+        }
+        
+        // Trim context to fit
+        $allowedContextChars = (int) ($availableForContext * 4);
+        $trimmedContext = substr($sections['context'], 0, $allowedContextChars);
+        $trimmedContext .= "\n\n[Context truncated to fit model's context window]\n\n";
+        
+        return $sections['core'] . $trimmedContext . $sections['output'];
+    }
+    
+    /**
+     * Get provider name from model name
+     */
+    private function getProviderName(string $modelName): string
+    {
+        // Determine provider from model name
+        if (str_contains(strtolower($modelName), 'gpt')) {
+            return 'openai';
+        }
+        if (str_contains(strtolower($modelName), 'claude')) {
+            return 'anthropic';
+        }
+        if (str_contains(strtolower($modelName), 'gemini')) {
+            return 'google';
+        }
+        
+        // Default fallback
+        return 'unknown';
     }
 }

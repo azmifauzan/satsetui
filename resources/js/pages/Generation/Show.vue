@@ -277,11 +277,11 @@ onUnmounted(() => {
             </svg>
             <span class="text-slate-600 dark:text-slate-400">{{ processingTimeFormatted }}</span>
           </div>
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <div class="flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 3h10l4 4-9 14L3 7l4-4zm5 2L9 7h6l-3-2zm-6 3l3.5 8L5 8zm7.5 8L17 8l-3.5 8z"/>
             </svg>
-            <span class="text-slate-600 dark:text-slate-400">{{ generationData.credits_used }} credit{{ generationData.credits_used !== 1 ? 's' : '' }} used</span>
+            <span class="text-slate-600 dark:text-slate-400 font-medium">{{ generationData.credits_used }} kredit</span>
           </div>
           <div class="flex items-center gap-2">
             <div :class="[

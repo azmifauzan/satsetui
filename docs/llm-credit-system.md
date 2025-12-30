@@ -3,7 +3,7 @@
 Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kredit di Template Generator.
 
 **Tanggal Update:** 30 Desember 2025  
-**Versi:** 1.0
+**Versi:** 2.0 (Updated untuk 3-Step Wizard & Per-Page Generation)
 
 ---
 
@@ -11,12 +11,13 @@ Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kred
 
 1. [Ringkasan Sistem](#ringkasan-sistem)
 2. [Model LLM yang Tersedia](#model-llm-yang-tersedia)
-3. [Perhitungan Kredit](#perhitungan-kredit)
-4. [Struktur Database](#struktur-database)
-5. [Service Architecture](#service-architecture)
-6. [API Integration](#api-integration)
-7. [User Credits & Premium](#user-credits--premium)
-8. [Implementasi Teknis](#implementasi-teknis)
+3. [Perhitungan Kredit dengan Margin](#perhitungan-kredit-dengan-margin)
+4. [Per-Page Generation](#per-page-generation)
+5. [History Recording & Credit Learning](#history-recording--credit-learning)
+6. [Struktur Database](#struktur-database)
+7. [Service Architecture](#service-architecture)
+8. [API Integration](#api-integration)
+9. [Admin Configuration](#admin-configuration)
 
 ---
 
@@ -24,12 +25,16 @@ Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kred
 
 Sistem LLM menggunakan OpenAI-compatible API untuk mendukung multiple model providers dalam satu interface yang konsisten. Setiap model memiliki pricing yang berbeda berdasarkan token input/output, dan users dikenakan biaya dalam bentuk kredit.
 
-### Fitur Utama
+### Fitur Utama (v2.0)
 
 - ✅ **6 Model LLM** - Dari model gratis hingga premium
+- ✅ **Per-Page Generation** - Setiap halaman di-generate secara terpisah
+- ✅ **History Recording** - Semua prompt dan response dicatat
+- ✅ **Credit Learning** - Estimasi kredit semakin akurat dari data historis
 - ✅ **Dynamic Pricing** - Harga dihitung berdasarkan token usage aktual
+- ✅ **Error Margin** - Default 10%, configurable di admin
+- ✅ **Profit Margin** - Default 5%, configurable di admin
 - ✅ **Credit System** - 1 kredit = Rp 1,000
-- ✅ **Margin System** - 5% markup untuk biaya operasional
 - ✅ **Free Tier** - Gemini 2.5 Flash tersedia gratis
 - ✅ **25 Kredit Awal** - Diberikan saat registrasi
 
@@ -88,86 +93,239 @@ Sistem LLM menggunakan OpenAI-compatible API untuk mendukung multiple model prov
 
 ---
 
-## Perhitungan Kredit
+## Perhitungan Kredit dengan Margin
 
-### Formula Dasar
+### Formula Baru (v2.0)
 
 ```
-Kredit = CEIL(
-    ((input_tokens / 1,000,000) × input_price_per_million) +
-    ((output_tokens / 1,000,000) × output_price_per_million)
-) × USD_TO_IDR × (1 + MARGIN) / CREDIT_VALUE
+subtotal = modelCredits + extraPageCredits + extraComponentCredits
+withErrorMargin = subtotal × (1 + errorMarginPercent)
+totalCredits = CEIL(withErrorMargin × (1 + profitMarginPercent))
+```
+
+### Kuota Dasar
+
+| Item | Kuota Dasar | Biaya Extra per Item |
+|------|-------------|----------------------|
+| Halaman | 5 halaman | +1 kredit per halaman |
+| Komponen | 6 komponen | +0.5 kredit per komponen |
+
+### Margin System (NEW)
+
+| Margin Type | Default | Range | Configurable |
+|-------------|---------|-------|--------------|
+| Error Margin | 10% | 0-50% | Ya (Admin) |
+| Profit Margin | 5% | 0-50% | Ya (Admin) |
+
+**Error Margin** - Meng-cover variasi token usage yang tidak dapat diprediksi dengan akurat.
+**Profit Margin** - Untuk biaya operasional dan keuntungan platform.
+
+### Contoh Perhitungan Lengkap
+
+#### Skenario 1: Template Standar dengan Margin
+```
+Model: Gemini 2.5 Flash (3 kredit)
+Halaman: 4 halaman (predefined)
+Komponen: 5 komponen (predefined)
+
+Kalkulasi:
+- Model Cost: 3 kredit
+- Extra Pages: MAX(0, 4-5) × 1 = 0 kredit
+- Extra Components: MAX(0, 5-6) × 0.5 = 0 kredit
+- Subtotal: 3 + 0 + 0 = 3 kredit
+
+Dengan Margin:
+- After Error Margin (10%): 3 × 1.10 = 3.3 kredit
+- After Profit Margin (5%): 3.3 × 1.05 = 3.465 kredit
+- Final (rounded up): 4 kredit
+```
+
+#### Skenario 2: Template Kompleks dengan Custom
+```
+Model: Claude Sonnet 4.5 (15 kredit)
+Halaman: 6 predefined + 3 custom = 9 halaman total
+Komponen: 6 predefined + 4 custom = 10 komponen total
+
+Kalkulasi:
+- Model Cost: 15 kredit
+- Extra Pages: MAX(0, 9-5) × 1 = 4 kredit
+- Extra Components: MAX(0, 10-6) × 0.5 = 2 kredit
+- Subtotal: 15 + 4 + 2 = 21 kredit
+
+Dengan Margin:
+- After Error Margin (10%): 21 × 1.10 = 23.1 kredit
+- After Profit Margin (5%): 23.1 × 1.05 = 24.255 kredit
+- Final (rounded up): 25 kredit
+```
+
+#### Skenario 3: Template Gratis dengan Extra
+```
+Model: Gemini 2.5 Flash (FREE - 3 kredit equivalent)
+Halaman: 8 halaman (3 predefined + 5 custom)
+Komponen: 8 komponen (4 predefined + 4 custom)
+
+Kalkulasi:
+- Model Cost: 3 kredit
+- Extra Pages: MAX(0, 8-5) × 1 = 3 kredit
+- Extra Components: MAX(0, 8-6) × 0.5 = 1 kredit
+- Subtotal: 3 + 3 + 1 = 7 kredit
+
+Dengan Margin:
+- After Error Margin (10%): 7 × 1.10 = 7.7 kredit
+- After Profit Margin (5%): 7.7 × 1.05 = 8.085 kredit
+- Final (rounded up): 9 kredit
+
+Note: Untuk FREE user, kredit tidak di-charge, tapi estimasi tetap ditampilkan.
+```
+
+### Credit Breakdown Display (Step 3)
+
+Di Step 3 (LLM Model Selection), user dapat melihat breakdown kredit:
+
+```
+┌─────────────────────────────────────────────────┐
+│  💎 Siap untuk Generate!                         │
+├─────────────────────────────────────────────────┤
+│  Biaya Model:              💎 15 kredit          │
+│  Halaman Extra: (9 total, 4 extra)    +4 kredit  │
+│  Komponen Extra: (10 total, 4 extra)  +2 kredit  │
+├─────────────────────────────────────────────────┤
+│  Subtotal:                 💎 21 kredit          │
+│  Error Margin (10%):       +2.1 kredit          │
+│  Profit Margin (5%):       +1.155 kredit        │
+├─────────────────────────────────────────────────┤
+│  Total Biaya:              💎 25 kredit          │
+│  (rounded up from 24.255)                        │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## Per-Page Generation
+
+### Konsep
+
+Daripada generate semua halaman sekaligus, sistem sekarang generate **per halaman**:
+
+1. **Better LLM Context** - Setiap halaman mendapat fokus penuh
+2. **Progress Tracking** - User melihat progress real-time
+3. **Error Recovery** - Satu halaman gagal tidak menggagalkan yang lain
+4. **Credit Accuracy** - Token usage aktual tercatat per halaman
+
+### Flow Per-Page Generation
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Generation Started                                   │
+│ Total Pages: 5                                       │
+└──────────────────────┬──────────────────────────────┘
+                       │
+         ┌─────────────┴─────────────┐
+         │ Page 1: Login             │
+         │ - Build MCP Prompt        │
+         │ - Call LLM API            │
+         │ - Record History          │
+         │ - Store Code              │
+         └─────────────┬─────────────┘
+                       │ ✓ Complete (1/5)
+         ┌─────────────┴─────────────┐
+         │ Page 2: Dashboard         │
+         │ - Build MCP Prompt        │
+         │ - Call LLM API            │
+         │ - Record History          │
+         │ - Store Code              │
+         └─────────────┬─────────────┘
+                       │ ✓ Complete (2/5)
+         ┌─────────────┴─────────────┐
+         │ Page 3: Charts            │
+         │ - Build MCP Prompt        │
+         │ - Call LLM API            │
+         │ ✗ Error! Retry...         │
+         │ - Call LLM API (retry)    │
+         │ - Record History          │
+         │ - Store Code              │
+         └─────────────┬─────────────┘
+                       │ ✓ Complete (3/5)
+                      ...
+```
+
+### Progress API Response
+
+```json
+{
+  "generation_id": 123,
+  "status": "processing",
+  "total_pages": 5,
+  "current_page_index": 3,
+  "current_page_name": "Charts",
+  "pages": [
+    {"name": "login", "status": "completed", "processing_time_ms": 2500},
+    {"name": "dashboard", "status": "completed", "processing_time_ms": 4200},
+    {"name": "charts", "status": "processing", "processing_time_ms": null},
+    {"name": "settings", "status": "pending", "processing_time_ms": null},
+    {"name": "inventory", "status": "pending", "processing_time_ms": null}
+  ]
+}
+```
+
+---
+
+## History Recording & Credit Learning
+
+### Data yang Dicatat per Halaman
+
+Setiap halaman yang di-generate akan mencatat:
+
+| Field | Description |
+|-------|-------------|
+| `page_name` | Nama halaman (e.g., "login", "dashboard", "Inventory") |
+| `page_type` | "predefined" atau "custom" |
+| `mcp_prompt` | Full prompt yang dikirim ke LLM |
+| `llm_response` | Full response dari LLM |
+| `input_tokens` | Jumlah token input |
+| `output_tokens` | Jumlah token output |
+| `processing_time_ms` | Waktu proses dalam ms |
+| `status` | completed/failed |
+| `error_message` | Pesan error jika gagal |
+
+### Credit Learning Algorithm
+
+Sistem belajar dari data historis untuk estimasi kredit yang lebih akurat:
+
+```
+estimated_tokens = weighted_average(
+  last_100_generations_of_same_page_type,
+  weights = exponential_decay(newer = higher_weight)
 )
 ```
 
-### Konstanta
-
-| Variabel | Nilai | Keterangan |
-|----------|-------|------------|
-| `USD_TO_IDR` | 18,000 | Kurs USD ke Rupiah |
-| `MARGIN` | 0.05 (5%) | Markup untuk sistem |
-| `CREDIT_VALUE` | 1,000 | 1 kredit = Rp 1,000 |
-| `ESTIMATED_INPUT` | 10,000 | Rata-rata token input |
-| `ESTIMATED_OUTPUT` | 50,000 | Rata-rata token output |
-
-### Contoh Perhitungan Detail
-
-#### Example 1: Gemini 2.5 Flash (FREE)
-
-```
-Input Price:  $0.30 per 1M tokens
-Output Price: $2.50 per 1M tokens
-
-Kalkulasi:
-- Input Cost  = (10,000 / 1,000,000) × $0.30 = $0.003
-- Output Cost = (50,000 / 1,000,000) × $2.50 = $0.125
-- Total USD   = $0.003 + $0.125 = $0.128
-
-Konversi:
-- Total IDR before margin = $0.128 × 18,000 = Rp 2,304
-- Total IDR with margin   = Rp 2,304 × 1.05 = Rp 2,419.20
-- Credits = CEIL(Rp 2,419.20 / 1,000) = 3 kredit
-```
-
-#### Example 2: Claude Sonnet 4.5 (Premium)
-
-```
-Input Price:  $3.00 per 1M tokens
-Output Price: $15.00 per 1M tokens
-
-Kalkulasi:
-- Input Cost  = (10,000 / 1,000,000) × $3.00 = $0.03
-- Output Cost = (50,000 / 1,000,000) × $15.00 = $0.75
-- Total USD   = $0.03 + $0.75 = $0.78
-
-Konversi:
-- Total IDR before margin = $0.78 × 18,000 = Rp 14,040
-- Total IDR with margin   = Rp 14,040 × 1.05 = Rp 14,742
-- Credits = CEIL(Rp 14,742 / 1,000) = 15 kredit
-```
-
-### Pembulatan (Rounding)
-
-⚠️ **PENTING:** Semua perhitungan kredit **SELALU DIBULATKAN KE ATAS** menggunakan fungsi `CEIL()`.
-
-**Alasan:**
-1. Mencegah kerugian pada transaksi kecil
-2. Mempermudah estimasi user
-3. Standar industri untuk micro-transactions
-4. Margin keamanan untuk fluktuasi kurs
-
 **Contoh:**
-- Rp 2,419.20 → **3** kredit (bukan 2)
-- Rp 1,940.00 → **2** kredit (bukan 1)
-- Rp 5,670.50 → **6** kredit (bukan 5)
+- `login` page historically uses ~500 output tokens
+- `dashboard` page historically uses ~2000 output tokens  
+- `charts` page historically uses ~1500 output tokens
+- `custom` pages use average of all custom pages
+
+### Learning Data Storage
+
+```sql
+-- credit_estimations table
+┌─────────────────┬──────────────────┬─────────────────┬─────────────────┐
+│ page_type       │ category         │ model_id        │ avg_output_tokens│
+├─────────────────┼──────────────────┼─────────────────┼─────────────────┤
+│ login           │ admin-dashboard  │ gemini-2.5-flash│ 520             │
+│ dashboard       │ admin-dashboard  │ gemini-2.5-flash│ 2150            │
+│ charts          │ admin-dashboard  │ gemini-2.5-flash│ 1480            │
+│ custom          │ admin-dashboard  │ gemini-2.5-flash│ 1200            │
+│ login           │ landing-page     │ claude-sonnet   │ 480             │
+│ ...             │ ...              │ ...             │ ...             │
+└─────────────────┴──────────────────┴─────────────────┴─────────────────┘
+```
 
 ---
 
 ## Struktur Database
 
 ### Tabel: `llm_models`
-
-Menyimpan informasi semua model LLM yang tersedia.
 
 ```sql
 CREATE TABLE llm_models (
@@ -186,106 +344,252 @@ CREATE TABLE llm_models (
 );
 ```
 
-**Kolom Penting:**
-
-- `name` - Identifier unik untuk API (e.g., "claude-haiku-4-5")
-- `display_name` - Nama yang ditampilkan ke user
-- `input_price_per_million` - Harga USD per 1 juta token input
-- `output_price_per_million` - Harga USD per 1 juta token output
-- `estimated_credits_per_generation` - Pre-calculated credits (rounded up)
-- `is_free` - TRUE untuk model gratis (free tier)
-- `is_active` - FALSE untuk disable model temporarily
-- `sort_order` - Urutan tampilan di UI
-
-### Tabel: `users` (Updated Fields)
+### Tabel: `page_generations` (NEW)
 
 ```sql
-ALTER TABLE users ADD COLUMN credits INT DEFAULT 25;
-ALTER TABLE users ADD COLUMN preferred_model VARCHAR(255) NULL;
+CREATE TABLE page_generations (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    generation_id BIGINT NOT NULL,
+    page_name VARCHAR(100) NOT NULL,
+    page_type ENUM('predefined', 'custom') NOT NULL,
+    mcp_prompt TEXT NOT NULL,
+    llm_response TEXT,
+    input_tokens INT DEFAULT 0,
+    output_tokens INT DEFAULT 0,
+    processing_time_ms INT DEFAULT 0,
+    status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+    error_message TEXT,
+    created_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE,
+    INDEX idx_page_type (page_type),
+    INDEX idx_status (status)
+);
 ```
 
-**Default Credits:** 25 kredit diberikan saat registrasi baru.
-
-### Tabel: `generations` (Updated Fields)
+### Tabel: `custom_page_statistics` (NEW)
 
 ```sql
-ALTER TABLE generations MODIFY COLUMN model_used VARCHAR(255);
-ALTER TABLE generations ADD COLUMN credits_used INT DEFAULT 0;
+CREATE TABLE custom_page_statistics (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    page_name_normalized VARCHAR(100) NOT NULL,
+    original_names JSON,
+    category VARCHAR(50) NOT NULL,
+    usage_count INT DEFAULT 1,
+    first_used_at TIMESTAMP,
+    last_used_at TIMESTAMP,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    UNIQUE KEY unique_page_category (page_name_normalized, category),
+    INDEX idx_usage_count (usage_count DESC)
+);
+```
+
+### Tabel: `admin_settings` (NEW)
+
+```sql
+CREATE TABLE admin_settings (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    key VARCHAR(100) UNIQUE NOT NULL,
+    value TEXT NOT NULL,
+    type ENUM('string', 'integer', 'float', 'boolean', 'json') DEFAULT 'string',
+    description TEXT,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Default settings
+INSERT INTO admin_settings (key, value, type, description) VALUES
+('error_margin_percent', '10', 'float', 'Error margin percentage for credit calculation (0-50)'),
+('profit_margin_percent', '5', 'float', 'Profit margin percentage for credit calculation (0-50)');
+```
+
+### Tabel: `credit_estimations` (NEW)
+
+```sql
+CREATE TABLE credit_estimations (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    page_type VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    model_id VARCHAR(100) NOT NULL,
+    avg_input_tokens INT DEFAULT 0,
+    avg_output_tokens INT DEFAULT 0,
+    sample_count INT DEFAULT 0,
+    last_updated_at TIMESTAMP,
+    UNIQUE KEY unique_estimation (page_type, category, model_id)
+);
+```
+
+### Updated: `generations` Table
+
+```sql
+ALTER TABLE generations 
+ADD COLUMN error_margin_percent DECIMAL(5,2) DEFAULT 10.00,
+ADD COLUMN profit_margin_percent DECIMAL(5,2) DEFAULT 5.00,
+ADD COLUMN credit_breakdown JSON;
 ```
 
 ---
 
 ## Service Architecture
 
-### 1. OpenAICompatibleService
-
-**Location:** `app/Services/OpenAICompatibleService.php`
-
-**Responsibilities:**
-- Komunikasi dengan LLM API
-- Generate template code
-- Calculate actual credits based on token usage
-- Get available models for users
-
-**Key Methods:**
+### 1. GenerationService (Updated)
 
 ```php
-// Generate template
-public function generateTemplate(string $prompt, string $modelName): array
-
-// Get models for user (filtered by premium status)
-public function getAvailableModels(bool $isPremium): array
-
-// Get model details
-public function getModel(string $modelName): ?LlmModel
-
-// Calculate actual credits after generation
-public function calculateActualCredits(
-    string $modelName, 
-    int $inputTokens, 
-    int $outputTokens
-): float
-```
-
-### 2. GenerationService
-
-**Location:** `app/Services/GenerationService.php`
-
-**Changes:**
-- Constructor now uses `OpenAICompatibleService` instead of `GeminiService`
-- `startGeneration()` accepts optional `$modelName` parameter
-- Credits deducted upfront based on estimated amount
-- Model validation before generation starts
-
-**Updated Signature:**
-
-```php
-public function startGeneration(
-    array $blueprint, 
-    User $user, 
-    ?string $modelName = null,  // NEW: optional model selection
-    ?string $projectName = null
-): array
-```
-
-**Auto-Selection Logic:**
-
-```php
-if (!$modelName) {
-    $isPremium = $user->credits > 0;
-    $modelName = $isPremium ? 'claude-haiku-4-5' : 'gemini-2.5-flash';
+class GenerationService
+{
+    public function startGeneration(
+        array $blueprint, 
+        User $user, 
+        ?string $modelName = null,
+        ?string $projectName = null
+    ): array {
+        // Calculate credits with margins
+        // Create generation record
+        // Start per-page generation loop
+    }
+    
+    public function generatePage(
+        Generation $generation, 
+        string $pageName,
+        bool $isCustom
+    ): PageGeneration {
+        // Build page-specific MCP prompt
+        // Call LLM API
+        // Record history
+        // Update progress
+    }
 }
 ```
 
-### 3. LlmModel (New Model)
+### 2. BillingCalculator (Updated)
 
-**Location:** `app/Models/LlmModel.php`
+```php
+class BillingCalculator
+{
+    public function calculateCharge(
+        int $modelCredits,
+        int $totalPages,
+        int $totalComponents
+    ): CreditBreakdown {
+        $extraPageCredits = max(0, $totalPages - 5) * 1;
+        $extraComponentCredits = max(0, $totalComponents - 6) * 0.5;
+        
+        $subtotal = $modelCredits + $extraPageCredits + $extraComponentCredits;
+        $withErrorMargin = $subtotal * (1 + $this->getErrorMargin());
+        $total = ceil($withErrorMargin * (1 + $this->getProfitMargin()));
+        
+        return new CreditBreakdown([
+            'modelCost' => $modelCredits,
+            'totalPages' => $totalPages,
+            'extraPages' => max(0, $totalPages - 5),
+            'extraPageCredits' => $extraPageCredits,
+            'totalComponents' => $totalComponents,
+            'extraComponents' => max(0, $totalComponents - 6),
+            'extraComponentCredits' => $extraComponentCredits,
+            'subtotal' => $subtotal,
+            'errorMarginPercent' => $this->getErrorMargin() * 100,
+            'errorMarginCredits' => $subtotal * $this->getErrorMargin(),
+            'profitMarginPercent' => $this->getProfitMargin() * 100,
+            'profitMarginCredits' => $withErrorMargin * $this->getProfitMargin(),
+            'total' => $total,
+        ]);
+    }
+    
+    private function getErrorMargin(): float
+    {
+        return AdminSetting::getValue('error_margin_percent', 10) / 100;
+    }
+    
+    private function getProfitMargin(): float
+    {
+        return AdminSetting::getValue('profit_margin_percent', 5) / 100;
+    }
+}
+```
 
-**Scopes:**
-- `active()` - Only active models
-- `ordered()` - Sorted by sort_order
-- `free()` - Only free tier models
-- `premium()` - Only premium models
+### 3. GenerationHistoryService (NEW)
+
+```php
+class GenerationHistoryService
+{
+    public function recordPage(
+        Generation $generation,
+        string $pageName,
+        string $pageType,
+        string $mcpPrompt,
+        ?string $llmResponse,
+        int $inputTokens,
+        int $outputTokens,
+        int $processingTimeMs,
+        string $status,
+        ?string $errorMessage = null
+    ): PageGeneration {
+        // Create page generation record
+        // Update credit estimation data
+    }
+    
+    public function updateCreditEstimation(
+        string $pageType,
+        string $category,
+        string $modelId,
+        int $inputTokens,
+        int $outputTokens
+    ): void {
+        // Update running average
+    }
+    
+    public function getEstimatedTokens(
+        string $pageType,
+        string $category,
+        string $modelId
+    ): array {
+        // Return estimated input/output tokens
+    }
+}
+```
+
+### 4. CustomPageStatisticsService (NEW)
+
+```php
+class CustomPageStatisticsService
+{
+    public function recordCustomPage(
+        string $pageName,
+        string $category
+    ): void {
+        $normalized = $this->normalize($pageName);
+        
+        CustomPageStatistic::updateOrCreate(
+            ['page_name_normalized' => $normalized, 'category' => $category],
+            [
+                'original_names' => DB::raw("JSON_ARRAY_APPEND(IFNULL(original_names, '[]'), '$', '$pageName')"),
+                'usage_count' => DB::raw('usage_count + 1'),
+                'last_used_at' => now(),
+            ]
+        );
+    }
+    
+    public function getPopularCustomPages(int $limit = 20): Collection
+    {
+        return CustomPageStatistic::orderByDesc('usage_count')
+            ->limit($limit)
+            ->get();
+    }
+    
+    public function getCandidatesForPromotion(int $threshold = 100): Collection
+    {
+        return CustomPageStatistic::where('usage_count', '>=', $threshold)
+            ->orderByDesc('usage_count')
+            ->get();
+    }
+    
+    private function normalize(string $pageName): string
+    {
+        return strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $pageName)));
+    }
+}
+```
 
 ---
 
@@ -294,399 +598,148 @@ if (!$modelName) {
 ### Endpoint Configuration
 
 **Base URL:** `https://ai.sumopod.com/v1`  
-**API Key:** `sk-Cx00n-G2-g8__tXS44WljA`  
 **Format:** OpenAI-compatible API
 
-### Configuration File
-
-**Location:** `config/services.php`
+### Configuration
 
 ```php
+// config/services.php
 'llm' => [
-    'api_key' => env('LLM_API_KEY', 'sk-Cx00n-G2-g8__tXS44WljA'),
+    'api_key' => env('LLM_API_KEY'),
     'base_url' => env('LLM_BASE_URL', 'https://ai.sumopod.com/v1'),
 ],
 ```
 
 ### Environment Variables
 
-Add to `.env`:
-
 ```env
-LLM_API_KEY=sk-Cx00n-G2-g8__tXS44WljA
+LLM_API_KEY=sk-your-api-key
 LLM_BASE_URL=https://ai.sumopod.com/v1
 ```
 
-### Request Format
+---
 
-```bash
-curl https://ai.sumopod.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-Cx00n-G2-g8__tXS44WljA" \
-  -d '{
-    "model": "claude-haiku-4-5",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Your MCP prompt here..."
-      }
-    ],
-    "max_tokens": 60000,
-    "temperature": 0.7
-  }'
+## Admin Configuration
+
+### Available Settings
+
+| Setting Key | Type | Default | Description |
+|-------------|------|---------|-------------|
+| `error_margin_percent` | float | 10 | Error margin (0-50%) |
+| `profit_margin_percent` | float | 5 | Profit margin (0-50%) |
+
+### Admin API Endpoints
+
+```
+GET  /api/admin/settings                    - Get all settings
+PUT  /api/admin/settings                    - Update settings
+GET  /api/admin/custom-pages                - Get custom page statistics
+GET  /api/admin/custom-pages/candidates     - Get promotion candidates
+GET  /api/admin/generation-history          - Get generation history
+GET  /api/admin/statistics                  - Get usage statistics
 ```
 
-### Response Format
+### Admin UI Features
 
-```json
+1. **Margin Configuration**
+   - Adjust error margin (0-50%)
+   - Adjust profit margin (0-50%)
+   - Preview impact on sample calculation
+
+2. **Custom Page Statistics**
+   - View most popular custom pages
+   - Filter by category
+   - Mark for promotion to predefined
+
+3. **Generation History**
+   - View all generations
+   - Drill down to page-level details
+   - View prompts and responses
+   - Filter by user, date, status
+
+4. **Usage Statistics**
+   - Total generations
+   - Credits consumed
+   - Revenue (credits × Rp 1,000)
+   - Popular models
+   - Popular categories
+
+---
+
+## Migration Commands
+
+```bash
+# Create new tables
+php artisan make:migration create_page_generations_table
+php artisan make:migration create_custom_page_statistics_table
+php artisan make:migration create_admin_settings_table
+php artisan make:migration create_credit_estimations_table
+php artisan make:migration add_margins_to_generations_table
+
+# Run migrations
+php artisan migrate
+```
+
+---
+
+## Testing
+
+### Unit Tests
+
+```php
+// BillingCalculatorTest
+public function test_calculates_credits_with_margins()
 {
-  "choices": [
-    {
-      "message": {
-        "content": "Generated template code..."
-      }
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 10234,
-    "completion_tokens": 45678,
-    "total_tokens": 55912
-  }
+    $calculator = new BillingCalculator();
+    
+    $breakdown = $calculator->calculateCharge(
+        modelCredits: 15,
+        totalPages: 9,
+        totalComponents: 10
+    );
+    
+    $this->assertEquals(15, $breakdown->modelCost);
+    $this->assertEquals(4, $breakdown->extraPageCredits);
+    $this->assertEquals(2, $breakdown->extraComponentCredits);
+    $this->assertEquals(21, $breakdown->subtotal);
+    $this->assertEquals(25, $breakdown->total); // After margins and rounding
 }
 ```
 
----
-
-## User Credits & Premium
-
-### Free Tier
-
-**Kondisi:**
-- Default saat registrasi
-- Mendapat 25 kredit awal (gratis)
-- Hanya bisa menggunakan model `gemini-2.5-flash`
-
-**Batasan:**
-- 1 model tersedia
-- Tidak bisa pilih model lain
-- Tidak ada refund jika gagal
-
-### Premium Tier
-
-**Kondisi:**
-- User dengan `credits > 0`
-- Akses ke semua 6 model
-- Bisa pilih model sesuai kebutuhan
-
-**Benefits:**
-- Model selection flexibility
-- Better quality output
-- Priority support (future)
-- Refund on generation failure
-
-### Credit Flow
-
-```
-1. USER REGISTRATION
-   ↓
-   + 25 kredit otomatis
-
-2. START GENERATION
-   ↓
-   - Deduct estimated credits upfront
-   - Lock credits untuk transaksi ini
-   
-3. GENERATION SUCCESS
-   ↓
-   - Credits sudah terpakai
-   - Save actual token usage
-   - (Optional) Calculate actual cost for reporting
-   
-4. GENERATION FAILURE
-   ↓
-   - Refund estimated credits
-   - User tidak dikenakan biaya
-```
-
-### Purchase Credits (Future Implementation)
-
-```
-Pricing Tiers (Recommendation):
-- 100 kredit  = Rp 100,000 (Rp 1,000/kredit)
-- 500 kredit  = Rp 450,000 (Rp 900/kredit) - 10% bonus
-- 1000 kredit = Rp 850,000 (Rp 850/kredit) - 15% bonus
-- 5000 kredit = Rp 4,000,000 (Rp 800/kredit) - 20% bonus
-```
-
----
-
-## Implementasi Teknis
-
-### File Structure
-
-```
-app/
-├── Models/
-│   ├── LlmModel.php              ← NEW: Model untuk LLM data
-│   └── User.php                  ← UPDATED: Added methods
-├── Services/
-│   ├── OpenAICompatibleService.php  ← NEW: LLM communication
-│   ├── GenerationService.php        ← UPDATED: Uses new service
-│   ├── McpPromptBuilder.php         ← Unchanged
-│   └── GeminiService.php            ← DEPRECATED
-│
-database/
-├── migrations/
-│   ├── 0001_01_01_000000_create_users_table.php      ← UPDATED: credits default 25
-│   └── 2025_12_30_101141_create_llm_models_table.php ← NEW
-└── seeders/
-    ├── LlmModelSeeder.php    ← NEW: Seed model data
-    ├── UserSeeder.php        ← UPDATED: 25 credits
-    └── DatabaseSeeder.php    ← UPDATED: Include LlmModelSeeder
-
-config/
-└── services.php              ← UPDATED: Added 'llm' config
-
-tests/
-└── Unit/Services/
-    └── OpenAICompatibleServiceTest.php  ← NEW: 7 test cases
-```
-
-### Running Migrations & Seeds
-
-```bash
-# Run migrations
-php artisan migrate
-
-# Seed LLM models
-php artisan db:seed --class=LlmModelSeeder
-
-# Or seed everything
-php artisan db:seed
-```
-
-### Usage Examples
-
-#### Get Available Models for User
+### Feature Tests
 
 ```php
-// In controller
-$user = auth()->user();
-$models = $user->getAvailableModels();
-
-// Returns array of models user can use
-// Free user: only gemini-2.5-flash
-// Premium user: all 6 models
-```
-
-#### Start Generation with Model Selection
-
-```php
-use App\Services\GenerationService;
-
-$generationService = app(GenerationService::class);
-
-$result = $generationService->startGeneration(
-    blueprint: $request->validated(),
-    user: auth()->user(),
-    modelName: 'claude-haiku-4-5', // Optional
-    projectName: 'My New Project'
-);
-
-if ($result['success']) {
-    return response()->json([
-        'generation_id' => $result['generation_id'],
-        'model' => $result['model'],
-        'credits_charged' => $result['credits_charged'],
+// GenerationTest
+public function test_records_page_generation_history()
+{
+    $user = User::factory()->create(['credits' => 100]);
+    $blueprint = [...];
+    
+    $generation = $this->generationService->startGeneration($blueprint, $user);
+    
+    $this->assertDatabaseHas('page_generations', [
+        'generation_id' => $generation->id,
+        'page_name' => 'login',
+        'status' => 'completed',
     ]);
 }
 ```
-
-#### Check Credits Before Generation
-
-```php
-$user = auth()->user();
-$model = LlmModel::where('name', 'claude-sonnet-4-5')->first();
-
-if (!$model->is_free && $user->credits < $model->estimated_credits_per_generation) {
-    return response()->json([
-        'error' => 'Insufficient credits',
-        'required' => $model->estimated_credits_per_generation,
-        'available' => $user->credits,
-    ], 402); // Payment Required
-}
-```
-
-#### Calculate Actual Cost After Generation
-
-```php
-use App\Services\OpenAICompatibleService;
-
-$llmService = app(OpenAICompatibleService::class);
-
-// After generation completes
-$actualCredits = $llmService->calculateActualCredits(
-    modelName: 'claude-haiku-4-5',
-    inputTokens: 12450,
-    outputTokens: 48920
-);
-
-// Log for analytics
-Log::info('Generation cost analysis', [
-    'estimated' => $generation->credits_used,
-    'actual' => $actualCredits,
-    'difference' => $actualCredits - $generation->credits_used,
-]);
-```
-
-### Testing
-
-Run all tests:
-```bash
-php artisan test
-```
-
-Run specific service tests:
-```bash
-php artisan test --filter=OpenAICompatibleServiceTest
-```
-
-**Test Coverage:**
-- ✅ Generate template with valid response
-- ✅ Handle API errors gracefully
-- ✅ Filter models for free users
-- ✅ Return all models for premium users
-- ✅ Get model by name
-- ✅ Calculate actual credits accurately
-- ✅ Verify ceiling function for rounding
-
----
-
-## Admin Configuration (Future)
-
-### Settings to Add in Admin Panel
-
-1. **USD to IDR Exchange Rate**
-   - Current: 18,000
-   - Allow admin to update
-   - Show last update timestamp
-
-2. **System Margin**
-   - Current: 5%
-   - Configurable range: 3% - 15%
-   - Apply globally to all models
-
-3. **Model Management**
-   - Enable/disable models
-   - Update pricing from API provider
-   - Change sort order
-   - Mark as featured
-
-4. **Credit Pricing**
-   - Base credit value (currently Rp 1,000)
-   - Purchase tier pricing
-   - Promotional pricing
-
----
-
-## Migration Notes
-
-### From Old System (Gemini Only)
-
-**Breaking Changes:**
-1. `GeminiService` replaced with `OpenAICompatibleService`
-2. `model_used` field now stores model name (string) not tier
-3. Credits calculated per generation, not per page
-4. Default credits reduced from 100 to 25
-
-**Migration Path:**
-1. Existing users keep their current credits
-2. Old `model_used` values ('gemini-pro', 'gemini-flash') remain valid
-3. New generations use new model names
-4. No data loss, backward compatible
-
----
-
-## Troubleshooting
-
-### Issue: "Insufficient Credits"
-
-**Cause:** User doesn't have enough credits for selected model  
-**Solution:** 
-- Downgrade to cheaper model
-- Purchase more credits
-- Use free tier model
-
-### Issue: "Model not found or inactive"
-
-**Cause:** Model name invalid or disabled by admin  
-**Solution:**
-- Check available models: `$user->getAvailableModels()`
-- Use auto-selection (pass `null` for modelName)
-
-### Issue: API Error 401 Unauthorized
-
-**Cause:** Invalid or expired API key  
-**Solution:**
-- Check `LLM_API_KEY` in `.env`
-- Verify key with provider
-- Regenerate if needed
-
-### Issue: Credits Not Refunded on Failure
-
-**Cause:** Exception thrown before refund logic  
-**Solution:**
-- Check logs: `storage/logs/laravel.log`
-- Manual refund if needed
-- Fix bug in GenerationService
 
 ---
 
 ## Changelog
 
-### Version 1.0 (30 December 2025)
+### v2.0 (30 Desember 2025)
+- ✅ Per-page generation instead of all-at-once
+- ✅ History recording for all prompts/responses
+- ✅ Credit learning from historical data
+- ✅ Error margin (10% default, configurable)
+- ✅ Profit margin (5% default, configurable)
+- ✅ Custom page statistics tracking
+- ✅ 3-step wizard support
 
-**Added:**
-- 6 LLM models with dynamic pricing
-- Credit calculation with 5% margin
-- OpenAI-compatible API integration
-- Free tier with Gemini 2.5 Flash
-- Premium tier with model selection
-- Automatic credit rounding (ceiling)
-- 25 initial credits for new users
-- LlmModel database table and seeder
-- Comprehensive unit tests
-
-**Changed:**
-- Replaced GeminiService with OpenAICompatibleService
-- Updated GenerationService for new credit system
-- Default user credits: 100 → 25
-- Credit calculation: per-page → per-generation
-
-**Deprecated:**
-- GeminiService (kept for backward compatibility)
-- Old model tier system ('free'/'premium')
-
-**Security:**
-- API key stored in config with env fallback
-- Input validation for model selection
-- Rate limiting (to be implemented)
-
----
-
-## Kontak & Support
-
-**Technical Issues:**  
-- GitHub Issues: (project repository)
-- Email: (technical support email)
-
-**Business/Pricing:**  
-- Email: (sales/business email)
-
-**Documentation Updates:**  
-Silakan submit PR untuk perbaikan atau update dokumentasi ini.
-
----
-
-**Last Updated:** 30 Desember 2025  
-**Next Review:** 30 Januari 2026
+### v1.0 (29 Desember 2025)
+- Initial release
+- 6 LLM models
+- Basic credit calculation
+- 5% margin (fixed)

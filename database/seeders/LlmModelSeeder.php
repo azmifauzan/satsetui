@@ -30,8 +30,9 @@ class LlmModelSeeder extends Seeder
                 'description' => 'Cepat dan efisien untuk generasi template dasar',
                 'input_price_per_million' => 0.3000000,
                 'output_price_per_million' => 2.5000000,
-                'estimated_credits_per_generation' => 3, // 2.42 rounded up
-                'is_free' => false, // No longer free, cheapest premium model
+                'estimated_credits_per_generation' => 0, // Free tier model
+                'context_length' => 1000000, // 1M tokens
+                'is_free' => true, // Free users default
                 'is_active' => true,
                 'sort_order' => 1,
             ],
@@ -42,6 +43,7 @@ class LlmModelSeeder extends Seeder
                 'input_price_per_million' => 0.2500000,
                 'output_price_per_million' => 2.0000000,
                 'estimated_credits_per_generation' => 2, // 1.94 rounded up
+                'context_length' => 16000, // 16k tokens
                 'is_free' => false,
                 'is_active' => true,
                 'sort_order' => 2,
@@ -53,6 +55,7 @@ class LlmModelSeeder extends Seeder
                 'input_price_per_million' => 1.0000000,
                 'output_price_per_million' => 5.0000000,
                 'estimated_credits_per_generation' => 6, // 5.67 rounded up
+                'context_length' => 200000, // 200k tokens
                 'is_free' => false,
                 'is_active' => true,
                 'sort_order' => 3,
@@ -64,6 +67,7 @@ class LlmModelSeeder extends Seeder
                 'input_price_per_million' => 1.2500000,
                 'output_price_per_million' => 10.0000000,
                 'estimated_credits_per_generation' => 10, // 9.69 rounded up
+                'context_length' => 128000, // 128k tokens
                 'is_free' => false,
                 'is_active' => true,
                 'sort_order' => 4,
@@ -75,6 +79,7 @@ class LlmModelSeeder extends Seeder
                 'input_price_per_million' => 2.0000000,
                 'output_price_per_million' => 12.0000000,
                 'estimated_credits_per_generation' => 12, // 11.72 rounded up
+                'context_length' => 2000000, // 2M tokens
                 'is_free' => false,
                 'is_active' => true,
                 'sort_order' => 5,
@@ -86,6 +91,7 @@ class LlmModelSeeder extends Seeder
                 'input_price_per_million' => 3.0000000,
                 'output_price_per_million' => 15.0000000,
                 'estimated_credits_per_generation' => 15, // 14.74 rounded up
+                'context_length' => 200000, // 200k tokens
                 'is_free' => false,
                 'is_active' => true,
                 'sort_order' => 6,

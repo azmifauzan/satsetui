@@ -75,6 +75,16 @@ export interface Translations {
     title: string;
     description: string;
     stepOf: string;
+    stepDescriptions: {
+      step1: string;
+      step2: string;
+      step3: string;
+    };
+    stepTitles: {
+      step1: string;
+      step2: string;
+      step3: string;
+    };
     generateTemplate: string;
     generating: string;
     generatingDescription: string;
@@ -127,6 +137,15 @@ export interface Translations {
         blogContentSiteDesc: string;
         eCommerce: string;
         eCommerceDesc: string;
+        // Custom category
+        custom: string;
+        customDesc: string;
+        customInputTitle: string;
+        customNameLabel: string;
+        customNamePlaceholder: string;
+        customDescLabel: string;
+        customDescPlaceholder: string;
+        customMinChars: string;
       };
       pages: {
         title: string;
@@ -152,6 +171,16 @@ export interface Translations {
         profile: string;
         about: string;
         contact: string;
+        // Custom pages
+        customPagesTitle: string;
+        customPagesDesc: string;
+        addCustomPage: string;
+        customPageName: string;
+        customPageNamePlaceholder: string;
+        customPageDesc: string;
+        customPageDescPlaceholder: string;
+        customPageMinChars: string;
+        extraPagesNote: string;
       };
       layout: {
         title: string;
@@ -173,6 +202,17 @@ export interface Translations {
         minimal: string;
         minimalFooter: string;
         fullFooter: string;
+        // Custom navigation items
+        customNavTitle: string;
+        customNavDesc: string;
+        addCustomNav: string;
+        customNavLabel: string;
+        customNavLabelPlaceholder: string;
+        customNavRoute: string;
+        customNavRoutePlaceholder: string;
+        customNavIcon: string;
+        customNavIconPlaceholder: string;
+        customNavMinChars: string;
       };
       theme: {
         title: string;
@@ -245,6 +285,18 @@ export interface Translations {
         chartjsDesc: string;
         echarts: string;
         echartsDesc: string;
+        // Custom components
+        customComponentsTitle: string;
+        customComponentsDesc: string;
+        addCustomComponent: string;
+        customComponentName: string;
+        customComponentNamePlaceholder: string;
+        customComponentDescLabel: string;
+        customComponentDescPlaceholder: string;
+        customComponentMinChars: string;
+        extraComponentsNote: string;
+        componentPagesNote: string;
+        componentsLabel: string;
       };
       interaction: {
         title: string;
@@ -286,6 +338,12 @@ export interface Translations {
         angularDesc: string;
         svelte: string;
         svelteDesc: string;
+        // Custom output format
+        custom: string;
+        customDesc: string;
+        customInputTitle: string;
+        customPlaceholder: string;
+        customHint: string;
       };
       llmModel: {
         title: string;
@@ -311,6 +369,15 @@ export interface Translations {
         noModelsAvailable: string;
         allModelsLabel: string;
         selectModel: string;
+        creditsRequired: string;
+        // Credit breakdown
+        modelCost: string;
+        extraPages: string;
+        extraComponents: string;
+        pagesCount: string;
+        componentsCount: string;
+        included: string;
+        totalCost: string;
       };
     };
   };
@@ -375,8 +442,18 @@ const id: Translations = {
   },
   wizard: {
     title: 'Wizard Template',
-    description: 'Buat template frontend kustom Anda dalam 5 langkah terstruktur',
+    description: 'Buat template frontend kustom Anda dalam 3 langkah terstruktur',
     stepOf: 'Langkah',
+    stepDescriptions: {
+      step1: 'Pilih framework CSS, kategori template, dan format output Anda',
+      step2: 'Konfigurasikan halaman, layout, tema, kepadatan UI, dan komponen',
+      step3: 'Pilih model LLM untuk generasi dan tinjau kredit yang diperlukan',
+    },
+    stepTitles: {
+      step1: 'Framework, Kategori & Output',
+      step2: 'Desain Visual & Konten',
+      step3: 'Seleksi Model LLM',
+    },
     generateTemplate: 'Generate Template',
     generating: 'Menghasilkan Template...',
     generatingDescription: 'Membuat template kustom Anda berdasarkan pilihan Anda. Ini mungkin memakan waktu sejenak.',
@@ -427,6 +504,15 @@ const id: Translations = {
         blogContentSiteDesc: 'Daftar artikel, pengalaman membaca, kategori',
         eCommerce: 'E-Commerce',
         eCommerceDesc: 'Katalog produk, keranjang belanja, halaman checkout',
+        // Custom category
+        custom: 'Kategori Kustom',
+        customDesc: 'Tentukan kategori template kustom sesuai kebutuhan spesifik Anda',
+        customInputTitle: 'Detail Kategori Kustom',
+        customNameLabel: 'Nama Kategori',
+        customNamePlaceholder: 'Contoh: Portal Kesehatan, Sistem Inventori, Platform Edukasi',
+        customDescLabel: 'Deskripsi Kategori',
+        customDescPlaceholder: 'Jelaskan tujuan dan fitur utama dari kategori template Anda...',
+        customMinChars: 'Minimal 3 karakter',
       },
       pages: {
         title: 'Pilih Halaman',
@@ -452,6 +538,16 @@ const id: Translations = {
         profile: 'Profil',
         about: 'Tentang',
         contact: 'Kontak',
+        // Custom pages
+        customPagesTitle: 'Halaman Kustom',
+        customPagesDesc: 'Tambahkan halaman khusus yang tidak ada di pilihan standar',
+        addCustomPage: 'Tambah Halaman Kustom',
+        customPageName: 'Nama Halaman',
+        customPageNamePlaceholder: 'Contoh: Inventory, Reports, Analytics Dashboard',
+        customPageDesc: 'Deskripsi Halaman',
+        customPageDescPlaceholder: 'Jelaskan fungsi dan konten dari halaman ini...',
+        customPageMinChars: 'Minimal 2 karakter',
+        extraPagesNote: 'Halaman melebihi kuota dasar akan dikenakan kredit tambahan',
       },
       layout: {
         title: 'Layout & Navigasi',
@@ -473,6 +569,17 @@ const id: Translations = {
         minimal: 'Minimal (hanya copyright)',
         minimalFooter: 'Minimal (hanya copyright)',
         fullFooter: 'Lengkap (dengan link)',
+        // Custom navigation items
+        customNavTitle: 'Item Navigasi Kustom',
+        customNavDesc: 'Tambahkan item menu navigasi khusus',
+        addCustomNav: 'Tambah Item Navigasi',
+        customNavLabel: 'Label Menu',
+        customNavLabelPlaceholder: 'Contoh: Reports, Analytics, Inventory',
+        customNavRoute: 'Route/URL',
+        customNavRoutePlaceholder: 'Contoh: /reports, /analytics',
+        customNavIcon: 'Icon (opsional)',
+        customNavIconPlaceholder: 'Contoh: chart-bar, document, folder',
+        customNavMinChars: 'Minimal 2 karakter',
       },
       theme: {
         title: 'Tema & Identitas Visual',
@@ -545,6 +652,20 @@ const id: Translations = {
         chartjsDesc: 'Sederhana, fleksibel, populer',
         echarts: 'Apache ECharts',
         echartsDesc: 'Powerful, kaya fitur, tingkat enterprise',
+        // Custom components
+        customComponentsTitle: 'Komponen Kustom',
+        customComponentsDesc: 'Tambahkan komponen UI khusus yang tidak ada di pilihan standar',
+        addCustomComponent: 'Tambah Komponen Kustom',
+        customComponentName: 'Nama Komponen',
+        customComponentNamePlaceholder: 'Contoh: Kanban Board, Calendar, File Upload',
+        customComponentDescLabel: 'Deskripsi Komponen',
+        customComponentDescPlaceholder: 'Jelaskan fungsi dan fitur dari komponen ini...',
+        customComponentMinChars: 'Minimal 2 karakter',
+        extraComponentsNote: 'Komponen melebihi kuota dasar akan dikenakan kredit tambahan',
+        componentPagesNote: 'Setiap komponen = 1 halaman showcase',
+        componentsLabel: 'komponen',
+        componentPagesNote: 'Setiap komponen = 1 halaman showcase',
+        componentsLabel: 'komponen',
       },
       interaction: {
         title: 'Level Interaksi',
@@ -586,10 +707,28 @@ const id: Translations = {
         angularDesc: 'Angular components dengan TypeScript',
         svelte: 'Svelte',
         svelteDesc: 'Svelte components dengan compile-time optimization',
+        // Custom output format
+        custom: 'Format Kustom',
+        customDesc: 'Tentukan format output kustom sesuai kebutuhan Anda',
+        customInputTitle: 'Deskripsi Format Kustom',
+        customPlaceholder: 'Contoh: PHP dengan Laravel Blade templates dan Alpine.js untuk interaktivitas. Gunakan Tailwind CSS untuk styling. Sertakan helper functions dan Eloquent models.',
+        customHint: 'Jelaskan teknologi, framework, atau format spesifik yang Anda inginkan.',
       },
       llmModel: {
         title: 'Pilih Model LLM',
         description: 'Pilih model AI yang akan menghasilkan template Anda.',
+        // Template Summary
+        summaryTitle: 'Ringkasan Template',
+        summaryDesc: 'Berikut adalah template yang akan digenerate berdasarkan konfigurasi Anda:',
+        totalPages: 'Total Halaman',
+        pagesList: 'Daftar Halaman',
+        totalComponents: 'Total Komponen',
+        predefinedPages: 'Halaman Standar',
+        customPages: 'Halaman Kustom',
+        componentShowcasePages: 'Halaman Showcase Komponen',
+        customComponentPages: 'Halaman Komponen Kustom',
+        predefinedComponents: 'Komponen Standar',
+        customComponents: 'Komponen Kustom',
         credits: 'Kredit Anda:',
         freeModels: 'Model Gratis',
         premiumModels: 'Model Premium',
@@ -604,13 +743,22 @@ const id: Translations = {
         noCreditTitle: 'Kredit Habis',
         noCreditDesc: 'Anda tidak memiliki kredit. Silakan isi ulang kredit untuk menggunakan model premium.',
         ready: 'Siap untuk Generate!',
-        readyDesc: 'Anda telah menyelesaikan semua 5 langkah. Klik tombol "Generate Template" untuk membuat template kustom Anda.',
+        readyDesc: 'Anda telah menyelesaikan semua 3 langkah. Klik tombol "Generate Template" untuk membuat template kustom Anda.',
         insufficientCredits: 'Kredit tidak cukup',
         economical: 'Ekonomis',
         loadingModels: 'Memuat model...',
         noModelsAvailable: 'Tidak ada model yang tersedia saat ini.',
         allModelsLabel: 'SEMUA MODEL',
         selectModel: 'Pilih Model yang Sesuai',
+        creditsRequired: 'Kredit Dibutuhkan:',
+        // Credit breakdown
+        modelCost: 'Model:',
+        extraPages: 'Halaman Extra:',
+        extraComponents: 'Komponen Extra:',
+        pagesCount: 'Jumlah Halaman:',
+        componentsCount: 'Jumlah Komponen:',
+        included: 'termasuk',
+        totalCost: 'Total:',
       },
     },
   },
@@ -671,8 +819,18 @@ const en: Translations = {
   },
   wizard: {
     title: 'Template Wizard',
-    description: 'Create your custom frontend template in 5 structured steps',
+    description: 'Create your custom frontend template in 3 structured steps',
     stepOf: 'Step',
+    stepDescriptions: {
+      step1: 'Choose your CSS framework, template category, and output format',
+      step2: 'Configure pages, layout, theme, UI density, and components',
+      step3: 'Select the LLM model for generation and review credits',
+    },
+    stepTitles: {
+      step1: 'Framework, Category & Output',
+      step2: 'Visual Design & Content',
+      step3: 'LLM Model Selection',
+    },
     generateTemplate: 'Generate Template',
     generating: 'Generating Template...',
     generatingDescription: 'Creating your custom template based on your selections. This may take a moment.',
@@ -723,6 +881,15 @@ const en: Translations = {
         blogContentSiteDesc: 'Article listings, reading experience, categories',
         eCommerce: 'E-Commerce',
         eCommerceDesc: 'Product catalogs, shopping cart, checkout pages',
+        // Custom category
+        custom: 'Custom Category',
+        customDesc: 'Define a custom template category to match your specific needs',
+        customInputTitle: 'Custom Category Details',
+        customNameLabel: 'Category Name',
+        customNamePlaceholder: 'Example: Health Portal, Inventory System, Education Platform',
+        customDescLabel: 'Category Description',
+        customDescPlaceholder: 'Describe the purpose and main features of your template category...',
+        customMinChars: 'Minimum 3 characters',
       },
       pages: {
         title: 'Select Pages',
@@ -748,6 +915,16 @@ const en: Translations = {
         profile: 'Profile',
         about: 'About',
         contact: 'Contact',
+        // Custom pages
+        customPagesTitle: 'Custom Pages',
+        customPagesDesc: 'Add custom pages not available in standard options',
+        addCustomPage: 'Add Custom Page',
+        customPageName: 'Page Name',
+        customPageNamePlaceholder: 'Example: Inventory, Reports, Analytics Dashboard',
+        customPageDesc: 'Page Description',
+        customPageDescPlaceholder: 'Describe the function and content of this page...',
+        customPageMinChars: 'Minimum 2 characters',
+        extraPagesNote: 'Pages exceeding base quota will incur additional credits',
       },
       layout: {
         title: 'Layout & Navigation',
@@ -769,6 +946,17 @@ const en: Translations = {
         minimal: 'Minimal (copyright only)',
         minimalFooter: 'Minimal (copyright only)',
         fullFooter: 'Full (with links)',
+        // Custom navigation items
+        customNavTitle: 'Custom Navigation Items',
+        customNavDesc: 'Add custom menu navigation items',
+        addCustomNav: 'Add Navigation Item',
+        customNavLabel: 'Menu Label',
+        customNavLabelPlaceholder: 'Example: Reports, Analytics, Inventory',
+        customNavRoute: 'Route/URL',
+        customNavRoutePlaceholder: 'Example: /reports, /analytics',
+        customNavIcon: 'Icon (optional)',
+        customNavIconPlaceholder: 'Example: chart-bar, document, folder',
+        customNavMinChars: 'Minimum 2 characters',
       },
       theme: {
         title: 'Theme & Visual Identity',
@@ -841,6 +1029,18 @@ const en: Translations = {
         chartjsDesc: 'Simple, flexible, popular',
         echarts: 'Apache ECharts',
         echartsDesc: 'Powerful, feature-rich, enterprise-grade',
+        // Custom components
+        customComponentsTitle: 'Custom Components',
+        customComponentsDesc: 'Add custom UI components not available in standard options',
+        addCustomComponent: 'Add Custom Component',
+        customComponentName: 'Component Name',
+        customComponentNamePlaceholder: 'Example: Kanban Board, Calendar, File Upload',
+        customComponentDescLabel: 'Component Description',
+        customComponentDescPlaceholder: 'Describe the function and features of this component...',
+        customComponentMinChars: 'Minimum 2 characters',
+        extraComponentsNote: 'Components exceeding base quota will incur additional credits',
+        componentPagesNote: 'Each component = 1 showcase page',
+        componentsLabel: 'components',
       },
       interaction: {
         title: 'Interaction Level',
@@ -882,10 +1082,28 @@ const en: Translations = {
         angularDesc: 'Angular components with TypeScript',
         svelte: 'Svelte',
         svelteDesc: 'Svelte components with compile-time optimization',
+        // Custom output format
+        custom: 'Custom Format',
+        customDesc: 'Define a custom output format to match your needs',
+        customInputTitle: 'Custom Format Description',
+        customPlaceholder: 'Example: PHP with Laravel Blade templates and Alpine.js for interactivity. Use Tailwind CSS for styling. Include helper functions and Eloquent models.',
+        customHint: 'Describe the specific technology, framework, or format you want.',
       },
       llmModel: {
         title: 'Select LLM Model',
         description: 'Choose the AI model that will generate your template.',
+        // Template Summary
+        summaryTitle: 'Template Summary',
+        summaryDesc: 'Here is the template that will be generated based on your configuration:',
+        totalPages: 'Total Pages',
+        pagesList: 'Pages List',
+        totalComponents: 'Total Components',
+        predefinedPages: 'Standard Pages',
+        customPages: 'Custom Pages',
+        componentShowcasePages: 'Component Showcase Pages',
+        customComponentPages: 'Custom Component Pages',
+        predefinedComponents: 'Standard Components',
+        customComponents: 'Custom Components',
         credits: 'Your Credits:',
         freeModels: 'Free Models',
         premiumModels: 'Premium Models',
@@ -900,13 +1118,22 @@ const en: Translations = {
         noCreditTitle: 'No Credits',
         noCreditDesc: 'You have no credits. Please top up to use premium models.',
         ready: 'Ready to Generate!',
-        readyDesc: 'You\'ve completed all 5 steps. Click the "Generate Template" button to create your custom template.',
+        readyDesc: 'You\'ve completed all 3 steps. Click the "Generate Template" button to create your custom template.',
         insufficientCredits: 'Insufficient Credits',
         economical: 'Economical',
         loadingModels: 'Loading models...',
         noModelsAvailable: 'No models available at this time.',
         allModelsLabel: 'ALL MODELS',
         selectModel: 'Select a Suitable Model',
+        creditsRequired: 'Credits Required:',
+        // Credit breakdown
+        modelCost: 'Model:',
+        extraPages: 'Extra Pages:',
+        extraComponents: 'Extra Components:',
+        pagesCount: 'Page Count:',
+        componentsCount: 'Component Count:',
+        included: 'included',
+        totalCost: 'Total:',
       },
     },
   },

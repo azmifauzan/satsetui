@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { wizardState, getStepTitle, getStepDescription } from './wizardState';
+import { wizardState } from './wizardState';
 import { computed } from 'vue';
 import { useI18n } from '@/lib/i18n';
 
-// Import all step components (5 steps)
-import Step1FrameworkCategory from './steps/Step1FrameworkCategory.vue';
-import Step2PagesLayout from './steps/Step2PagesLayout.vue';
-import Step3ThemeStyling from './steps/Step3ThemeStyling.vue';
-import Step4ResponsivenessInteractions from './steps/Step4ResponsivenessInteractions.vue';
-import Step5CodeOutput from './steps/Step5CodeOutput.vue';
+// Import all step components (3 steps)
+import Step1FrameworkCategoryOutput from './steps/Step1FrameworkCategoryOutput.vue';
+import Step2VisualDesignContent from './steps/Step2VisualDesignContent.vue';
+import Step3LlmModel from './steps/Step3LlmModel.vue';
 
 defineProps<{
   title?: string;
@@ -19,13 +17,29 @@ const { t } = useI18n();
 
 const currentStepComponent = computed(() => {
   const components: Record<number, any> = {
-    1: Step1FrameworkCategory,
-    2: Step2PagesLayout,
-    3: Step3ThemeStyling,
-    4: Step4ResponsivenessInteractions,
-    5: Step5CodeOutput,
+    1: Step1FrameworkCategoryOutput,
+    2: Step2VisualDesignContent,
+    3: Step3LlmModel,
   };
   return components[wizardState.currentStep] || null;
+});
+
+const currentStepTitle = computed(() => {
+  const titles: Record<number, string> = {
+    1: t.value.wizard?.stepTitles?.step1 || 'Framework, Category & Output',
+    2: t.value.wizard?.stepTitles?.step2 || 'Visual Design & Content',
+    3: t.value.wizard?.stepTitles?.step3 || 'LLM Model Selection',
+  };
+  return titles[wizardState.currentStep] || '';
+});
+
+const currentStepDescription = computed(() => {
+  const descriptions: Record<number, string> = {
+    1: t.value.wizard?.stepDescriptions?.step1 || 'Choose your CSS framework, template category, and output format',
+    2: t.value.wizard?.stepDescriptions?.step2 || 'Configure pages, layout, theme, UI density, and components',
+    3: t.value.wizard?.stepDescriptions?.step3 || 'Select the LLM model for generation and review credits',
+  };
+  return descriptions[wizardState.currentStep] || '';
 });
 </script>
 
@@ -47,7 +61,7 @@ const currentStepComponent = computed(() => {
           <div class="text-right">
             <div class="text-xs text-slate-500 dark:text-slate-500">{{ t.wizard?.stepOf || 'Step' }}</div>
             <div class="text-lg font-bold text-blue-600 dark:text-blue-400">
-              {{ wizardState.currentStep }} / 5
+              {{ wizardState.currentStep }} / 3
             </div>
           </div>
         </div>
@@ -57,9 +71,9 @@ const currentStepComponent = computed(() => {
           <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
           </svg>
-          <span class="font-semibold text-slate-900 dark:text-white">{{ getStepTitle(wizardState.currentStep) }}</span>
+          <span class="font-semibold text-slate-900 dark:text-white">{{ currentStepTitle }}</span>
           <span class="text-slate-400 dark:text-slate-600">•</span>
-          <span class="text-slate-600 dark:text-slate-400">{{ getStepDescription(wizardState.currentStep) }}</span>
+          <span class="text-slate-600 dark:text-slate-400">{{ currentStepDescription }}</span>
         </div>
       </div>
 

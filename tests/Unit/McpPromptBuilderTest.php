@@ -7,12 +7,12 @@ function createValidBlueprint(array $overrides = []): array
 {
     return array_merge([
         'framework' => 'tailwind',
-        'category' => 'dashboard',
-        'pages' => ['home', 'about'],
+        'category' => 'admin-dashboard',
+        'pages' => ['login', 'dashboard'],
         'layout' => [
             'navigation' => 'sidebar',
             'breadcrumbs' => true,
-            'footer' => 'full',
+            'footer' => 'minimal',
             'sidebarDefaultState' => 'expanded',
         ],
         'theme' => [
@@ -21,24 +21,17 @@ function createValidBlueprint(array $overrides = []): array
             'mode' => 'light',
             'background' => 'solid',
         ],
-        'uiDensity' => 'comfortable',
-        'components' => [
-            'navbar' => true,
-            'sidebar' => true,
-            'footer' => true,
-            'breadcrumbs' => true,
+        'ui' => [
+            'density' => 'comfortable',
+            'borderRadius' => 'rounded',
         ],
-        'interactionLevel' => 'standard',
-        'responsiveness' => [
-            'approach' => 'mobile-first',
-            'breakpoints' => ['mobile', 'tablet', 'desktop'],
-        ],
-        'codePreferences' => [
-            'indentation' => 'spaces',
-            'indentSize' => 2,
-            'naming' => 'camelCase',
-        ],
-        'outputFormat' => 'single-file',
+        'components' => ['buttons', 'forms', 'cards', 'alerts'],
+        'interaction' => 'moderate',
+        'responsiveness' => 'fully-responsive',
+        'codeStyle' => 'minimal',
+        'outputFormat' => 'vue',
+        'llmModel' => 'gemini-flash',
+        'modelCredits' => 0,
     ], $overrides);
 }
 
@@ -59,13 +52,13 @@ test('buildFromBlueprint handles bootstrap framework', function () {
     $blueprint = createValidBlueprint([
         'framework' => 'bootstrap',
         'category' => 'landing-page',
-        'pages' => ['home'],
+        'pages' => ['login'],
     ]);
     
     $result = $builder->buildFromBlueprint($blueprint);
     
     expect($result)->toContain('Bootstrap');
-    expect($result)->toContain('landing-page');
+    expect($result)->toContain('Landing Page');
 });
 
 test('buildFromBlueprint is deterministic', function () {
@@ -105,22 +98,67 @@ test('buildFromBlueprint includes all major sections', function () {
     expect($result)->toContain('UI DENSITY');
 });
 
-test('buildFromBlueprint reflects different page counts', function () {
+test('getPageList includes component showcase pages', function () {
     $builder = new McpPromptBuilder();
-    
-    $blueprintSingle = createValidBlueprint([
-        'pages' => ['home'],
+    $blueprint = createValidBlueprint([
+        'pages' => ['login', 'dashboard'],
+        'customPages' => [
+            ['name' => 'inventory', 'description' => 'Inventory management page']
+        ],
+        'components' => ['buttons', 'forms', 'charts'],
+        'customComponents' => [
+            ['name' => 'kanban-board', 'description' => 'Kanban board component']
+        ],
     ]);
     
+    $pages = $builder->getPageList($blueprint);
+    
+    // Should have: 2 regular pages + 1 custom page + 3 component pages + 1 custom component page = 7 total
+    expect(count($pages))->toBe(7);
+    expect($pages)->toContain('login');
+    expect($pages)->toContain('dashboard');
+    expect($pages)->toContain('custom:inventory');
+    expect($pages)->toContain('component:buttons');
+    expect($pages)->toContain('component:forms');
+    expect($pages)->toContain('component:charts');
+    expect($pages)->toContain('component:custom:kanban-board');
+});
+
+test('component showcase pages are included in total page count', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'pages' => ['login'],
+        'components' => ['buttons', 'forms'],
+    ]);
+    
+    $allPages = $builder->getPageList($blueprint);
+    
+    // Should have: 1 regular page + 2 component showcase pages = 3 total
+    expect(count($allPages))->toBe(3);
+});
+
+test('buildFromBlueprint reflects different page counts including component showcase pages', function () {
+    $builder = new McpPromptBuilder();
+    
+    // Single page + 4 component showcase pages = 5 total
+    $blueprintSingle = createValidBlueprint([
+        'pages' => ['login'],
+        'components' => ['buttons', 'forms', 'cards', 'alerts'], // Default components from createValidBlueprint
+    ]);
+    
+    // Multiple pages + 2 component showcase pages = 6 total
     $blueprintMultiple = createValidBlueprint([
-        'pages' => ['home', 'about', 'contact', 'services'],
+        'pages' => ['login', 'dashboard', 'settings', 'profile'],
+        'components' => ['buttons', 'forms'], // Only 2 components
     ]);
     
     $resultSingle = $builder->buildFromBlueprint($blueprintSingle);
     $resultMultiple = $builder->buildFromBlueprint($blueprintMultiple);
     
-    expect($resultSingle)->toContain('Total Pages: 1');
-    expect($resultMultiple)->toContain('Total Pages: 4');
-    expect($resultMultiple)->toContain('about');
-    expect($resultMultiple)->toContain('contact');
+    // Single page (1) + component pages (4) = 5 total
+    expect($resultSingle)->toContain('Total Pages: 5');
+    // Multiple pages (4) + component pages (2) = 6 total
+    expect($resultMultiple)->toContain('Total Pages: 6');
+    expect($resultMultiple)->toContain('Dashboard');
+    expect($resultMultiple)->toContain('Settings');
 });
