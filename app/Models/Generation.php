@@ -15,6 +15,10 @@ class Generation extends Model
         'status',
         'mcp_prompt',
         'generated_content',
+        'progress_data',
+        'current_page_index',
+        'total_pages',
+        'current_status',
         'error_message',
         'processing_time',
         'started_at',
@@ -24,6 +28,9 @@ class Generation extends Model
     protected $casts = [
         'credits_used' => 'integer',
         'processing_time' => 'integer',
+        'progress_data' => 'array',
+        'current_page_index' => 'integer',
+        'total_pages' => 'integer',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];

@@ -1,27 +1,35 @@
 <script setup lang="ts">
 import { wizardState, Page, NavigationType, SidebarState, FooterStyle, suggestedPages, shouldShowSidebarState, syncSidebarState } from '../wizardState';
-import { computed, watch } from 'vue';
+import { computed, watch, onMounted } from 'vue';
 import { useI18n } from '@/lib/i18n';
 
 const { t } = useI18n();
 
-const allPages: { value: Page; label: string; category: string }[] = [
-  { value: 'login', label: 'Login', category: 'Authentication' },
-  { value: 'register', label: 'Register', category: 'Authentication' },
-  { value: 'forgot-password', label: 'Forgot Password', category: 'Authentication' },
-  { value: 'dashboard', label: 'Dashboard', category: 'Application' },
-  { value: 'user-management', label: 'User Management', category: 'Application' },
-  { value: 'settings', label: 'Settings', category: 'Application' },
-  { value: 'charts', label: 'Charts / Analytics', category: 'Application' },
-  { value: 'tables', label: 'Tables / Data List', category: 'Application' },
-  { value: 'profile', label: 'Profile', category: 'Application' },
-  { value: 'about', label: 'About', category: 'Public' },
-  { value: 'contact', label: 'Contact', category: 'Public' },
-];
+// Auto-select suggested pages when entering this step or when category changes
+watch(() => wizardState.category, () => {
+  // Always apply suggested pages when category changes, regardless of current selection
+  if (suggestedPages.value.length > 0) {
+    wizardState.pages = [...suggestedPages.value];
+  }
+}, { immediate: true });
+
+const allPages = computed(() => [
+  { value: 'login' as Page, label: t.value.wizard?.steps?.pages?.login || 'Login', category: t.value.wizard?.steps?.pages?.authCategory || 'Authentication' },
+  { value: 'register' as Page, label: t.value.wizard?.steps?.pages?.register || 'Register', category: t.value.wizard?.steps?.pages?.authCategory || 'Authentication' },
+  { value: 'forgot-password' as Page, label: t.value.wizard?.steps?.pages?.forgotPassword || 'Forgot Password', category: t.value.wizard?.steps?.pages?.authCategory || 'Authentication' },
+  { value: 'dashboard' as Page, label: t.value.wizard?.steps?.pages?.dashboard || 'Dashboard', category: t.value.wizard?.steps?.pages?.appCategory || 'Application' },
+  { value: 'user-management' as Page, label: t.value.wizard?.steps?.pages?.userManagement || 'User Management', category: t.value.wizard?.steps?.pages?.appCategory || 'Application' },
+  { value: 'settings' as Page, label: t.value.wizard?.steps?.pages?.settings || 'Settings', category: t.value.wizard?.steps?.pages?.appCategory || 'Application' },
+  { value: 'charts' as Page, label: t.value.wizard?.steps?.pages?.charts || 'Charts / Analytics', category: t.value.wizard?.steps?.pages?.appCategory || 'Application' },
+  { value: 'tables' as Page, label: t.value.wizard?.steps?.pages?.tables || 'Tables / Data List', category: t.value.wizard?.steps?.pages?.appCategory || 'Application' },
+  { value: 'profile' as Page, label: t.value.wizard?.steps?.pages?.profile || 'Profile', category: t.value.wizard?.steps?.pages?.appCategory || 'Application' },
+  { value: 'about' as Page, label: t.value.wizard?.steps?.pages?.about || 'About', category: t.value.wizard?.steps?.pages?.publicCategory || 'Public' },
+  { value: 'contact' as Page, label: t.value.wizard?.steps?.pages?.contact || 'Contact', category: t.value.wizard?.steps?.pages?.publicCategory || 'Public' },
+]);
 
 const pagesByCategory = computed(() => {
-  const grouped: Record<string, typeof allPages> = {};
-  allPages.forEach(page => {
+  const grouped: Record<string, typeof allPages.value> = {};
+  allPages.value.forEach(page => {
     if (!grouped[page.category]) {
       grouped[page.category] = [];
     }
@@ -30,21 +38,21 @@ const pagesByCategory = computed(() => {
   return grouped;
 });
 
-const navigationOptions: { value: NavigationType; label: string; description: string }[] = [
-  { value: 'sidebar', label: 'Sidebar', description: 'Menu vertikal, ideal untuk banyak item' },
-  { value: 'topbar', label: 'Top Navigation', description: 'Menu horizontal, minimalis' },
-  { value: 'hybrid', label: 'Hybrid (Sidebar + Topbar)', description: 'Kombinasi keduanya' },
-];
+const navigationOptions = computed(() => [
+  { value: 'sidebar' as NavigationType, label: t.value.wizard?.steps?.layout?.sidebar || 'Sidebar', description: t.value.wizard?.steps?.layout?.sidebarDesc || 'Menu vertikal, ideal untuk banyak item' },
+  { value: 'topbar' as NavigationType, label: t.value.wizard?.steps?.layout?.topbar || 'Top Navigation', description: t.value.wizard?.steps?.layout?.topbarDesc || 'Menu horizontal, minimalis' },
+  { value: 'hybrid' as NavigationType, label: t.value.wizard?.steps?.layout?.hybrid || 'Hybrid (Sidebar + Topbar)', description: t.value.wizard?.steps?.layout?.hybridDesc || 'Kombinasi keduanya' },
+]);
 
-const sidebarStates: { value: SidebarState; label: string }[] = [
-  { value: 'expanded', label: 'Expanded by Default' },
-  { value: 'collapsed', label: 'Collapsed by Default' },
-];
+const sidebarStates = computed(() => [
+  { value: 'expanded' as SidebarState, label: t.value.wizard?.steps?.layout?.expanded || 'Expanded by Default' },
+  { value: 'collapsed' as SidebarState, label: t.value.wizard?.steps?.layout?.collapsed || 'Collapsed by Default' },
+]);
 
-const footerOptions: { value: FooterStyle; label: string }[] = [
-  { value: 'minimal', label: 'Minimal (copyright only)' },
-  { value: 'full', label: 'Full (with links)' },
-];
+const footerOptions = computed(() => [
+  { value: 'minimal' as FooterStyle, label: t.value.wizard?.steps?.layout?.minimalFooter || 'Minimal (copyright only)' },
+  { value: 'full' as FooterStyle, label: t.value.wizard?.steps?.layout?.fullFooter || 'Full (with links)' },
+]);
 
 function togglePage(page: Page) {
   const index = wizardState.pages.indexOf(page);

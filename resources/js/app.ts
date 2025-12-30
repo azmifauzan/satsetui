@@ -6,6 +6,19 @@ import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { initLanguage } from './lib/i18n';
 import { initTheme } from './lib/theme';
+import axios from 'axios';
+
+// Setup axios defaults
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+const token = document.head.querySelector<HTMLMetaElement>('meta[name="csrf-token"]');
+if (token) {
+    axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
+} else {
+    console.error('CSRF token not found');
+}
+
+// Make axios globally available
+window.axios = axios;
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import axios from 'axios';
 import AppLayout from '@/layouts/AppLayout.vue';
 import WizardLayout from '@/wizard/WizardLayout.vue';
 import WizardNavigation from '@/wizard/WizardNavigation.vue';
@@ -22,6 +23,12 @@ const { t } = useI18n();
 const isGenerating = ref(false);
 const showBlueprintPreview = ref(false);
 const generationError = ref<string | null>(null);
+const generationProgress = ref({
+  currentPage: '',
+  percentage: 0,
+  currentIndex: 0,
+  totalPages: 0,
+});
 
 async function handleGenerate() {
   isGenerating.value = true;
@@ -32,28 +39,62 @@ async function handleGenerate() {
     
     console.log('Submitting Blueprint:', blueprint);
     
-    // Submit to backend API
-    router.post('/generation/generate', 
-      { 
-        blueprint,
-        project_name: `Template ${new Date().toLocaleString()}`
-      },
-      {
-        onSuccess: (page) => {
-          console.log('Generation started successfully');
-        },
-        onError: (errors) => {
-          console.error('Generation failed:', errors);
-          generationError.value = errors.error || 'Failed to generate template. Please try again.';
-          isGenerating.value = false;
-        },
-      }
-    );
+    // Submit to backend API using axios (handles CSRF automatically)
+    const response = await axios.post('/generation/generate', {
+      blueprint,
+      project_name: `Template ${new Date().toLocaleString()}`,
+      model_name: wizardState.llmModel // Send selected model
+    });
+
+    const result = response.data;
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to start generation');
+    }
+
+    const generationId = result.generation_id;
+    generationProgress.value.totalPages = result.total_pages;
+
+    // Start progressive generation
+    await progressiveGenerate(generationId);
+
+    // Redirect to result page after completion
+    router.visit(`/generation/${generationId}`);
     
   } catch (error) {
     console.error('Generation exception:', error);
-    generationError.value = 'An unexpected error occurred. Please try again.';
+    generationError.value = error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.';
     isGenerating.value = false;
+  }
+}
+
+async function progressiveGenerate(generationId: number) {
+  try {
+    // Keep generating until all pages are done
+    while (generationProgress.value.currentIndex < generationProgress.value.totalPages) {
+      // Call next generation using axios
+      const response = await axios.post(`/generation/${generationId}/next`);
+
+      const result = response.data;
+
+      if (!result.success) {
+        throw new Error(result.error || 'Generation failed');
+      }
+
+      // Update progress
+      generationProgress.value.currentPage = result.page;
+      generationProgress.value.currentIndex = result.current_index;
+      generationProgress.value.percentage = result.progress_percentage;
+
+      if (result.completed) {
+        break;
+      }
+
+      // Small delay between pages
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  } catch (error) {
+    throw error;
   }
 }
 </script>
@@ -109,13 +150,35 @@ async function handleGenerate() {
         v-if="isGenerating"
         class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
       >
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-8 shadow-2xl max-w-md">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-8 shadow-2xl max-w-md w-full mx-4">
           <div class="flex flex-col items-center">
             <div class="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
             <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">
               {{ t.wizard?.generating || 'Generating Template...' }}
             </h3>
-            <p class="text-slate-600 dark:text-slate-400 text-center">
+            
+            <!-- Progress Bar -->
+            <div class="w-full mt-4 mb-2">
+              <div class="flex items-center justify-between text-sm mb-2">
+                <span class="text-slate-600 dark:text-slate-400">
+                  {{ generationProgress.currentPage ? `${t.wizard?.generatingPage || 'Menghasilkan halaman'} ${generationProgress.currentPage}...` : t.wizard?.startingGeneration || 'Memulai generasi...' }}
+                </span>
+                <span class="font-medium text-slate-900 dark:text-white">
+                  {{ generationProgress.percentage }}%
+                </span>
+              </div>
+              <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                <div
+                  class="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                  :style="{ width: `${generationProgress.percentage}%` }"
+                ></div>
+              </div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
+                {{ t.wizard?.pageOf || 'Halaman' }} {{ generationProgress.currentIndex }} {{ t.common?.of || 'dari' }} {{ generationProgress.totalPages }}
+              </div>
+            </div>
+
+            <p class="text-slate-600 dark:text-slate-400 text-center text-sm mt-2">
               {{ t.wizard?.generatingDescription || 'Please wait while we generate your template' }}
             </p>
           </div>
@@ -132,7 +195,7 @@ async function handleGenerate() {
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
           </svg>
           <div class="flex-1">
-            <h4 class="font-medium text-red-900 dark:text-red-200">Generation Failed</h4>
+            <h4 class="font-medium text-red-900 dark:text-red-200">{{ t.wizard?.generationFailed || 'Generasi Gagal' }}</h4>
             <p class="text-sm text-red-700 dark:text-red-300 mt-1">{{ generationError }}</p>
           </div>
           <button

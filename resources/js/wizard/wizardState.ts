@@ -125,9 +125,8 @@ export type OutputFormat = 'html-css' | 'react' | 'vue' | 'angular' | 'svelte';
 
 /**
  * Step 11: LLM Model Selection
+ * Model ID is now dynamic string fetched from API
  */
-export type LlmModel = 'gemini-flash' | 'gemini-pro' | 'gpt-4' | 'claude-3';
-export type ModelTier = 'free' | 'premium';
 
 /**
  * Complete wizard state interface
@@ -156,8 +155,8 @@ export interface WizardState {
 
   // Step 5: Output Format & LLM Model
   outputFormat: OutputFormat;
-  llmModel: LlmModel;
-  modelTier: ModelTier;
+  llmModel: string; // Dynamic model ID from API (e.g., 'gemini-2.5-flash')
+  modelCredits: number; // Credits required for selected model
 }
 
 /**
@@ -211,8 +210,8 @@ export const wizardState = reactive<WizardState>({
 
   // Step 5: Output Format & LLM Model
   outputFormat: 'vue',
-  llmModel: 'gemini-flash',
-  modelTier: 'free',
+  llmModel: '', // Will be set dynamically from API
+  modelCredits: 0,
 });
 
 // ========================================================================
@@ -306,8 +305,7 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
       // Step 5: Output Format & LLM Model
       return (
         ['html-css', 'react', 'vue', 'angular', 'svelte'].includes(wizardState.outputFormat) &&
-        ['gemini-flash', 'gemini-pro', 'gpt-4', 'claude-3'].includes(wizardState.llmModel) &&
-        ['free', 'premium'].includes(wizardState.modelTier)
+        wizardState.llmModel !== '' // Model must be selected
       );
 
     default:
@@ -413,7 +411,7 @@ export const blueprintJSON: ComputedRef<object> = computed(() => {
     responsiveness: wizardState.responsiveness,
     outputFormat: wizardState.outputFormat,
     llmModel: wizardState.llmModel,
-    modelTier: wizardState.modelTier,
+    modelCredits: wizardState.modelCredits,
   };
 
   // Conditionally add sidebarDefaultState
@@ -500,8 +498,8 @@ export function resetWizard(): void {
   wizardState.interaction = 'moderate';
   wizardState.responsiveness = 'fully-responsive';
   wizardState.outputFormat = 'vue';
-  wizardState.llmModel = 'gemini-flash';
-  wizardState.modelTier = 'free';
+  wizardState.llmModel = ''; // Will be set from API
+  wizardState.modelCredits = 0;
 }
 
 /**
@@ -524,7 +522,7 @@ export function loadFromBlueprint(blueprint: Partial<WizardState>): void {
   if (blueprint.responsiveness) wizardState.responsiveness = blueprint.responsiveness;
   if (blueprint.outputFormat) wizardState.outputFormat = blueprint.outputFormat;
   if (blueprint.llmModel) wizardState.llmModel = blueprint.llmModel;
-  if (blueprint.modelTier) wizardState.modelTier = blueprint.modelTier;
+  if (blueprint.modelCredits !== undefined) wizardState.modelCredits = blueprint.modelCredits;
 }
 
 export function syncChartLibrary(): void {

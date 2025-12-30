@@ -1,50 +1,51 @@
 <script setup lang="ts">
 import { wizardState, ResponsivenessType, InteractionLevel } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
+import { computed } from 'vue';
 
 const { t } = useI18n();
 
-const responsivenessOptions: { value: ResponsivenessType; label: string; description: string; bestFor: string }[] = [
+const responsivenessOptions = computed(() => [
   {
-    value: 'desktop-first',
-    label: 'Desktop-First',
-    description: 'Dioptimalkan untuk desktop, diskalakan ke mobile',
-    bestFor: 'Tool internal, panel admin'
+    value: 'desktop-first' as ResponsivenessType,
+    label: t.value.wizard?.steps?.responsiveness?.desktopFirst || 'Desktop-First',
+    description: t.value.wizard?.steps?.responsiveness?.desktopFirstDesc || 'Dioptimalkan untuk desktop, diskalakan ke mobile',
+    bestFor: t.value.wizard?.steps?.responsiveness?.desktopFirstBest || 'Tool internal, panel admin'
   },
   {
-    value: 'mobile-first',
-    label: 'Mobile-First',
-    description: 'Dioptimalkan untuk mobile, diskalakan ke desktop',
-    bestFor: 'Situs publik, aplikasi konsumen'
+    value: 'mobile-first' as ResponsivenessType,
+    label: t.value.wizard?.steps?.responsiveness?.mobileFirst || 'Mobile-First',
+    description: t.value.wizard?.steps?.responsiveness?.mobileFirstDesc || 'Dioptimalkan untuk mobile, diskalakan ke desktop',
+    bestFor: t.value.wizard?.steps?.responsiveness?.mobileFirstBest || 'Situs publik, aplikasi konsumen'
   },
   {
-    value: 'fully-responsive',
-    label: 'Fully Responsive',
-    description: 'Optimasi setara untuk semua ukuran layar',
-    bestFor: 'Aplikasi multi-perangkat'
+    value: 'fully-responsive' as ResponsivenessType,
+    label: t.value.wizard?.steps?.responsiveness?.fullyResponsive || 'Fully Responsive',
+    description: t.value.wizard?.steps?.responsiveness?.fullyResponsiveDesc || 'Optimasi setara untuk semua ukuran layar',
+    bestFor: t.value.wizard?.steps?.responsiveness?.fullyResponsiveBest || 'Aplikasi multi-perangkat'
   },
-];
+]);
 
-const interactionOptions: { value: InteractionLevel; label: string; description: string; examples: string }[] = [
+const interactionOptions = computed(() => [
   {
-    value: 'static',
-    label: 'Static',
-    description: 'Tanpa animasi, transisi instan, interaktivitas minimal',
-    examples: 'Performa maksimum, kesederhanaan'
+    value: 'static' as InteractionLevel,
+    label: t.value.wizard?.steps?.interaction?.static || 'Static',
+    description: t.value.wizard?.steps?.interaction?.staticDesc || 'Tanpa animasi, transisi instan, interaktivitas minimal',
+    examples: t.value.wizard?.steps?.interaction?.staticExample || 'Performa maksimum, kesederhanaan'
   },
   {
-    value: 'moderate',
-    label: 'Moderate',
-    description: 'Efek hover, transisi halus, feedback dasar',
-    examples: 'Direkomendasikan untuk sebagian besar aplikasi'
+    value: 'moderate' as InteractionLevel,
+    label: t.value.wizard?.steps?.interaction?.moderate || 'Moderate',
+    description: t.value.wizard?.steps?.interaction?.moderateDesc || 'Efek hover, transisi halus, feedback dasar',
+    examples: t.value.wizard?.steps?.interaction?.moderateExample || 'Direkomendasikan untuk sebagian besar aplikasi'
   },
   {
-    value: 'rich',
-    label: 'Rich',
-    description: 'Animasi, mikro-interaksi, loading skeleton, parallax',
-    examples: 'Situs marketing, nuansa premium'
+    value: 'rich' as InteractionLevel,
+    label: t.value.wizard?.steps?.interaction?.rich || 'Rich',
+    description: t.value.wizard?.steps?.interaction?.richDesc || 'Animasi, mikro-interaksi, loading skeleton, parallax',
+    examples: t.value.wizard?.steps?.interaction?.richExample || 'Situs marketing, nuansa premium'
   },
-];
+]);
 </script>
 
 <template>

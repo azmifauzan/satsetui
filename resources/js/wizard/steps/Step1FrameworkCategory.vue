@@ -1,65 +1,66 @@
 <script setup lang="ts">
 import { wizardState, Framework, Category } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
+import { computed } from 'vue';
 
 const { t } = useI18n();
 
-const frameworks: { value: Framework; label: string; description: string }[] = [
+const frameworks = computed(() => [
   {
-    value: 'tailwind',
+    value: 'tailwind' as Framework,
     label: 'Tailwind CSS',
-    description: 'Utility-first framework, highly customizable, modern approach',
+    description: t.value.wizard?.steps?.framework?.tailwindDesc || 'Utility-first framework, highly customizable, modern approach',
   },
   {
-    value: 'bootstrap',
+    value: 'bootstrap' as Framework,
     label: 'Bootstrap',
-    description: 'Component-based, rapid prototyping, extensive ecosystem',
+    description: t.value.wizard?.steps?.framework?.bootstrapDesc || 'Component-based, rapid prototyping, extensive ecosystem',
   },
   {
-    value: 'pure-css',
+    value: 'pure-css' as Framework,
     label: 'Pure CSS',
-    description: 'Vanilla CSS, no framework, full control, lightweight',
+    description: t.value.wizard?.steps?.framework?.pureCssDesc || 'Vanilla CSS, no framework, full control, lightweight',
   },
-];
+]);
 
-const categories: { value: Category; label: string; description: string; icon: string }[] = [
+const categories = computed(() => [
   {
-    value: 'admin-dashboard',
-    label: 'Admin Dashboard',
-    description: 'Internal tools, data management, CRUD operations',
+    value: 'admin-dashboard' as Category,
+    label: t.value.wizard?.steps?.category?.adminLabel || 'Admin Dashboard',
+    description: t.value.wizard?.steps?.category?.adminDesc || 'Internal tools, data management, CRUD operations',
     icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
   },
   {
-    value: 'company-profile',
-    label: 'Company Profile',
-    description: 'Public-facing, content showcase, about/services pages',
+    value: 'company-profile' as Category,
+    label: t.value.wizard?.steps?.category?.companyLabel || 'Company Profile',
+    description: t.value.wizard?.steps?.category?.companyDesc || 'Public-facing, content showcase, about/services pages',
     icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
   },
   {
-    value: 'landing-page',
-    label: 'Landing Page',
-    description: 'Marketing-focused, conversion-optimized, hero sections',
+    value: 'landing-page' as Category,
+    label: t.value.wizard?.steps?.category?.landingLabel || 'Landing Page',
+    description: t.value.wizard?.steps?.category?.landingDesc || 'Marketing-focused, conversion-optimized, hero sections',
     icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',
   },
   {
-    value: 'saas-application',
-    label: 'SaaS Application',
-    description: 'User accounts, feature sections, pricing pages',
+    value: 'saas-application' as Category,
+    label: t.value.wizard?.steps?.category?.saasLabel || 'SaaS Application',
+    description: t.value.wizard?.steps?.category?.saasDesc || 'User accounts, feature sections, pricing pages',
     icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z',
   },
   {
-    value: 'blog-content-site',
-    label: 'Blog / Content Site',
-    description: 'Article listings, reading experience, categories',
+    value: 'blog-content-site' as Category,
+    label: t.value.wizard?.steps?.category?.blogLabel || 'Blog / Content Site',
+    description: t.value.wizard?.steps?.category?.blogDesc || 'Article listings, reading experience, categories',
     icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
   },
   {
-    value: 'e-commerce',
-    label: 'E-Commerce',
-    description: 'Product catalogs, shopping cart, checkout pages',
+    value: 'e-commerce' as Category,
+    label: t.value.wizard?.steps?.category?.ecommerceLabel || 'E-Commerce',
+    description: t.value.wizard?.steps?.category?.ecommerceDesc || 'Product catalogs, shopping cart, checkout pages',
     icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
   },
-];
+]);
 
 function selectFramework(framework: Framework) {
   wizardState.framework = framework;
@@ -81,7 +82,7 @@ function selectCategory(category: Category) {
         {{ t.wizard?.steps?.framework?.description || 'Pilih fondasi framework CSS untuk template Anda. Keputusan ini memengaruhi struktur komponen dan pola styling.' }}
       </p>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <button
           v-for="fw in frameworks"
           :key="fw.value"

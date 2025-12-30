@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'llm' => [
+        'api_key' => env('LLM_API_KEY', 'sk-Cx00n-G2-g8__tXS44WljA'),
+        'base_url' => env('LLM_BASE_URL', 'https://ai.sumopod.com/v1'),
+    ],
+
+    // Legacy Gemini config (deprecated, use 'llm' instead)
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'free_model' => env('GEMINI_FREE_MODEL', 'gemini-2.0-flash-exp'),

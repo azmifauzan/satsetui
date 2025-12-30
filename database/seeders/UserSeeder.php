@@ -18,7 +18,7 @@ class UserSeeder extends Seeder
             'name' => 'User Indonesia',
             'email' => 'user@test.id',
             'password' => Hash::make('password'),
-            'credits' => 100,
+            'credits' => 25,
             'is_premium' => false,
             'language' => 'id',
         ]);
@@ -28,7 +28,7 @@ class UserSeeder extends Seeder
             'name' => 'English User',
             'email' => 'user@test.com',
             'password' => Hash::make('password'),
-            'credits' => 100,
+            'credits' => 25,
             'is_premium' => false,
             'language' => 'en',
         ]);

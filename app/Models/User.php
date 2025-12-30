@@ -48,6 +48,40 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_premium' => 'boolean',
+            'credits' => 'integer',
         ];
+    }
+
+    /**
+     * Check if user can use premium models
+     */
+    public function hasPremiumAccess(): bool
+    {
+        return $this->credits > 0;
+    }
+
+    /**
+     * Get available models for this user
+     */
+    public function getAvailableModels(): array
+    {
+        return app(\App\Services\OpenAICompatibleService::class)
+            ->getAvailableModels($this->hasPremiumAccess());
+    }
+
+    /**
+     * Projects relationship
+     */
+    public function projects()
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    /**
+     * Generations relationship
+     */
+    public function generations()
+    {
+        return $this->hasMany(Generation::class);
     }
 }

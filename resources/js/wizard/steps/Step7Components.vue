@@ -1,22 +1,26 @@
 <script setup lang="ts">
 import { wizardState, Component, ChartLibrary, shouldShowChartLibrary, syncChartLibrary } from '../wizardState';
-import { watch } from 'vue';
+import { watch, computed } from 'vue';
 
-const componentOptions: { value: Component; label: string; description: string }[] = [
-  { value: 'buttons', label: 'Buttons', description: 'Primary, Secondary, Outline, Icon buttons' },
-  { value: 'forms', label: 'Forms', description: 'Text inputs, Select, Checkbox, Radio, Textarea' },
-  { value: 'modals', label: 'Modals', description: 'Dialog boxes, confirmation prompts' },
-  { value: 'dropdowns', label: 'Dropdowns', description: 'Menu dropdowns, select alternatives' },
-  { value: 'alerts', label: 'Alerts / Toasts', description: 'Success, error, warning, info notifications' },
-  { value: 'cards', label: 'Cards', description: 'Content containers with header/body/footer' },
-  { value: 'tabs', label: 'Tabs', description: 'Horizontal/vertical tab navigation' },
-  { value: 'charts', label: 'Charts', description: 'Data visualizations (requires library selection)' },
-];
+import { useI18n } from '@/lib/i18n';
 
-const chartLibraryOptions: { value: ChartLibrary; label: string; description: string }[] = [
-  { value: 'chartjs', label: 'Chart.js', description: 'Simple, flexible, popular' },
-  { value: 'echarts', label: 'Apache ECharts', description: 'Powerful, feature-rich, enterprise-grade' },
-];
+const { t } = useI18n();
+
+const componentOptions = computed(() => [
+  { value: 'buttons' as Component, label: t.value.wizard?.steps?.components?.buttons || 'Buttons', description: t.value.wizard?.steps?.components?.buttonsDesc || 'Primary, Secondary, Outline, Icon buttons' },
+  { value: 'forms' as Component, label: t.value.wizard?.steps?.components?.forms || 'Forms', description: t.value.wizard?.steps?.components?.formsDesc || 'Text inputs, Select, Checkbox, Radio, Textarea' },
+  { value: 'modals' as Component, label: t.value.wizard?.steps?.components?.modals || 'Modals', description: t.value.wizard?.steps?.components?.modalsDesc || 'Dialog boxes, confirmation prompts' },
+  { value: 'dropdowns' as Component, label: t.value.wizard?.steps?.components?.dropdowns || 'Dropdowns', description: t.value.wizard?.steps?.components?.dropdownsDesc || 'Menu dropdowns, select alternatives' },
+  { value: 'alerts' as Component, label: t.value.wizard?.steps?.components?.alerts || 'Alerts / Toasts', description: t.value.wizard?.steps?.components?.alertsDesc || 'Success, error, warning, info notifications' },
+  { value: 'cards' as Component, label: t.value.wizard?.steps?.components?.cards || 'Cards', description: t.value.wizard?.steps?.components?.cardsDesc || 'Content containers with header/body/footer' },
+  { value: 'tabs' as Component, label: t.value.wizard?.steps?.components?.tabs || 'Tabs', description: t.value.wizard?.steps?.components?.tabsDesc || 'Horizontal/vertical tab navigation' },
+  { value: 'charts' as Component, label: t.value.wizard?.steps?.components?.charts || 'Charts', description: t.value.wizard?.steps?.components?.chartsDesc || 'Data visualizations (requires library selection)' },
+]);
+
+const chartLibraryOptions = computed(() => [
+  { value: 'chartjs' as ChartLibrary, label: 'Chart.js', description: t.value.wizard?.steps?.components?.chartjsDesc || 'Simple, flexible, popular' },
+  { value: 'echarts' as ChartLibrary, label: 'Apache ECharts', description: t.value.wizard?.steps?.components?.echartsDesc || 'Powerful, feature-rich, enterprise-grade' },
+]);
 
 function toggleComponent(component: Component) {
   const index = wizardState.components.indexOf(component);
@@ -41,10 +45,10 @@ watch(() => wizardState.components, () => {
   <div class="space-y-8">
     <div>
       <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-        Components
+        {{ t.wizard?.steps?.components?.title || 'Components' }}
       </h2>
       <p class="text-slate-600 dark:text-slate-400">
-        Select UI components to include in your template. Choose at least one component.
+        {{ t.wizard?.steps?.components?.description || 'Select UI components to include in your template. Choose at least one component.' }}
       </p>
     </div>
 

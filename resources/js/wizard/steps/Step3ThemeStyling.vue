@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { wizardState, ThemeMode, BackgroundStyle, UiDensity, BorderRadius, Component, ChartLibrary, shouldShowChartLibrary, syncChartLibrary } from '../wizardState';
-import { watch } from 'vue';
+import { watch, computed } from 'vue';
 import { useI18n } from '@/lib/i18n';
 
 const { t } = useI18n();
@@ -16,42 +16,42 @@ const presetColors = [
   { name: 'Teal', value: '#14B8A6' },
 ];
 
-const modes: { value: ThemeMode; label: string; icon: string }[] = [
-  { value: 'light', label: 'Light Mode', icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' },
-  { value: 'dark', label: 'Dark Mode', icon: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' },
-];
+const modes = computed(() => [
+  { value: 'light' as ThemeMode, label: t.value.wizard?.steps?.theme?.lightMode || 'Light Mode', icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' },
+  { value: 'dark' as ThemeMode, label: t.value.wizard?.steps?.theme?.darkMode || 'Dark Mode', icon: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' },
+]);
 
-const backgrounds: { value: BackgroundStyle; label: string }[] = [
-  { value: 'solid', label: 'Solid' },
-  { value: 'gradient', label: 'Subtle Gradient' },
-];
+const backgrounds = computed(() => [
+  { value: 'solid' as BackgroundStyle, label: t.value.wizard?.steps?.theme?.solid || 'Solid' },
+  { value: 'gradient' as BackgroundStyle, label: t.value.wizard?.steps?.theme?.gradient || 'Subtle Gradient' },
+]);
 
-const densityOptions: { value: UiDensity; label: string; description: string }[] = [
-  { value: 'compact', label: 'Compact', description: 'Spasi ketat, font kecil, padat data' },
-  { value: 'comfortable', label: 'Comfortable', description: 'Spasi seimbang, mudah dibaca' },
-  { value: 'spacious', label: 'Spacious', description: 'Whitespace murah hati, target sentuh besar' },
-];
+const densityOptions = computed(() => [
+  { value: 'compact' as UiDensity, label: t.value.wizard?.steps?.theme?.compact || 'Compact', description: t.value.wizard?.steps?.theme?.compactDesc || 'Spasi ketat, font kecil, padat data' },
+  { value: 'comfortable' as UiDensity, label: t.value.wizard?.steps?.theme?.comfortable || 'Comfortable', description: t.value.wizard?.steps?.theme?.comfortableDesc || 'Spasi seimbang, mudah dibaca' },
+  { value: 'spacious' as UiDensity, label: t.value.wizard?.steps?.theme?.spacious || 'Spacious', description: t.value.wizard?.steps?.theme?.spaciousDesc || 'Whitespace murah hati, target sentuh besar' },
+]);
 
-const borderOptions: { value: BorderRadius; label: string; description: string }[] = [
-  { value: 'sharp', label: 'Sharp', description: '0-2px radius, modern/teknis' },
-  { value: 'rounded', label: 'Rounded', description: '4-8px radius, ramah/mudah didekati' },
-];
+const borderOptions = computed(() => [
+  { value: 'sharp' as BorderRadius, label: t.value.wizard?.steps?.theme?.sharp || 'Sharp', description: t.value.wizard?.steps?.theme?.sharpDesc || '0-2px radius, modern/teknis' },
+  { value: 'rounded' as BorderRadius, label: t.value.wizard?.steps?.theme?.rounded || 'Rounded', description: t.value.wizard?.steps?.theme?.roundedDesc || '4-8px radius, ramah/mudah didekati' },
+]);
 
-const componentOptions: { value: Component; label: string; description: string }[] = [
-  { value: 'buttons', label: 'Buttons', description: 'Primary, Secondary, Outline, Icon buttons' },
-  { value: 'forms', label: 'Forms', description: 'Text inputs, Select, Checkbox, Radio, Textarea' },
-  { value: 'modals', label: 'Modals', description: 'Dialog boxes, prompt konfirmasi' },
-  { value: 'dropdowns', label: 'Dropdowns', description: 'Menu dropdown, alternatif select' },
-  { value: 'alerts', label: 'Alerts / Toasts', description: 'Notifikasi success, error, warning, info' },
-  { value: 'cards', label: 'Cards', description: 'Container konten dengan header/body/footer' },
-  { value: 'tabs', label: 'Tabs', description: 'Navigasi tab horizontal/vertikal' },
-  { value: 'charts', label: 'Charts', description: 'Visualisasi data (memerlukan library)' },
-];
+const componentOptions = computed(() => [
+  { value: 'buttons' as Component, label: t.value.wizard?.steps?.components?.buttons || 'Buttons', description: t.value.wizard?.steps?.components?.buttonsDesc || 'Primary, Secondary, Outline, Icon buttons' },
+  { value: 'forms' as Component, label: t.value.wizard?.steps?.components?.forms || 'Forms', description: t.value.wizard?.steps?.components?.formsDesc || 'Text inputs, Select, Checkbox, Radio, Textarea' },
+  { value: 'modals' as Component, label: t.value.wizard?.steps?.components?.modals || 'Modals', description: t.value.wizard?.steps?.components?.modalsDesc || 'Dialog boxes, prompt konfirmasi' },
+  { value: 'dropdowns' as Component, label: t.value.wizard?.steps?.components?.dropdowns || 'Dropdowns', description: t.value.wizard?.steps?.components?.dropdownsDesc || 'Menu dropdown, alternatif select' },
+  { value: 'alerts' as Component, label: t.value.wizard?.steps?.components?.alerts || 'Alerts / Toasts', description: t.value.wizard?.steps?.components?.alertsDesc || 'Notifikasi success, error, warning, info' },
+  { value: 'cards' as Component, label: t.value.wizard?.steps?.components?.cards || 'Cards', description: t.value.wizard?.steps?.components?.cardsDesc || 'Container konten dengan header/body/footer' },
+  { value: 'tabs' as Component, label: t.value.wizard?.steps?.components?.tabs || 'Tabs', description: t.value.wizard?.steps?.components?.tabsDesc || 'Navigasi tab horizontal/vertikal' },
+  { value: 'charts' as Component, label: t.value.wizard?.steps?.components?.charts || 'Charts', description: t.value.wizard?.steps?.components?.chartsDesc || 'Visualisasi data (memerlukan library)' },
+]);
 
-const chartLibraryOptions: { value: ChartLibrary; label: string; description: string }[] = [
-  { value: 'chartjs', label: 'Chart.js', description: 'Sederhana, fleksibel, populer' },
-  { value: 'echarts', label: 'Apache ECharts', description: 'Powerful, kaya fitur, enterprise-grade' },
-];
+const chartLibraryOptions = computed(() => [
+  { value: 'chartjs' as ChartLibrary, label: 'Chart.js', description: t.value.wizard?.steps?.components?.chartjsDesc || 'Sederhana, fleksibel, populer' },
+  { value: 'echarts' as ChartLibrary, label: 'Apache ECharts', description: t.value.wizard?.steps?.components?.echartsDesc || 'Powerful, kaya fitur, enterprise-grade' },
+]);
 
 function toggleComponent(component: Component) {
   const index = wizardState.components.indexOf(component);

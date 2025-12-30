@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->integer('credits')->default(100);
+            $table->integer('credits')->default(25);
             $table->boolean('is_premium')->default(false);
             $table->string('preferred_model')->nullable();
             $table->string('language')->default('id'); // 'id' or 'en'

@@ -55,6 +55,8 @@ export interface Translations {
     search: string;
     filter: string;
     reset: string;
+    credits: string;
+    of: string;
   };
 
   // Navigation
@@ -76,6 +78,10 @@ export interface Translations {
     generateTemplate: string;
     generating: string;
     generatingDescription: string;
+    startingGeneration: string;
+    generatingPage: string;
+    pageOf: string;
+    generationFailed: string;
     blueprintPreview: string;
     showBlueprint: string;
     hideBlueprint: string;
@@ -97,6 +103,18 @@ export interface Translations {
       category: {
         title: string;
         description: string;
+        adminLabel: string;
+        adminDesc: string;
+        companyLabel: string;
+        companyDesc: string;
+        landingLabel: string;
+        landingDesc: string;
+        saasLabel: string;
+        saasDesc: string;
+        blogLabel: string;
+        blogDesc: string;
+        ecommerceLabel: string;
+        ecommerceDesc: string;
         adminDashboard: string;
         adminDashboardDesc: string;
         companyProfile: string;
@@ -117,6 +135,9 @@ export interface Translations {
         suggested: string;
         selectAtLeastOne: string;
         selectedCount: string;
+        authCategory: string;
+        appCategory: string;
+        publicCategory: string;
         authentication: string;
         application: string;
         public: string;
@@ -150,7 +171,8 @@ export interface Translations {
         breadcrumbsDesc: string;
         footerStyle: string;
         minimal: string;
-        full: string;
+        minimalFooter: string;
+        fullFooter: string;
       };
       theme: {
         title: string;
@@ -164,6 +186,16 @@ export interface Translations {
         solid: string;
         gradient: string;
         preview: string;
+        compact: string;
+        compactDesc: string;
+        comfortable: string;
+        comfortableDesc: string;
+        spacious: string;
+        spaciousDesc: string;
+        sharp: string;
+        sharpDesc: string;
+        rounded: string;
+        roundedDesc: string;
         primary: string;
         secondary: string;
       };
@@ -273,6 +305,12 @@ export interface Translations {
         noCreditDesc: string;
         ready: string;
         readyDesc: string;
+        insufficientCredits: string;
+        economical: string;
+        loadingModels: string;
+        noModelsAvailable: string;
+        allModelsLabel: string;
+        selectModel: string;
       };
     };
   };
@@ -323,6 +361,8 @@ const id: Translations = {
     search: 'Cari',
     filter: 'Filter',
     reset: 'Reset',
+    credits: 'kredit',
+    of: 'dari',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -340,6 +380,10 @@ const id: Translations = {
     generateTemplate: 'Generate Template',
     generating: 'Menghasilkan Template...',
     generatingDescription: 'Membuat template kustom Anda berdasarkan pilihan Anda. Ini mungkin memakan waktu sejenak.',
+    startingGeneration: 'Memulai generasi...',
+    generatingPage: 'Menghasilkan halaman',
+    pageOf: 'Halaman',
+    generationFailed: 'Generasi Gagal',
     blueprintPreview: 'Blueprint JSON',
     showBlueprint: 'Tampilkan Blueprint',
     hideBlueprint: 'Sembunyikan Blueprint',
@@ -359,6 +403,18 @@ const id: Translations = {
       category: {
         title: 'Pilih Kategori Template',
         description: 'Pilih kasus penggunaan utama untuk template Anda. Ini akan mempengaruhi rekomendasi halaman default dan pola layout.',
+        adminLabel: 'Admin Dashboard',
+        adminDesc: 'Alat internal, manajemen data, operasi CRUD',
+        companyLabel: 'Profil Perusahaan',
+        companyDesc: 'Tampilan publik, showcase konten, halaman tentang/layanan',
+        landingLabel: 'Landing Page',
+        landingDesc: 'Fokus pemasaran, dioptimalkan untuk konversi, bagian hero',
+        saasLabel: 'Aplikasi SaaS',
+        saasDesc: 'Akun pengguna, bagian fitur, halaman harga',
+        blogLabel: 'Blog / Situs Konten',
+        blogDesc: 'Daftar artikel, pengalaman membaca, kategori',
+        ecommerceLabel: 'E-Commerce',
+        ecommerceDesc: 'Katalog produk, keranjang belanja, halaman checkout',
         adminDashboard: 'Admin Dashboard',
         adminDashboardDesc: 'Alat internal, manajemen data, operasi CRUD',
         companyProfile: 'Profil Perusahaan',
@@ -379,6 +435,9 @@ const id: Translations = {
         suggested: 'Disarankan',
         selectAtLeastOne: 'Silakan pilih minimal satu halaman untuk melanjutkan',
         selectedCount: 'Dipilih',
+        authCategory: 'Autentikasi',
+        appCategory: 'Aplikasi',
+        publicCategory: 'Publik',
         authentication: 'Autentikasi',
         application: 'Aplikasi',
         public: 'Publik',
@@ -412,7 +471,8 @@ const id: Translations = {
         breadcrumbsDesc: 'Tampilkan breadcrumbs navigasi pada halaman',
         footerStyle: 'Gaya Footer',
         minimal: 'Minimal (hanya copyright)',
-        full: 'Lengkap (dengan link)',
+        minimalFooter: 'Minimal (hanya copyright)',
+        fullFooter: 'Lengkap (dengan link)',
       },
       theme: {
         title: 'Tema & Identitas Visual',
@@ -426,6 +486,16 @@ const id: Translations = {
         solid: 'Solid',
         gradient: 'Gradien Halus',
         preview: 'Pratinjau',
+        compact: 'Kompak',
+        compactDesc: 'Spasi ketat, font kecil, padat data',
+        comfortable: 'Nyaman',
+        comfortableDesc: 'Spasi seimbang, mudah dibaca',
+        spacious: 'Luas',
+        spaciousDesc: 'Whitespace murah hati, target sentuh besar',
+        sharp: 'Tajam',
+        sharpDesc: 'Radius 0-2px, modern/teknis',
+        rounded: 'Membulat',
+        roundedDesc: 'Radius 4-8px, ramah/mudah didekati',
         primary: 'Utama',
         secondary: 'Sekunder',
       },
@@ -535,6 +605,12 @@ const id: Translations = {
         noCreditDesc: 'Anda tidak memiliki kredit. Silakan isi ulang kredit untuk menggunakan model premium.',
         ready: 'Siap untuk Generate!',
         readyDesc: 'Anda telah menyelesaikan semua 5 langkah. Klik tombol "Generate Template" untuk membuat template kustom Anda.',
+        insufficientCredits: 'Kredit tidak cukup',
+        economical: 'Ekonomis',
+        loadingModels: 'Memuat model...',
+        noModelsAvailable: 'Tidak ada model yang tersedia saat ini.',
+        allModelsLabel: 'SEMUA MODEL',
+        selectModel: 'Pilih Model yang Sesuai',
       },
     },
   },
@@ -581,6 +657,8 @@ const en: Translations = {
     search: 'Search',
     filter: 'Filter',
     reset: 'Reset',
+    credits: 'credits',
+    of: 'of',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -598,6 +676,10 @@ const en: Translations = {
     generateTemplate: 'Generate Template',
     generating: 'Generating Template...',
     generatingDescription: 'Creating your custom template based on your selections. This may take a moment.',
+    startingGeneration: 'Starting generation...',
+    generatingPage: 'Generating',
+    pageOf: 'Page',
+    generationFailed: 'Generation Failed',
     blueprintPreview: 'Blueprint JSON',
     showBlueprint: 'Show Blueprint',
     hideBlueprint: 'Hide Blueprint',
@@ -617,6 +699,18 @@ const en: Translations = {
       category: {
         title: 'Select Template Category',
         description: 'Choose the primary use case for your template. This will influence default page recommendations and layout patterns.',
+        adminLabel: 'Admin Dashboard',
+        adminDesc: 'Internal tools, data management, CRUD operations',
+        companyLabel: 'Company Profile',
+        companyDesc: 'Public-facing, content showcase, about/services pages',
+        landingLabel: 'Landing Page',
+        landingDesc: 'Marketing-focused, conversion-optimized, hero sections',
+        saasLabel: 'SaaS Application',
+        saasDesc: 'User accounts, feature sections, pricing pages',
+        blogLabel: 'Blog / Content Site',
+        blogDesc: 'Article listings, reading experience, categories',
+        ecommerceLabel: 'E-Commerce',
+        ecommerceDesc: 'Product catalogs, shopping cart, checkout pages',
         adminDashboard: 'Admin Dashboard',
         adminDashboardDesc: 'Internal tools, data management, CRUD operations',
         companyProfile: 'Company Profile',
@@ -637,6 +731,9 @@ const en: Translations = {
         suggested: 'Suggested',
         selectAtLeastOne: 'Please select at least one page to continue',
         selectedCount: 'Selected',
+        authCategory: 'Authentication',
+        appCategory: 'Application',
+        publicCategory: 'Public',
         authentication: 'Authentication',
         application: 'Application',
         public: 'Public',
@@ -670,7 +767,8 @@ const en: Translations = {
         breadcrumbsDesc: 'Show navigation breadcrumbs on pages',
         footerStyle: 'Footer Style',
         minimal: 'Minimal (copyright only)',
-        full: 'Full (with links)',
+        minimalFooter: 'Minimal (copyright only)',
+        fullFooter: 'Full (with links)',
       },
       theme: {
         title: 'Theme & Visual Identity',
@@ -684,6 +782,16 @@ const en: Translations = {
         solid: 'Solid',
         gradient: 'Subtle Gradient',
         preview: 'Preview',
+        compact: 'Compact',
+        compactDesc: 'Tight spacing, small fonts, data-dense',
+        comfortable: 'Comfortable',
+        comfortableDesc: 'Balanced spacing, readable',
+        spacious: 'Spacious',
+        spaciousDesc: 'Generous whitespace, large touch targets',
+        sharp: 'Sharp',
+        sharpDesc: '0-2px radius, modern/technical',
+        rounded: 'Rounded',
+        roundedDesc: '4-8px radius, friendly/approachable',
         primary: 'Primary',
         secondary: 'Secondary',
       },
@@ -793,6 +901,12 @@ const en: Translations = {
         noCreditDesc: 'You have no credits. Please top up to use premium models.',
         ready: 'Ready to Generate!',
         readyDesc: 'You\'ve completed all 5 steps. Click the "Generate Template" button to create your custom template.',
+        insufficientCredits: 'Insufficient Credits',
+        economical: 'Economical',
+        loadingModels: 'Loading models...',
+        noModelsAvailable: 'No models available at this time.',
+        allModelsLabel: 'ALL MODELS',
+        selectModel: 'Select a Suitable Model',
       },
     },
   },

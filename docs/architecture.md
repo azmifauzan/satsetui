@@ -47,7 +47,12 @@ This repository also includes platform capabilities around generation:
 
 ### External Services
 
-- **LLM API**: Gemini (MVP). Free users are forced to Gemini Flash; premium users may choose from admin-allowed Gemini models.
+- **LLM API**: OpenAI-compatible API via Sumopod (https://ai.sumopod.com/v1)
+- **Models**: 6 LLM models from Gemini, Claude, and GPT families
+  - Free tier: Gemini 2.5 Flash (3 credits/generation)
+  - Premium tier: 5 additional models (2-15 credits/generation)
+- **Credits**: 1 credit = Rp 1,000
+- **Documentation**: See [docs/llm-credit-system.md](./llm-credit-system.md)
 - **Storage**: Local filesystem or S3 for generated templates
 
 ### Platform Concerns (Non-Template)
