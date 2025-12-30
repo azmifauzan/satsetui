@@ -91,6 +91,8 @@ export interface Translations {
         tailwindDesc: string;
         bootstrap: string;
         bootstrapDesc: string;
+        pureCss: string;
+        pureCssDesc: string;
       };
       category: {
         title: string;
@@ -105,6 +107,8 @@ export interface Translations {
         saasApplicationDesc: string;
         blogContentSite: string;
         blogContentSiteDesc: string;
+        eCommerce: string;
+        eCommerceDesc: string;
       };
       pages: {
         title: string;
@@ -237,33 +241,38 @@ export interface Translations {
         fullyResponsiveBest: string;
         bestFor: string;
       };
-      codeStyle: {
+      outputFormat: {
         title: string;
         description: string;
-        minimal: string;
-        minimalDesc: string;
-        minimalTarget: string;
-        verbose: string;
-        verboseDesc: string;
-        verboseTarget: string;
-        documented: string;
-        documentedDesc: string;
-        documentedTarget: string;
-        target: string;
-        exampleImpact: string;
+        htmlCss: string;
+        htmlCssDesc: string;
+        react: string;
+        reactDesc: string;
+        vue: string;
+        vueDesc: string;
+        angular: string;
+        angularDesc: string;
+        svelte: string;
+        svelteDesc: string;
       };
-      outputIntent: {
+      llmModel: {
         title: string;
         description: string;
-        mvp: string;
-        mvpDesc: string;
-        production: string;
-        productionDesc: string;
-        designSystem: string;
-        designSystemDesc: string;
-        includes: string;
-        readyToGenerate: string;
-        readyToGenerateDesc: string;
+        credits: string;
+        freeModels: string;
+        premiumModels: string;
+        geminiFlash: string;
+        geminiFlashDesc: string;
+        geminiPro: string;
+        geminiProDesc: string;
+        gpt4: string;
+        gpt4Desc: string;
+        claude3: string;
+        claude3Desc: string;
+        noCreditTitle: string;
+        noCreditDesc: string;
+        ready: string;
+        readyDesc: string;
       };
     };
   };
@@ -344,6 +353,8 @@ const id: Translations = {
         tailwindDesc: 'Framework utility-first, sangat dapat disesuaikan, pendekatan modern',
         bootstrap: 'Bootstrap',
         bootstrapDesc: 'Berbasis komponen, prototyping cepat, ekosistem ekstensif',
+        pureCss: 'Pure CSS',
+        pureCssDesc: 'CSS vanilla, tanpa framework, kontrol penuh, ringan',
       },
       category: {
         title: 'Pilih Kategori Template',
@@ -358,6 +369,8 @@ const id: Translations = {
         saasApplicationDesc: 'Akun pengguna, bagian fitur, halaman harga',
         blogContentSite: 'Blog / Situs Konten',
         blogContentSiteDesc: 'Daftar artikel, pengalaman membaca, kategori',
+        eCommerce: 'E-Commerce',
+        eCommerceDesc: 'Katalog produk, keranjang belanja, halaman checkout',
       },
       pages: {
         title: 'Pilih Halaman',
@@ -490,33 +503,38 @@ const id: Translations = {
         fullyResponsiveBest: 'Aplikasi multi-device',
         bestFor: 'Terbaik untuk:',
       },
-      codeStyle: {
-        title: 'Preferensi Kode',
-        description: 'Kontrol gaya kode dan verbositas dalam output yang dihasilkan.',
-        minimal: 'Bersih & Minimal',
-        minimalDesc: 'Kode ringkas, komentar minimal',
-        minimalTarget: 'Developer berpengalaman',
-        verbose: 'Verbose & Eksplisit',
-        verboseDesc: 'Nama variabel eksplisit, logika lebih panjang',
-        verboseTarget: 'Developer menengah',
-        documented: 'Berkomentar untuk Pembelajaran',
-        documentedDesc: 'Dokumentasi lengkap, penjelasan',
-        documentedTarget: 'Pemula, tim pembelajaran',
-        target: 'Target:',
-        exampleImpact: 'Contoh Dampak',
+      outputFormat: {
+        title: 'Pilih Format Output',
+        description: 'Pilih framework atau format teknologi untuk template yang akan dihasilkan.',
+        htmlCss: 'HTML + CSS',
+        htmlCssDesc: 'Pure HTML dengan CSS murni, tanpa framework JS',
+        react: 'React JS',
+        reactDesc: 'React components dengan JSX dan hooks',
+        vue: 'Vue.js',
+        vueDesc: 'Vue 3 components dengan Composition API',
+        angular: 'Angular',
+        angularDesc: 'Angular components dengan TypeScript',
+        svelte: 'Svelte',
+        svelteDesc: 'Svelte components dengan compile-time optimization',
       },
-      outputIntent: {
-        title: 'Output Intent',
-        description: 'Pilih tingkat kematangan kode yang diharapkan.',
-        mvp: 'MVP-Ready Scaffold',
-        mvpDesc: 'Mulai cepat dengan placeholder konten dan fungsionalitas dasar',
-        production: 'Production-Ready Base',
-        productionDesc: 'Kode robust dengan penanganan error dan aksesibilitas dipertimbangkan',
-        designSystem: 'Design System Starter',
-        designSystemDesc: 'Library komponen dengan dokumentasi dan pola yang dapat digunakan kembali',
-        includes: 'Termasuk:',
-        readyToGenerate: '🎉 Siap untuk Generate!',
-        readyToGenerateDesc: 'Anda telah menyelesaikan semua 11 langkah. Klik "Generate Template" untuk membuat template kustom Anda berdasarkan pilihan Anda.',
+      llmModel: {
+        title: 'Pilih Model LLM',
+        description: 'Pilih model AI yang akan menghasilkan template Anda.',
+        credits: 'Kredit Anda:',
+        freeModels: 'Model Gratis',
+        premiumModels: 'Model Premium',
+        geminiFlash: 'Gemini Flash',
+        geminiFlashDesc: 'Gratis untuk semua pengguna, generasi cepat',
+        geminiPro: 'Gemini Pro',
+        geminiProDesc: 'Model premium Google, hasil lebih detail',
+        gpt4: 'GPT-4',
+        gpt4Desc: 'OpenAI GPT-4, kualitas tertinggi',
+        claude3: 'Claude 3',
+        claude3Desc: 'Anthropic Claude, fokus keamanan & akurasi',
+        noCreditTitle: 'Kredit Habis',
+        noCreditDesc: 'Anda tidak memiliki kredit. Silakan isi ulang kredit untuk menggunakan model premium.',
+        ready: 'Siap untuk Generate!',
+        readyDesc: 'Anda telah menyelesaikan semua 5 langkah. Klik tombol "Generate Template" untuk membuat template kustom Anda.',
       },
     },
   },
@@ -593,6 +611,8 @@ const en: Translations = {
         tailwindDesc: 'Utility-first framework, highly customizable, modern approach',
         bootstrap: 'Bootstrap',
         bootstrapDesc: 'Component-based, rapid prototyping, extensive ecosystem',
+        pureCss: 'Pure CSS',
+        pureCssDesc: 'Vanilla CSS, no framework, full control, lightweight',
       },
       category: {
         title: 'Select Template Category',
@@ -607,6 +627,8 @@ const en: Translations = {
         saasApplicationDesc: 'User accounts, feature sections, pricing pages',
         blogContentSite: 'Blog / Content Site',
         blogContentSiteDesc: 'Article listings, reading experience, categories',
+        eCommerce: 'E-Commerce',
+        eCommerceDesc: 'Product catalogs, shopping cart, checkout pages',
       },
       pages: {
         title: 'Select Pages',
@@ -739,33 +761,38 @@ const en: Translations = {
         fullyResponsiveBest: 'Multi-device applications',
         bestFor: 'Best for:',
       },
-      codeStyle: {
-        title: 'Code Preferences',
-        description: 'Control code style and verbosity in the generated output.',
-        minimal: 'Clean & Minimal',
-        minimalDesc: 'Concise code, minimal comments',
-        minimalTarget: 'Experienced developers',
-        verbose: 'Verbose & Explicit',
-        verboseDesc: 'Explicit variable names, longer logic',
-        verboseTarget: 'Intermediate developers',
-        documented: 'Commented for Learning',
-        documentedDesc: 'Heavy documentation, explanations',
-        documentedTarget: 'Beginners, learning teams',
-        target: 'Target:',
-        exampleImpact: 'Example Impact',
+      outputFormat: {
+        title: 'Select Output Format',
+        description: 'Choose the framework or technology format for the generated template.',
+        htmlCss: 'HTML + CSS',
+        htmlCssDesc: 'Pure HTML with plain CSS, no JS framework',
+        react: 'React JS',
+        reactDesc: 'React components with JSX and hooks',
+        vue: 'Vue.js',
+        vueDesc: 'Vue 3 components with Composition API',
+        angular: 'Angular',
+        angularDesc: 'Angular components with TypeScript',
+        svelte: 'Svelte',
+        svelteDesc: 'Svelte components with compile-time optimization',
       },
-      outputIntent: {
-        title: 'Output Intent',
-        description: 'Choose the expected maturity level of the generated code.',
-        mvp: 'MVP-Ready Scaffold',
-        mvpDesc: 'Quick start with placeholder content and basic functionality',
-        production: 'Production-Ready Base',
-        productionDesc: 'Robust code with error handling and accessibility considered',
-        designSystem: 'Design System Starter',
-        designSystemDesc: 'Component library with documentation and reusable patterns',
-        includes: 'Includes:',
-        readyToGenerate: '🎉 Ready to Generate!',
-        readyToGenerateDesc: 'You\'ve completed all 11 steps. Click "Generate Template" to create your custom template based on your selections.',
+      llmModel: {
+        title: 'Select LLM Model',
+        description: 'Choose the AI model that will generate your template.',
+        credits: 'Your Credits:',
+        freeModels: 'Free Models',
+        premiumModels: 'Premium Models',
+        geminiFlash: 'Gemini Flash',
+        geminiFlashDesc: 'Free for all users, fast generation',
+        geminiPro: 'Gemini Pro',
+        geminiProDesc: 'Google premium model, more detailed results',
+        gpt4: 'GPT-4',
+        gpt4Desc: 'OpenAI GPT-4, highest quality',
+        claude3: 'Claude 3',
+        claude3Desc: 'Anthropic Claude, focused on safety & accuracy',
+        noCreditTitle: 'No Credits',
+        noCreditDesc: 'You have no credits. Please top up to use premium models.',
+        ready: 'Ready to Generate!',
+        readyDesc: 'You\'ve completed all 5 steps. Click the "Generate Template" button to create your custom template.',
       },
     },
   },

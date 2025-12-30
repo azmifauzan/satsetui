@@ -26,7 +26,7 @@ import { reactive, computed, ComputedRef } from 'vue';
 /**
  * Step 1: Framework Selection
  */
-export type Framework = 'tailwind' | 'bootstrap';
+export type Framework = 'tailwind' | 'bootstrap' | 'pure-css';
 
 /**
  * Step 2: Template Category
@@ -36,7 +36,8 @@ export type Category =
   | 'company-profile'
   | 'landing-page'
   | 'saas-application'
-  | 'blog-content-site';
+  | 'blog-content-site'
+  | 'e-commerce';
 
 /**
  * Step 3: Page Selection (multi-select)
@@ -118,14 +119,15 @@ export type InteractionLevel = 'static' | 'moderate' | 'rich';
 export type ResponsivenessType = 'desktop-first' | 'mobile-first' | 'fully-responsive';
 
 /**
- * Step 10: Code Preferences
+ * Step 10: Output Format
  */
-export type CodeStyle = 'minimal' | 'verbose' | 'documented';
+export type OutputFormat = 'html-css' | 'react' | 'vue' | 'angular' | 'svelte';
 
 /**
- * Step 11: Output Intent
+ * Step 11: LLM Model Selection
  */
-export type OutputIntent = 'mvp' | 'production' | 'design-system';
+export type LlmModel = 'gemini-flash' | 'gemini-pro' | 'gpt-4' | 'claude-3';
+export type ModelTier = 'free' | 'premium';
 
 /**
  * Complete wizard state interface
@@ -152,9 +154,10 @@ export interface WizardState {
   responsiveness: ResponsivenessType;
   interaction: InteractionLevel;
 
-  // Step 5: Code Preferences & Output
-  codeStyle: CodeStyle;
-  outputIntent: OutputIntent;
+  // Step 5: Output Format & LLM Model
+  outputFormat: OutputFormat;
+  llmModel: LlmModel;
+  modelTier: ModelTier;
 }
 
 /**
@@ -206,9 +209,10 @@ export const wizardState = reactive<WizardState>({
   responsiveness: 'fully-responsive',
   interaction: 'moderate',
 
-  // Step 5: Code Preferences & Output
-  codeStyle: 'minimal',
-  outputIntent: 'production',
+  // Step 5: Output Format & LLM Model
+  outputFormat: 'vue',
+  llmModel: 'gemini-flash',
+  modelTier: 'free',
 });
 
 // ========================================================================
@@ -230,13 +234,14 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
     case 1:
       // Step 1: Framework & Category
       return (
-        ['tailwind', 'bootstrap'].includes(wizardState.framework) &&
+        ['tailwind', 'bootstrap', 'pure-css'].includes(wizardState.framework) &&
         [
           'admin-dashboard',
           'company-profile',
           'landing-page',
           'saas-application',
           'blog-content-site',
+          'e-commerce',
         ].includes(wizardState.category)
       );
 
@@ -298,10 +303,11 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
       );
 
     case 5:
-      // Step 5: Code Preferences & Output
+      // Step 5: Output Format & LLM Model
       return (
-        ['minimal', 'verbose', 'documented'].includes(wizardState.codeStyle) &&
-        ['mvp', 'production', 'design-system'].includes(wizardState.outputIntent)
+        ['html-css', 'react', 'vue', 'angular', 'svelte'].includes(wizardState.outputFormat) &&
+        ['gemini-flash', 'gemini-pro', 'gpt-4', 'claude-3'].includes(wizardState.llmModel) &&
+        ['free', 'premium'].includes(wizardState.modelTier)
       );
 
     default:
@@ -405,8 +411,9 @@ export const blueprintJSON: ComputedRef<object> = computed(() => {
     components: wizardState.components,
     interaction: wizardState.interaction,
     responsiveness: wizardState.responsiveness,
-    codeStyle: wizardState.codeStyle,
-    outputIntent: wizardState.outputIntent,
+    outputFormat: wizardState.outputFormat,
+    llmModel: wizardState.llmModel,
+    modelTier: wizardState.modelTier,
   };
 
   // Conditionally add sidebarDefaultState
@@ -492,8 +499,9 @@ export function resetWizard(): void {
   wizardState.chartLibrary = undefined;
   wizardState.interaction = 'moderate';
   wizardState.responsiveness = 'fully-responsive';
-  wizardState.codeStyle = 'minimal';
-  wizardState.outputIntent = 'production';
+  wizardState.outputFormat = 'vue';
+  wizardState.llmModel = 'gemini-flash';
+  wizardState.modelTier = 'free';
 }
 
 /**
@@ -514,8 +522,9 @@ export function loadFromBlueprint(blueprint: Partial<WizardState>): void {
   if (blueprint.chartLibrary) wizardState.chartLibrary = blueprint.chartLibrary;
   if (blueprint.interaction) wizardState.interaction = blueprint.interaction;
   if (blueprint.responsiveness) wizardState.responsiveness = blueprint.responsiveness;
-  if (blueprint.codeStyle) wizardState.codeStyle = blueprint.codeStyle;
-  if (blueprint.outputIntent) wizardState.outputIntent = blueprint.outputIntent;
+  if (blueprint.outputFormat) wizardState.outputFormat = blueprint.outputFormat;
+  if (blueprint.llmModel) wizardState.llmModel = blueprint.llmModel;
+  if (blueprint.modelTier) wizardState.modelTier = blueprint.modelTier;
 }
 
 export function syncChartLibrary(): void {
@@ -550,7 +559,9 @@ export function syncSidebarState(): void {
  * Get human-readable label for framework
  */
 export function getFrameworkLabel(framework: Framework): string {
-  return framework === 'tailwind' ? 'Tailwind CSS' : 'Bootstrap';
+  if (framework === 'tailwind') return 'Tailwind CSS';
+  if (framework === 'bootstrap') return 'Bootstrap';
+  return 'Pure CSS';
 }
 
 /**
@@ -563,6 +574,7 @@ export function getCategoryLabel(category: Category): string {
     'landing-page': 'Landing Page',
     'saas-application': 'SaaS Application',
     'blog-content-site': 'Blog / Content Site',
+    'e-commerce': 'E-Commerce',
   };
   return labels[category];
 }

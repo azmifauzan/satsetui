@@ -30,7 +30,7 @@ This system takes a fundamentally different approach:
 **Prompt-based**: "Create a modern admin dashboard with charts and a clean design"
 → Results vary, unpredictable, not reproducible
 
-**Wizard-based**: Framework=Tailwind, Category=Admin Dashboard, Pages=[Dashboard,Charts], Layout=Sidebar+Topbar, Theme=Blue/Indigo/Dark, Density=Comfortable, Components=[Charts], Interaction=Moderate, Responsive=Fully, CodeStyle=Clean, Intent=MVP
+**Wizard-based**: Framework=Tailwind, Category=Admin Dashboard, Pages=[Dashboard,Charts], Layout=Sidebar+Topbar, Theme=Blue/Indigo/Dark, Density=Comfortable, Components=[Charts], Interaction=Moderate, Responsive=Fully, OutputFormat=Vue, LlmModel=Gemini-Flash
 → Results identical every time
 
 ## Complete Wizard Specification (5 Steps)
@@ -42,8 +42,11 @@ This system takes a fundamentally different approach:
 #### Framework Options:
 - **Tailwind CSS**: Utility-first, highly customizable
 - **Bootstrap**: Component-based, rapid prototyping
+- **Pure CSS**: Vanilla CSS, no framework dependencies, full control
 
 **Why this matters**: Dictates entire component structure, utility classes, and responsive patterns. This decision affects every subsequent step.
+
+**Important Note**: If you select **HTML + CSS** as output format in Step 5, and your framework choice is Tailwind or Bootstrap, the generated HTML will automatically include the framework's CDN link in the `<head>` section. If you choose Pure CSS framework, no external framework will be embedded.
 
 #### Template Category Options:
 - **Admin Dashboard**: Internal tools, data-heavy, CRUD operations
@@ -51,6 +54,7 @@ This system takes a fundamentally different approach:
 - **Landing Page**: Marketing-focused, conversion-optimized, hero sections
 - **SaaS Application**: User accounts, feature sections, pricing pages
 - **Blog / Content Site**: Article listings, reading experience, categories
+- **E-Commerce**: Product catalogs, shopping cart, checkout pages
 
 **Impact**:
 - Framework determines component structure and styling approach
@@ -58,8 +62,8 @@ This system takes a fundamentally different approach:
 - Category influences layout patterns and component priorities
 
 **Blueprint fields**: 
-- `framework`: "tailwind" | "bootstrap"
-- `category`: "admin-dashboard" | "company-profile" | "landing-page" | "saas" | "blog"
+- `framework`: "tailwind" | "bootstrap" | "pure-css"
+- `category`: "admin-dashboard" | "company-profile" | "landing-page" | "saas" | "blog" | "e-commerce"
 
 **Default**: Tailwind CSS, Admin Dashboard
 
@@ -182,30 +186,48 @@ This system takes a fundamentally different approach:
 
 ---
 
-### Step 5: Code Preferences & Output
+### Step 5: Output Format & LLM Model Selection
 
-**Purpose**: Control code style and signal the expected maturity of generated code
+**Purpose**: Choose the output technology format and AI model for generation
 
-#### Code Preferences Options:
-- **Clean & Minimal**: Concise code, minimal comments, experienced developers
-- **Verbose & Explicit**: Explicit variable names, longer logic, intermediate developers
-- **Commented for Learning**: Heavy documentation, explanations, beginners
+#### Output Format Options:
+- **HTML + CSS**: Pure HTML with plain CSS, no JS framework (Static sites, simple pages)
+  - **Note**: If Tailwind or Bootstrap was selected in Step 1, the generated HTML will include the framework's CDN link in the header. If Pure CSS was selected, no framework will be embedded.
+- **React JS**: React components with JSX and hooks (React ecosystem projects)
+- **Vue.js**: Vue 3 components with Composition API (Vue ecosystem projects)
+- **Angular**: Angular components with TypeScript (Angular ecosystem projects)
+- **Svelte**: Svelte components with compile-time optimization (Svelte ecosystem projects)
 
-#### Output Intent Options:
-- **MVP-Ready Scaffold**: Quick start, placeholder content, basic functionality (Rapid prototyping)
-- **Production-Ready Base**: Robust code, error handling, accessibility considered (Real projects)
-- **Design System Starter**: Component library, documentation, reusable patterns (Shared UI standards)
+#### LLM Model Selection:
+
+**Free Models** (No credits required):
+- **Gemini Flash**: Fast generation, free for all users
+
+**Premium Models** (Requires credits):
+- **Gemini Pro**: Google premium model, more detailed results (10 credits)
+- **GPT-4**: OpenAI GPT-4, highest quality output (20 credits)
+- **Claude 3**: Anthropic Claude, safety & accuracy focused (15 credits)
+
+**Credit System**:
+- Free users can only use Gemini Flash
+- Premium users can choose any model if they have sufficient credits
+- Premium model selection is disabled when user credits = 0
+- Each generation consumes credits based on the selected model
 
 **Blueprint fields**:
-- `codeStyle`: "minimal" | "verbose" | "documented"
-- `outputIntent`: "mvp" | "production" | "design-system"
+- `outputFormat`: "html-css" | "react" | "vue" | "angular" | "svelte"
+- `llmModel`: "gemini-flash" | "gemini-pro" | "gpt-4" | "claude-3"
+- `modelTier`: "free" | "premium"
 
-**Default**: Minimal code style, Production-Ready Base output
+**Default**: Vue.js output format, Gemini Flash model (free tier)
 
 **Implementation**: 
-- Code style affects variable naming, comment density, and code structure
-- Output intent affects error handling depth, accessibility attributes, component documentation level
+- Output format determines the code syntax and structure in the generated template
+- LLM model affects generation quality and cost
+- Credit balance is checked before allowing premium model selection
+- Model tier is used for cost calculation and credit deduction
 
+---
 ---
 
 ## User Journey Example
@@ -223,7 +245,8 @@ This system takes a fundamentally different approach:
    - Density: Comfortable, Rounded borders
    - Components: Buttons, Forms, Modals, Alerts, Cards, Tabs, Charts (Chart.js)
 4. **Responsiveness & Interactions**: Desktop-first, Moderate interactions
-5. **Code & Output**: Verbose & Explicit code, Production-Ready Base
+5. **Output Format & LLM Model**: Vue.js format, Gemini Pro model (premium, 10 credits)
+
 **Result**: System generates:
 - Blueprint JSON (stored in database)
 - MCP prompt (deterministic text)
@@ -234,7 +257,8 @@ This system takes a fundamentally different approach:
 - Dark mode CSS variables configured
 - Chart.js integrated in Charts page
 - Responsive breakpoints (desktop-first)
-- Verbose naming, moderate comments
+- Vue 3 components with Composition API
+- Generated using Gemini Pro model (10 credits deducted)
 
 **Reproducibility**: Selecting the same options tomorrow, next week, or next year produces **identical output**.
 
@@ -258,7 +282,7 @@ This system takes a fundamentally different approach:
 
 ### Technology Boundaries
 
-**CSS Frameworks**: Tailwind CSS, Bootstrap
+**CSS Frameworks**: Tailwind CSS, Bootstrap, Pure CSS
 - No Material UI, Bulma, Foundation, etc.
 
 **Chart Libraries**: Chart.js, Apache ECharts
@@ -332,7 +356,7 @@ Admin must be able to:
 |---------|-------------|------------------------|---------------|
 | **Reproducibility** | ✅ Deterministic | ❌ Varies | ✅ Manual control |
 | **Speed** | ✅ Minutes | ✅ Minutes | ❌ Hours/Days |
-| **Customization** | ✅ 11 wizard steps | ❌ Limited | ✅ Unlimited |
+| **Customization** | ✅ 5 wizard steps | ❌ Limited | ✅ Unlimited |
 | **Learning Curve** | ✅ Low (wizard UI) | ⚠️ Prompt engineering | ❌ High (coding) |
 | **Quality Control** | ✅ Constrained options | ❌ Unpredictable | ✅ Manual review |
 | **Scalability** | ✅ Templated | ⚠️ Varies | ❌ Time-consuming |
@@ -346,7 +370,7 @@ This is the core intellectual property of the system:
 ```
 WIZARD UI (Vue)
    ↓
-   11 steps of structured input
+   5 steps of structured input
    ↓
 BLUEPRINT JSON (Laravel validation)
    ↓
@@ -360,8 +384,9 @@ BLUEPRINT JSON (Laravel validation)
      "components": [...],
      "interaction": "moderate",
      "responsiveness": "fully-responsive",
-     "codeStyle": "minimal",
-     "outputIntent": "production"
+     "outputFormat": "vue",
+     "llmModel": "gemini-flash",
+     "modelTier": "free"
    }
    ↓
 MCP PROMPT BUILDER (McpPromptBuilder.php)

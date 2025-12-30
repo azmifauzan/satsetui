@@ -14,8 +14,9 @@
     "components",
     "interaction",
     "responsiveness",
-    "codeStyle",
-    "outputIntent"
+    "outputFormat",
+    "llmModel",
+    "modelTier"
   ],
   "properties": {
     "framework": {
@@ -23,7 +24,7 @@
       "description": "CSS framework foundation for the template. Dictates utility classes, component structure, and responsive patterns.",
       "$comment": "MCP mapping: sets the LLM role and hard constraints (Tailwind-only vs Bootstrap-only).",
       "type": "string",
-      "enum": ["tailwind", "bootstrap"],
+      "enum": ["tailwind", "bootstrap", "pure-css"],
       "default": "tailwind"
     },
     "category": {
@@ -36,7 +37,8 @@
         "company-profile",
         "landing-page",
         "saas-application",
-        "blog-content-site"
+        "blog-content-site",
+        "e-commerce"
       ],
       "default": "admin-dashboard"
     },
@@ -210,21 +212,29 @@
       "enum": ["desktop-first", "mobile-first", "fully-responsive"],
       "default": "fully-responsive"
     },
-    "codeStyle": {
-      "title": "Step 10: Code Preferences",
-      "description": "Code style and verbosity level in generated output. Affects variable naming, comments, and code structure.",
-      "$comment": "MCP mapping: instructs verbosity and comment density (clean/minimal vs verbose/explicit vs commented/learning).",
+    "outputFormat": {
+      "title": "Step 10: Output Format",
+      "description": "Technology framework or format for the generated template output.",
+      "$comment": "MCP mapping: instructs which framework syntax to use (HTML+CSS, React, Vue, Angular, or Svelte).",
       "type": "string",
-      "enum": ["minimal", "verbose", "documented"],
-      "default": "minimal"
+      "enum": ["html-css", "react", "vue", "angular", "svelte"],
+      "default": "vue"
     },
-    "outputIntent": {
-      "title": "Step 11: Output Intent",
-      "description": "Expected maturity level of generated code. Affects error handling, accessibility, and documentation depth.",
-      "$comment": "MCP mapping: sets depth of implementation (MVP scaffold vs production base vs design system starter).",
+    "llmModel": {
+      "title": "Step 11: LLM Model Selection",
+      "description": "AI model to use for generation. Free models (gemini-flash) or premium models (gemini-pro, gpt-4, claude-3).",
+      "$comment": "MCP mapping: determines which LLM API to call for generation. Premium models require user credits.",
       "type": "string",
-      "enum": ["mvp", "production", "design-system"],
-      "default": "production"
+      "enum": ["gemini-flash", "gemini-pro", "gpt-4", "claude-3"],
+      "default": "gemini-flash"
+    },
+    "modelTier": {
+      "title": "Model Tier (free/premium)",
+      "description": "Whether the selected model is free or premium tier.",
+      "$comment": "Used for credit calculation and validation.",
+      "type": "string",
+      "enum": ["free", "premium"],
+      "default": "free"
     }
   },
   "allOf": [
@@ -268,8 +278,9 @@
       "chartLibrary": "chartjs",
       "interaction": "moderate",
       "responsiveness": "desktop-first",
-      "codeStyle": "minimal",
-      "outputIntent": "production"
+      "outputFormat": "vue",
+      "llmModel": "gemini-flash",
+      "modelTier": "free"
     },
     {
       "framework": "bootstrap",
@@ -293,8 +304,9 @@
       "components": ["buttons", "forms", "cards", "alerts"],
       "interaction": "rich",
       "responsiveness": "mobile-first",
-      "codeStyle": "documented",
-      "outputIntent": "mvp"
+      "outputFormat": "react",
+      "llmModel": "gpt-4",
+      "modelTier": "premium"
     }
   ],
   "definitions": {
