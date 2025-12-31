@@ -36,7 +36,7 @@ return [
     ],
 
     'llm' => [
-        'api_key' => env('LLM_API_KEY', 'sk-Cx00n-G2-g8__tXS44WljA'),
+        'api_key' => env('LLM_API_KEY'),
         'base_url' => env('LLM_BASE_URL', 'https://ai.sumopod.com/v1'),
     ],
 

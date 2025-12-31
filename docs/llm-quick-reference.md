@@ -132,7 +132,7 @@ $model = LlmModel::where('name', 'claude-haiku-4-5')->first();
 
 ```env
 # .env file
-LLM_API_KEY=sk-Cx00n-G2-g8__tXS44WljA
+LLM_API_KEY=your-api-key-here
 LLM_BASE_URL=https://ai.sumopod.com/v1
 ```
 
