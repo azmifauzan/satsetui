@@ -56,19 +56,43 @@ Route::middleware('auth')->group(function () {
     Route::get('/templates', [App\Http\Controllers\TemplateController::class, 'index'])
         ->name('templates.index');
 
-    // Admin Statistics (TODO: add admin middleware)
-    Route::prefix('admin')->name('admin.')->group(function () {
-        Route::get('/statistics', [App\Http\Controllers\AdminStatisticsController::class, 'index'])
-            ->name('statistics.index');
+    // Admin Panel - Protected by admin middleware
+    Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
+        // Dashboard
+        Route::get('/', [App\Http\Controllers\Admin\DashboardController::class, 'index'])
+            ->name('dashboard');
         
-        Route::get('/statistics/costs', [App\Http\Controllers\AdminStatisticsController::class, 'costs'])
-            ->name('statistics.costs');
+        // User Management
+        Route::resource('users', App\Http\Controllers\Admin\UserManagementController::class);
+        Route::post('users/{user}/credits', [App\Http\Controllers\Admin\UserManagementController::class, 'adjustCredits'])
+            ->name('users.credits');
+        Route::post('users/{user}/toggle-premium', [App\Http\Controllers\Admin\UserManagementController::class, 'togglePremium'])
+            ->name('users.toggle-premium');
+        Route::post('users/{user}/toggle-status', [App\Http\Controllers\Admin\UserManagementController::class, 'toggleStatus'])
+            ->name('users.toggle-status');
         
-        Route::get('/statistics/credits', [App\Http\Controllers\AdminStatisticsController::class, 'credits'])
-            ->name('statistics.credits');
+        // LLM Models Management
+        Route::resource('models', App\Http\Controllers\Admin\LlmModelController::class);
+        Route::post('models/reorder', [App\Http\Controllers\Admin\LlmModelController::class, 'reorder'])
+            ->name('models.reorder');
         
-        Route::get('/statistics/failures', [App\Http\Controllers\AdminStatisticsController::class, 'failures'])
-            ->name('statistics.failures');
+        // Settings
+        Route::get('settings', [App\Http\Controllers\Admin\SettingsController::class, 'index'])
+            ->name('settings.index');
+        Route::post('settings', [App\Http\Controllers\Admin\SettingsController::class, 'update'])
+            ->name('settings.update');
+        Route::post('settings/{key}/reset', [App\Http\Controllers\Admin\SettingsController::class, 'reset'])
+            ->name('settings.reset');
+        
+        // Generation History
+        Route::get('generations', [App\Http\Controllers\Admin\GenerationHistoryController::class, 'index'])
+            ->name('generations.index');
+        Route::get('generations/{generation}', [App\Http\Controllers\Admin\GenerationHistoryController::class, 'show'])
+            ->name('generations.show');
+        Route::post('generations/{generation}/refund', [App\Http\Controllers\Admin\GenerationHistoryController::class, 'refund'])
+            ->name('generations.refund');
+        Route::post('generations/{generation}/retry', [App\Http\Controllers\Admin\GenerationHistoryController::class, 'retry'])
+            ->name('generations.retry');
     });
 
     Route::post('/language', [App\Http\Controllers\LanguageController::class, 'update'])

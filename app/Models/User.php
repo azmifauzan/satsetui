@@ -24,6 +24,9 @@ class User extends Authenticatable
         'password',
         'credits',
         'is_premium',
+        'is_admin',
+        'is_active',
+        'suspended_at',
         'preferred_model',
         'language',
     ];
@@ -49,6 +52,9 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_premium' => 'boolean',
+            'is_admin' => 'boolean',
+            'is_active' => 'boolean',
+            'suspended_at' => 'datetime',
             'credits' => 'integer',
         ];
     }

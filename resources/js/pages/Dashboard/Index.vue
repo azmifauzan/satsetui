@@ -4,6 +4,7 @@ import { Head, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import StatCard from '@/components/dashboard/StatCard.vue';
 import Card from '@/components/dashboard/Card.vue';
+import Faq from '@/components/Faq.vue';
 
 interface Props {
   stats: {
@@ -39,19 +40,17 @@ const t = computed(() => {
     newTemplateDesc: 'Mulai wizard untuk membuat template baru',
     browseTemplates: 'Jelajahi Template',
     browseTemplatesDesc: 'Lihat dan kelola template Anda',
-    documentation: 'Dokumentasi',
-    documentationDesc: 'Pelajari cara menggunakan generator',
     gettingStarted: 'Memulai',
-    gettingStartedDesc: 'Baru menggunakan Template Generator? Beginilah cara memulai',
-    step1Title: 'Pilih Framework Anda',
-    step1Desc: 'Pilih antara Tailwind CSS atau Bootstrap untuk fondasi template Anda.',
-    step2Title: 'Pilih Kategori Template',
-    step2Desc: 'Pilih dari Admin Dashboard, Landing Page, Aplikasi SaaS, atau kategori lainnya.',
-    step3Title: 'Konfigurasi Melalui Wizard',
-    step3Desc: 'Ikuti 11 langkah terstruktur untuk menyesuaikan layout, tema, komponen, dan lainnya.',
-    step4Title: 'Generate & Download',
-    step4Desc: 'Dapatkan template siap produksi dengan kode yang konsisten dan dapat diprediksi.',
+    gettingStartedDesc: 'Baru menggunakan Template Generator? Ikuti 3 langkah berikut',
+    step1Title: 'Step 1: Framework, Kategori & Output Format',
+    step1Desc: 'Pilih CSS framework (Tailwind/Bootstrap/Pure CSS), kategori template, dan format output (HTML+CSS, React, Vue, Angular, Svelte, atau Custom).',
+    step2Title: 'Step 2: Desain Visual & Konten',
+    step2Desc: 'Pilih halaman, konfigurasi layout & navigasi, atur tema (warna, mode dark/light), dan pilih komponen yang dibutuhkan.',
+    step3Title: 'Step 3: Pilih Model LLM',
+    step3Desc: 'Pilih model AI untuk generasi (Free: Gemini Flash, Premium: GPT-4, Claude, dll). Lihat estimasi biaya kredit sebelum generate.',
     startCreating: 'Mulai Membuat Template',
+    faqTitle: 'Pertanyaan yang Sering Diajukan (FAQ)',
+    faqDesc: 'Temukan jawaban untuk pertanyaan umum tentang Template Generator',
   } : {
     dashboard: 'Dashboard',
     welcome: "Welcome back! Here's an overview of your templates.",
@@ -67,46 +66,44 @@ const t = computed(() => {
     newTemplateDesc: 'Start wizard to create new template',
     browseTemplates: 'Browse Templates',
     browseTemplatesDesc: 'View and manage your templates',
-    documentation: 'Documentation',
-    documentationDesc: 'Learn how to use the generator',
     gettingStarted: 'Getting Started',
-    gettingStartedDesc: 'New to Template Generator? Here\'s how to begin',
-    step1Title: 'Choose Your Framework',
-    step1Desc: 'Select between Tailwind CSS or Bootstrap for your template foundation.',
-    step2Title: 'Pick Template Category',
-    step2Desc: 'Choose from Admin Dashboard, Landing Page, SaaS App, or other categories.',
-    step3Title: 'Configure Through Wizard',
-    step3Desc: 'Follow 11 structured steps to customize layout, theme, components, and more.',
-    step4Title: 'Generate & Download',
-    step4Desc: 'Get your production-ready template with consistent, predictable code.',
+    gettingStartedDesc: 'New to Template Generator? Follow these 3 steps',
+    step1Title: 'Step 1: Framework, Category & Output Format',
+    step1Desc: 'Choose CSS framework (Tailwind/Bootstrap/Pure CSS), template category, and output format (HTML+CSS, React, Vue, Angular, Svelte, or Custom).',
+    step2Title: 'Step 2: Visual Design & Content',
+    step2Desc: 'Select pages, configure layout & navigation, set theme (colors, dark/light mode), and choose needed components.',
+    step3Title: 'Step 3: Choose LLM Model',
+    step3Desc: 'Select AI model for generation (Free: Gemini Flash, Premium: GPT-4, Claude, etc). View credit cost estimate before generating.',
     startCreating: 'Start Creating Template',
+    faqTitle: 'Frequently Asked Questions (FAQ)',
+    faqDesc: 'Find answers to common questions about Template Generator',
   };
 });
 
 const statCards = computed(() => [
   {
-    title: t.totalTemplates || 'Total Templates',
+    title: t.value.totalTemplates || 'Total Templates',
     value: props.stats.total_templates,
     icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z',
     color: 'blue' as const,
     trend: { value: 0, isPositive: true }
   },
   {
-    title: t.thisMonth || 'This Month',
+    title: t.value.thisMonth || 'This Month',
     value: props.stats.templates_this_month,
     icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     color: 'green' as const,
     trend: { value: 0, isPositive: true }
   },
   {
-    title: t.credits || 'Credits',
+    title: t.value.credits || 'Credits',
     value: props.stats.credits_remaining,
     icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'purple' as const
   },
   {
-    title: t.lastGenerated || 'Last Generated',
-    value: props.stats.last_generated || t.never || 'Never',
+    title: t.value.lastGenerated || 'Last Generated',
+    value: props.stats.last_generated || t.value.never || 'Never',
     icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'orange' as const
   }
@@ -114,25 +111,18 @@ const statCards = computed(() => [
 
 const quickActions = computed(() => [
   {
-    title: t.newTemplate || 'New Template',
-    description: t.newTemplateDesc || 'Start wizard to create new template',
+    title: t.value.newTemplate || 'New Template',
+    description: t.value.newTemplateDesc || 'Start wizard to create new template',
     icon: 'M12 4v16m8-8H4',
     color: 'blue',
     href: '/wizard'
   },
   {
-    title: t.browseTemplates || 'Browse Templates',
-    description: t.browseTemplatesDesc || 'View and manage your templates',
+    title: t.value.browseTemplates || 'Browse Templates',
+    description: t.value.browseTemplatesDesc || 'View and manage your templates',
     icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
     color: 'green',
-    href: '#'
-  },
-  {
-    title: t.documentation || 'Documentation',
-    description: t.documentationDesc || 'Learn how to use the generator',
-    icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-    color: 'purple',
-    href: '#'
+    href: '/templates'
   },
 ]);
 </script>
@@ -162,7 +152,7 @@ const quickActions = computed(() => [
 
     <!-- Quick Actions -->
     <Card :title="t.quickActions" :subtitle="t.quickActionsDesc" class="mb-8">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <a
           v-for="action in quickActions"
           :key="action.title"
@@ -172,14 +162,12 @@ const quickActions = computed(() => [
           <div :class="[
             'w-10 h-10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0',
             action.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20 group-hover:bg-blue-500' :
-            action.color === 'green' ? 'bg-green-100 dark:bg-green-900/20 group-hover:bg-green-500' :
-            'bg-purple-100 dark:bg-purple-900/20 group-hover:bg-purple-500'
+            'bg-green-100 dark:bg-green-900/20 group-hover:bg-green-500'
           ]">
             <svg :class="[
               'w-5 h-5 transition-colors',
               action.color === 'blue' ? 'text-blue-600 group-hover:text-white' :
-              action.color === 'green' ? 'text-green-600 group-hover:text-white' :
-              'text-purple-600 group-hover:text-white'
+              'text-green-600 group-hover:text-white'
             ]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="action.icon" />
             </svg>
@@ -195,7 +183,7 @@ const quickActions = computed(() => [
     </Card>
 
     <!-- Getting Started -->
-    <Card :title="t.gettingStarted" :subtitle="t.gettingStartedDesc">
+    <Card :title="t.gettingStarted" :subtitle="t.gettingStartedDesc" class="mb-8">
       <div class="space-y-4">
         <div class="flex items-start">
           <div class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm mr-4">
@@ -227,16 +215,6 @@ const quickActions = computed(() => [
           </div>
         </div>
 
-        <div class="flex items-start">
-          <div class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm mr-4">
-            4
-          </div>
-          <div class="flex-1">
-            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.step4Title }}</h4>
-            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.step4Desc }}</p>
-          </div>
-        </div>
-
         <div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
           <a
             href="/wizard"
@@ -249,6 +227,11 @@ const quickActions = computed(() => [
           </a>
         </div>
       </div>
+    </Card>
+
+    <!-- FAQ Section -->
+    <Card :title="t.faqTitle" :subtitle="t.faqDesc">
+      <Faq />
     </Card>
   </AppLayout>
 </template>

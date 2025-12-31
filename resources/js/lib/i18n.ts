@@ -395,12 +395,107 @@ export interface Translations {
     confirmPassword: string;
   };
 
+  // Landing Page
+  landing: {
+    title: string;
+    hero: {
+      title: string;
+      subtitle: string;
+      cta: string;
+      ctaSecondary: string;
+      badge: string;
+    };
+    nav: {
+      home: string;
+      howItWorks: string;
+      categories: string;
+      faq: string;
+      getStarted: string;
+    };
+    howItWorks: {
+      title: string;
+      subtitle: string;
+      step1: {
+        title: string;
+        desc: string;
+      };
+      step2: {
+        title: string;
+        desc: string;
+      };
+      step3: {
+        title: string;
+        desc: string;
+      };
+    };
+    categories: {
+      title: string;
+      subtitle: string;
+      admin: {
+        title: string;
+        desc: string;
+      };
+      company: {
+        title: string;
+        desc: string;
+      };
+      landing: {
+        title: string;
+        desc: string;
+      };
+      saas: {
+        title: string;
+        desc: string;
+      };
+      blog: {
+        title: string;
+        desc: string;
+      };
+      portfolio: {
+        title: string;
+        desc: string;
+      };
+    };
+    cta: {
+      title: string;
+      subtitle: string;
+      button: string;
+      free: string;
+    };
+    footer: {
+      product: string;
+      features: string;
+      pricing: string;
+      docs: string;
+      changelog: string;
+      company: string;
+      about: string;
+      blog: string;
+      careers: string;
+      contact: string;
+      legal: string;
+      privacy: string;
+      terms: string;
+      rights: string;
+    };
+    faq: {
+      title: string;
+      subtitle: string;
+    };
+  };
+
   // Theme
   theme: {
     light: string;
     dark: string;
     system: string;
   };
+
+  // FAQ
+  faq: Array<{
+    question: string;
+    answer: string;
+  }>;
 }
 
 // Indonesian translations
@@ -664,8 +759,6 @@ const id: Translations = {
         extraComponentsNote: 'Komponen melebihi kuota dasar akan dikenakan kredit tambahan',
         componentPagesNote: 'Setiap komponen = 1 halaman showcase',
         componentsLabel: 'komponen',
-        componentPagesNote: 'Setiap komponen = 1 halaman showcase',
-        componentsLabel: 'komponen',
       },
       interaction: {
         title: 'Level Interaksi',
@@ -773,11 +866,160 @@ const id: Translations = {
     name: 'Nama',
     confirmPassword: 'Konfirmasi Password',
   },
+  landing: {
+    title: 'Template Generator - Buat Template Frontend dengan Mudah',
+    hero: {
+      title: 'Buat Template Frontend Profesional dalam Hitungan Menit',
+      subtitle: 'Platform wizard-driven untuk menghasilkan template UI yang konsisten, dapat diprediksi, dan siap produksi. Tanpa coding manual, tanpa hasil yang acak.',
+      cta: 'Mulai Gratis',
+      ctaSecondary: 'Lihat Demo',
+      badge: 'Deterministik & Dapat Diulang',
+    },
+    nav: {
+      home: 'Beranda',
+      howItWorks: 'Cara Kerja',
+      categories: 'Kategori',
+      faq: 'FAQ',
+      getStarted: 'Mulai Sekarang',
+    },
+    howItWorks: {
+      title: 'Cara Kerja',
+      subtitle: 'Tiga langkah sederhana untuk template sempurna Anda',
+      step1: {
+        title: 'Konfigurasi Wizard 3 Langkah',
+        desc: 'Pilih Framework & Kategori (Step 1), Desain Visual & Konten (Step 2), Model LLM (Step 3). Semua keputusan eksplisit dan terstruktur.',
+      },
+      step2: {
+        title: 'Sistem Menghasilkan Blueprint',
+        desc: 'Pilihan Anda dikonversi menjadi blueprint JSON yang valid dan MCP prompt yang lengkap. Setiap halaman di-generate secara terpisah untuk hasil optimal.',
+      },
+      step3: {
+        title: 'Unduh & Gunakan',
+        desc: 'Dapatkan kode template yang siap digunakan, lengkap dengan struktur file dan komponen. Hasil deterministik dan dapat diulang.',
+      },
+    },
+    categories: {
+      title: 'Kategori Template',
+      subtitle: 'Pilih dari berbagai kategori template yang telah disesuaikan atau buat custom',
+      admin: {
+        title: 'Admin Dashboard',
+        desc: 'Internal tools, data-heavy, operasi CRUD',
+      },
+      company: {
+        title: 'Company Profile',
+        desc: 'Public-facing, showcase konten perusahaan',
+      },
+      landing: {
+        title: 'Landing Page',
+        desc: 'Marketing-focused, conversion-optimized',
+      },
+      saas: {
+        title: 'SaaS Application',
+        desc: 'User accounts, fitur lengkap, pricing',
+      },
+      blog: {
+        title: 'Blog / Content',
+        desc: 'Artikel, reading experience, categories',
+      },
+      portfolio: {
+        title: 'E-Commerce',
+        desc: 'Product catalogs, shopping cart, checkout',
+      },
+    },
+    cta: {
+      title: 'Siap Membuat Template Profesional?',
+      subtitle: 'Bergabunglah dengan developer yang telah mempercepat workflow mereka',
+      button: 'Mulai Membuat Template',
+      free: 'Gratis untuk memulai, dapat kredit awal 25 kredit',
+    },
+    footer: {
+      product: 'Produk',
+      features: 'Fitur',
+      pricing: 'Harga',
+      docs: 'Dokumentasi',
+      changelog: 'Changelog',
+      company: 'Perusahaan',
+      about: 'Tentang',
+      blog: 'Blog',
+      careers: 'Karir',
+      contact: 'Kontak',
+      legal: 'Legal',
+      privacy: 'Privasi',
+      terms: 'Syarat & Ketentuan',
+      rights: 'Hak Cipta Dilindungi.',
+    },
+    faq: {
+      title: 'Pertanyaan yang Sering Ditanyakan',
+      subtitle: 'Temukan jawaban atas pertanyaan umum tentang Template Generator',
+    },
+  },
   theme: {
     light: 'Terang',
     dark: 'Gelap',
     system: 'Sistem',
   },
+  faq: [
+    {
+      question: 'Apa itu Template Generator?',
+      answer: 'Template Generator adalah platform wizard-driven untuk menghasilkan template frontend yang deterministic dan siap produksi. Berbeda dengan sistem prompt-to-design, kami menggunakan konfigurasi terstruktur melalui wizard 3 langkah yang menjamin hasil identik untuk pilihan yang sama. LLM hanya mengimplementasikan keputusan Anda, tidak menebak atau menginterpretasi.'
+    },
+    {
+      question: 'Bagaimana cara menggunakan Template Generator?',
+      answer: 'Klik "Mulai Membuat Template" di dashboard. Wizard 3 langkah akan memandu Anda: (1) Pilih Framework CSS (Tailwind/Bootstrap/Pure CSS), Kategori Template, dan Output Format (HTML+CSS/React/Vue/Angular/Svelte), (2) Konfigurasi Desain Visual & Konten - pilih halaman, layout navigasi, tema warna, UI density, dan komponen UI, (3) Pilih Model LLM. Estimasi kredit ditampilkan sebelum generate.'
+    },
+    {
+      question: 'Framework dan teknologi apa saja yang didukung?',
+      answer: 'CSS Framework: Tailwind CSS (utility-first), Bootstrap (component-based), Pure CSS (vanilla tanpa framework). Output Format: HTML+CSS (static), React JS (JSX + Hooks), Vue.js (Composition API), Angular (TypeScript), Svelte, atau Custom Format. Chart Library: Chart.js atau Apache ECharts. Untuk HTML+CSS, jika Anda pilih Tailwind/Bootstrap, CDN akan otomatis di-embed di <head>.'
+    },
+    {
+      question: 'Apa perbedaan user Gratis dan Premium?',
+      answer: 'User Gratis: Dapat kredit awal 25 kredit saat registrasi, hanya bisa menggunakan Gemini 2.5 Flash (3 kredit per generasi standar). User Premium: Bisa membeli kredit tambahan (1 kredit = Rp 1.000), akses ke 5 model LLM premium (GPT-5.1 Codex Mini: 2 kredit, Claude Haiku 4.5: 6 kredit, GPT-5.1 Codex: 10 kredit, Gemini 3 Pro: 12 kredit, Claude Sonnet 4.5: 15 kredit).'
+    },
+    {
+      question: 'Bagaimana perhitungan kredit bekerja?',
+      answer: 'Formula: (Biaya Model + Extra Halaman + Extra Komponen) × (1 + Error Margin 10%) × (1 + Profit Margin 5%), dibulatkan ke atas. Kuota Dasar: 5 halaman (free), 6 komponen (free). Extra: +1 kredit per halaman tambahan, +0.5 kredit per komponen tambahan. Contoh: Gemini Flash (3kr) + 4 halaman (0kr) + 5 komponen (0kr) = 3kr × 1.10 × 1.05 = 4 kredit. Margin dapat dikonfigurasi admin.'
+    },
+    {
+      question: 'Apa itu per-page generation dan kenapa penting?',
+      answer: 'Sistem kami generate setiap halaman secara terpisah, bukan sekaligus. Keuntungan: (1) Fokus LLM lebih baik per halaman, (2) Progress tracking real-time, (3) Error recovery - satu halaman gagal tidak ganggu yang lain, (4) Akurasi kredit - token usage aktual tercatat per halaman untuk learning. Proses berjalan di background queue, Anda bisa tutup browser.'
+    },
+    {
+      question: 'Apakah hasil generasi benar-benar deterministik?',
+      answer: 'Ya! Dengan pilihan wizard yang identik, hasil akan sama persis setiap kali. Ini karena: (1) Tidak ada prompt bebas yang subjektif, (2) Semua keputusan dibuat lewat wizard terstruktur, (3) MCP Prompt Builder menerjemahkan blueprint ke instruksi eksplisit, (4) LLM tidak punya kebebasan kreatif. Setting otomatis: Responsiveness (fully-responsive), Interaction (moderate), Code Style (documented).'
+    },
+    {
+      question: 'Berapa lama waktu generasi dan bagaimana prosesnya?',
+      answer: 'Setiap halaman memakan waktu ~30-60 detik, tergantung kompleksitas dan model yang dipilih. Proses: Submit wizard → Validasi blueprint → Queue background job → Generate per halaman → Simpan code → Notifikasi selesai. Total waktu: jumlah halaman × 30-60 detik. Proses async, Anda tidak perlu tunggu di browser. Notifikasi dikirim saat selesai.'
+    },
+    {
+      question: 'Bisakah saya custom kategori, halaman, dan komponen?',
+      answer: 'Sangat bisa! Kategori: 6 preset (Admin Dashboard, Company Profile, Landing Page, SaaS, Blog, E-Commerce) + opsi Custom dengan nama dan deskripsi sendiri. Halaman: 10 preset (Login, Register, Dashboard, User Management, Charts, Tables, dll) + custom pages tanpa batas. Komponen: 8 preset (Buttons, Forms, Modals, Charts, dll) + custom components. Custom pages ditrack untuk statistik admin - yang populer bisa jadi preset di masa depan!'
+    },
+    {
+      question: 'Bagaimana sistem layout dan tema bekerja?',
+      answer: 'Layout: Pilih navigasi (Sidebar/Top Navigation/Hybrid), sidebar state (collapsed/expanded default), breadcrumbs (on/off), footer (minimal/full), custom nav items. Tema: Primary color (preset atau color picker), secondary color, mode (light/dark), background (solid/gradient). UI: Density (compact/comfortable/spacious), Border radius (sharp/rounded). Semua tersimpan di blueprint dan diterapkan konsisten ke semua halaman.'
+    },
+    {
+      question: 'Bagaimana jika generasi gagal atau error?',
+      answer: 'Sistem kami punya mekanisme refund otomatis. Jika generasi gagal: (1) Kredit dikembalikan 100%, (2) Error detail dicatat di GenerationFailure table, (3) History tetap tersimpan untuk debugging, (4) Anda bisa lihat last error lewat dashboard, (5) Retry tanpa charge ulang. Semua cost tracking transparan di CreditTransaction dan GenerationCost tables. Admin bisa monitor failure rate.'
+    },
+    {
+      question: 'Apa itu History Recording dan Credit Learning?',
+      answer: 'Setiap generasi mencatat: Full MCP prompt yang dikirim ke LLM, Response code yang dihasilkan, Token usage aktual (input/output), Waktu proses, Model yang digunakan. Data ini dipakai untuk: (1) Transparansi - Anda bisa lihat apa yang di-generate, (2) Debugging - Admin bisa cek kenapa generasi gagal, (3) Credit Learning - Estimasi kredit jadi lebih akurat dari data historis, (4) Model comparison - Analisa performa tiap model.'
+    },
+    {
+      question: 'Apakah template yang sudah dibuat bisa diakses lagi?',
+      answer: 'Ya! Semua template tersimpan permanen di menu "Templates". Anda bisa: (1) Lihat detail lengkap blueprint, (2) Preview code yang digenerate, (3) Download ulang tanpa biaya kredit tambahan, (4) Lihat history generasi (tanggal, model, kredit terpakai), (5) Generate ulang dengan konfigurasi sama atau berbeda. Template tidak expire.'
+    },
+    {
+      question: 'Apa keuntungan wizard-based dibanding prompt-to-design?',
+      answer: 'Prompt-based: "Buat admin dashboard modern dengan chart" → Hasil bervariasi, tidak reproducible, AI menebak apa arti "modern". Wizard-based: Framework=Tailwind, Category=Admin, Pages=[Dashboard,Charts], Layout=Sidebar, Theme=Blue/Dark, Density=Comfortable, Model=Gemini → Hasil identik setiap kali, no guessing, full control. Wizard memaksa Anda membuat keputusan eksplisit, menghasilkan output yang predictable dan professional.'
+    },
+    {
+      question: 'Bagaimana model LLM dipilih dan apa perbedaannya?',
+      answer: 'Free tier: Otomatis pakai Gemini 2.5 Flash (cepat, kualitas good, cocok testing/basic template). Premium: Bisa pilih sesuai kebutuhan. GPT-5.1 Codex Mini (2kr, very good, landing page), Claude Haiku 4.5 (6kr, excellent balance, dashboard), GPT-5.1 Codex (10kr, excellent, complex apps), Gemini 3 Pro (12kr, outstanding, enterprise), Claude Sonnet 4.5 (15kr, outstanding, production-ready critical projects). Trade-off: Speed vs Quality vs Cost.'
+    }
+  ],
 };
 
 // English translations
@@ -1148,11 +1390,160 @@ const en: Translations = {
     name: 'Name',
     confirmPassword: 'Confirm Password',
   },
+  landing: {
+    title: 'Template Generator - Create Frontend Templates Easily',
+    hero: {
+      title: 'Create Professional Frontend Templates in Minutes',
+      subtitle: 'A wizard-driven platform for generating consistent, predictable, and production-ready UI templates. No manual coding, no random results.',
+      cta: 'Start Free',
+      ctaSecondary: 'View Demo',
+      badge: 'Deterministic & Repeatable',
+    },
+    nav: {
+      home: 'Home',
+      howItWorks: 'How It Works',
+      categories: 'Categories',
+      faq: 'FAQ',
+      getStarted: 'Get Started',
+    },
+    howItWorks: {
+      title: 'How It Works',
+      subtitle: 'Three simple steps to your perfect template',
+      step1: {
+        title: '3-Step Wizard Configuration',
+        desc: 'Choose Framework & Category (Step 1), Visual Design & Content (Step 2), LLM Model (Step 3). All decisions are explicit and structured.',
+      },
+      step2: {
+        title: 'System Generates Blueprint',
+        desc: 'Your choices are converted into a valid JSON blueprint and complete MCP prompt. Each page is generated separately for optimal results.',
+      },
+      step3: {
+        title: 'Download & Use',
+        desc: 'Get ready-to-use template code, complete with file structure and components. Deterministic and repeatable results.',
+      },
+    },
+    categories: {
+      title: 'Template Categories',
+      subtitle: 'Choose from various tailored template categories or create custom',
+      admin: {
+        title: 'Admin Dashboard',
+        desc: 'Internal tools, data-heavy, CRUD operations',
+      },
+      company: {
+        title: 'Company Profile',
+        desc: 'Public-facing, company content showcase',
+      },
+      landing: {
+        title: 'Landing Page',
+        desc: 'Marketing-focused, conversion-optimized',
+      },
+      saas: {
+        title: 'SaaS Application',
+        desc: 'User accounts, full features, pricing',
+      },
+      blog: {
+        title: 'Blog / Content',
+        desc: 'Articles, reading experience, categories',
+      },
+      portfolio: {
+        title: 'E-Commerce',
+        desc: 'Product catalogs, shopping cart, checkout',
+      },
+    },
+    cta: {
+      title: 'Ready to Create Professional Templates?',
+      subtitle: 'Join developers who have accelerated their workflow',
+      button: 'Start Creating Templates',
+      free: 'Free to start, get 25 initial credits',
+    },
+    footer: {
+      product: 'Product',
+      features: 'Features',
+      pricing: 'Pricing',
+      docs: 'Documentation',
+      changelog: 'Changelog',
+      company: 'Company',
+      about: 'About',
+      blog: 'Blog',
+      careers: 'Careers',
+      contact: 'Contact',
+      legal: 'Legal',
+      privacy: 'Privacy',
+      terms: 'Terms & Conditions',
+      rights: 'All Rights Reserved.',
+    },
+    faq: {
+      title: 'Frequently Asked Questions',
+      subtitle: 'Find answers to common questions about Template Generator',
+    },
+  },
   theme: {
     light: 'Light',
     dark: 'Dark',
     system: 'System',
   },
+  faq: [
+    {
+      question: 'What is Template Generator?',
+      answer: 'Template Generator is a wizard-driven platform for generating deterministic, production-ready frontend templates. Unlike prompt-to-design systems, we use structured configuration through a 3-step wizard that guarantees identical results for the same choices. The LLM only implements your decisions, never guesses or interprets.'
+    },
+    {
+      question: 'How to use Template Generator?',
+      answer: 'Click "Start Creating Template" on dashboard. The 3-step wizard guides you: (1) Choose CSS Framework (Tailwind/Bootstrap/Pure CSS), Template Category, and Output Format (HTML+CSS/React/Vue/Angular/Svelte), (2) Configure Visual Design & Content - select pages, navigation layout, theme colors, UI density, and UI components, (3) Choose LLM Model. Credit estimate shown before generation.'
+    },
+    {
+      question: 'What frameworks and technologies are supported?',
+      answer: 'CSS Frameworks: Tailwind CSS (utility-first), Bootstrap (component-based), Pure CSS (vanilla without framework). Output Format: HTML+CSS (static), React JS (JSX + Hooks), Vue.js (Composition API), Angular (TypeScript), Svelte, or Custom Format. Chart Libraries: Chart.js or Apache ECharts. For HTML+CSS, if you choose Tailwind/Bootstrap, CDN will be auto-embedded in <head>.'
+    },
+    {
+      question: 'What is the difference between Free and Premium users?',
+      answer: 'Free Users: Get 25 initial credits upon registration, can only use Gemini 2.5 Flash (3 credits per standard generation). Premium Users: Can purchase additional credits (1 credit = Rp 1,000), access to 5 premium LLM models (GPT-5.1 Codex Mini: 2 credits, Claude Haiku 4.5: 6 credits, GPT-5.1 Codex: 10 credits, Gemini 3 Pro: 12 credits, Claude Sonnet 4.5: 15 credits).'
+    },
+    {
+      question: 'How does credit calculation work?',
+      answer: 'Formula: (Model Cost + Extra Pages + Extra Components) × (1 + Error Margin 10%) × (1 + Profit Margin 5%), rounded up. Base Quota: 5 pages (free), 6 components (free). Extra: +1 credit per additional page, +0.5 credit per additional component. Example: Gemini Flash (3cr) + 4 pages (0cr) + 5 components (0cr) = 3cr × 1.10 × 1.05 = 4 credits. Margins are admin-configurable.'
+    },
+    {
+      question: 'What is per-page generation and why is it important?',
+      answer: 'Our system generates each page separately, not all at once. Benefits: (1) Better LLM focus per page, (2) Real-time progress tracking, (3) Error recovery - one page failing doesn\'t affect others, (4) Credit accuracy - actual token usage recorded per page for learning. Process runs in background queue, you can close browser.'
+    },
+    {
+      question: 'Are generation results truly deterministic?',
+      answer: 'Yes! With identical wizard choices, results will be exactly the same every time. This is because: (1) No subjective free-form prompts, (2) All decisions made through structured wizard, (3) MCP Prompt Builder translates blueprint to explicit instructions, (4) LLM has no creative freedom. Auto settings: Responsiveness (fully-responsive), Interaction (moderate), Code Style (documented).'
+    },
+    {
+      question: 'How long does generation take and what is the process?',
+      answer: 'Each page takes ~30-60 seconds, depending on complexity and chosen model. Process: Submit wizard → Validate blueprint → Queue background job → Generate per page → Save code → Completion notification. Total time: number of pages × 30-60 seconds. Async process, no need to wait in browser. Notification sent when complete.'
+    },
+    {
+      question: 'Can I customize categories, pages, and components?',
+      answer: 'Absolutely! Categories: 6 presets (Admin Dashboard, Company Profile, Landing Page, SaaS, Blog, E-Commerce) + Custom option with your own name and description. Pages: 10 presets (Login, Register, Dashboard, User Management, Charts, Tables, etc) + unlimited custom pages. Components: 8 presets (Buttons, Forms, Modals, Charts, etc) + custom components. Custom pages are tracked for admin statistics - popular ones may become presets in future!'
+    },
+    {
+      question: 'How do layout and theme systems work?',
+      answer: 'Layout: Choose navigation (Sidebar/Top Navigation/Hybrid), sidebar state (collapsed/expanded default), breadcrumbs (on/off), footer (minimal/full), custom nav items. Theme: Primary color (preset or color picker), secondary color, mode (light/dark), background (solid/gradient). UI: Density (compact/comfortable/spacious), Border radius (sharp/rounded). All saved in blueprint and applied consistently to all pages.'
+    },
+    {
+      question: 'What if generation fails or errors occur?',
+      answer: 'Our system has automatic refund mechanism. If generation fails: (1) Credits refunded 100%, (2) Error details recorded in GenerationFailure table, (3) History still saved for debugging, (4) You can view last error via dashboard, (5) Retry without additional charge. All cost tracking transparent in CreditTransaction and GenerationCost tables. Admin can monitor failure rate.'
+    },
+    {
+      question: 'What is History Recording and Credit Learning?',
+      answer: 'Every generation records: Full MCP prompt sent to LLM, Generated response code, Actual token usage (input/output), Processing time, Model used. This data is used for: (1) Transparency - You can see what was generated, (2) Debugging - Admin can check why generation failed, (3) Credit Learning - Credit estimates become more accurate from historical data, (4) Model comparison - Analyze performance of each model.'
+    },
+    {
+      question: 'Can previously created templates be accessed again?',
+      answer: 'Yes! All templates are saved permanently in "Templates" menu. You can: (1) View complete blueprint details, (2) Preview generated code, (3) Re-download without additional credit cost, (4) View generation history (date, model, credits used), (5) Re-generate with same or different configuration. Templates don\'t expire.'
+    },
+    {
+      question: 'What are the advantages of wizard-based vs prompt-to-design?',
+      answer: 'Prompt-based: "Create modern admin dashboard with charts" → Varying results, not reproducible, AI guesses what "modern" means. Wizard-based: Framework=Tailwind, Category=Admin, Pages=[Dashboard,Charts], Layout=Sidebar, Theme=Blue/Dark, Density=Comfortable, Model=Gemini → Identical results every time, no guessing, full control. Wizard forces you to make explicit decisions, producing predictable and professional output.'
+    },
+    {
+      question: 'How are LLM models chosen and what are their differences?',
+      answer: 'Free tier: Automatically uses Gemini 2.5 Flash (fast, good quality, suitable for testing/basic templates). Premium: Can choose based on needs. GPT-5.1 Codex Mini (2cr, very good, landing pages), Claude Haiku 4.5 (6cr, excellent balance, dashboards), GPT-5.1 Codex (10cr, excellent, complex apps), Gemini 3 Pro (12cr, outstanding, enterprise), Claude Sonnet 4.5 (15cr, outstanding, production-ready critical projects). Trade-off: Speed vs Quality vs Cost.'
+    }
+  ],
 };
 
 const translations: Record<Language, Translations> = { id, en };

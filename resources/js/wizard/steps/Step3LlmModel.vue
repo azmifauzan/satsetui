@@ -15,6 +15,10 @@ interface LlmModel {
   description: string;
   credits_required: number;
   is_free: boolean;
+  estimation_confidence?: string;
+  estimation_sample_count?: number;
+  estimation_source?: string;
+  original_estimate?: number;
 }
 
 // Get user credits from page props
@@ -24,11 +28,32 @@ const userCredits = computed(() => page.props.auth?.user?.credits || 0);
 const availableModels = ref<LlmModel[]>([]);
 const isLoadingModels = ref(true);
 
-// Fetch models from API
+// Fetch models from API with wizard context for better estimates
 async function fetchModels() {
   try {
     isLoadingModels.value = true;
-    const response = await axios.get('/api/llm/models');
+    
+    // Build query params with wizard context
+    const params = new URLSearchParams();
+    if (wizardState.category) {
+      params.append('category', wizardState.category);
+    }
+    if (wizardState.framework) {
+      params.append('framework', wizardState.framework);
+    }
+    
+    // Calculate total pages (regular + custom + component showcase)
+    const totalPages = wizardState.pages.length + 
+                       wizardState.customPages.length + 
+                       wizardState.components.length + 
+                       wizardState.customComponents.length;
+    params.append('page_count', totalPages.toString());
+    
+    // Total components selected
+    const totalComponents = wizardState.components.length + wizardState.customComponents.length;
+    params.append('component_count', totalComponents.toString());
+    
+    const response = await axios.get(`/api/llm/models?${params.toString()}`);
     availableModels.value = response.data.models;
     
     // Auto-select most expensive available model if none selected
@@ -56,7 +81,14 @@ onMounted(() => {
 });
 
 // Watch for changes that affect credit calculation
-watch([() => wizardState.pages, () => wizardState.customPages, () => wizardState.components, () => wizardState.customComponents, () => wizardState.modelCredits], () => {
+// Also re-fetch models when context changes for better estimates
+watch([() => wizardState.pages, () => wizardState.customPages, () => wizardState.components, () => wizardState.customComponents], () => {
+  syncCalculatedCredits();
+  // Re-fetch models with updated context for learned estimates
+  fetchModels();
+}, { deep: true });
+
+watch([() => wizardState.modelCredits], () => {
   syncCalculatedCredits();
 }, { deep: true });
 
