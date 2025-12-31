@@ -484,6 +484,35 @@ export interface Translations {
     };
   };
 
+  // Dashboard
+  dashboard: {
+    title: string;
+    welcome: string;
+    totalTemplates: string;
+    thisMonth: string;
+    credits: string;
+    lastGenerated: string;
+    never: string;
+    vsLastMonth: string;
+    quickActions: string;
+    quickActionsDesc: string;
+    newTemplate: string;
+    newTemplateDesc: string;
+    browseTemplates: string;
+    browseTemplatesDesc: string;
+    gettingStarted: string;
+    gettingStartedDesc: string;
+    step1Title: string;
+    step1Desc: string;
+    step2Title: string;
+    step2Desc: string;
+    step3Title: string;
+    step3Desc: string;
+    startCreating: string;
+    faqTitle: string;
+    faqDesc: string;
+  };
+
   // Theme
   theme: {
     light: string;
@@ -952,6 +981,33 @@ const id: Translations = {
       title: 'Pertanyaan yang Sering Ditanyakan',
       subtitle: 'Temukan jawaban atas pertanyaan umum tentang Template Generator',
     },
+  },
+  dashboard: {
+    title: 'Dashboard',
+    welcome: 'Selamat datang kembali! Berikut ringkasan template Anda.',
+    totalTemplates: 'Total Template',
+    thisMonth: 'Bulan Ini',
+    credits: 'Kredit',
+    lastGenerated: 'Terakhir Dibuat',
+    never: 'Belum Pernah',
+    vsLastMonth: 'vs bulan lalu',
+    quickActions: 'Aksi Cepat',
+    quickActionsDesc: 'Mulai tugas baru atau jelajahi template yang ada',
+    newTemplate: 'Template Baru',
+    newTemplateDesc: 'Mulai wizard untuk membuat template baru',
+    browseTemplates: 'Jelajahi Template',
+    browseTemplatesDesc: 'Lihat dan kelola template Anda',
+    gettingStarted: 'Memulai',
+    gettingStartedDesc: 'Baru menggunakan Template Generator? Ikuti 3 langkah berikut',
+    step1Title: 'Step 1: Framework, Kategori & Output Format',
+    step1Desc: 'Pilih CSS framework (Tailwind/Bootstrap/Pure CSS), kategori template, dan format output (HTML+CSS, React, Vue, Angular, Svelte, atau Custom).',
+    step2Title: 'Step 2: Desain Visual & Konten',
+    step2Desc: 'Pilih halaman, konfigurasi layout & navigasi, atur tema (warna, mode dark/light), dan pilih komponen yang dibutuhkan.',
+    step3Title: 'Step 3: Pilih Model LLM',
+    step3Desc: 'Pilih model AI untuk generasi (Free: Gemini Flash, Premium: GPT-4, Claude, dll). Lihat estimasi biaya kredit sebelum generate.',
+    startCreating: 'Mulai Membuat Template',
+    faqTitle: 'Pertanyaan yang Sering Diajukan (FAQ)',
+    faqDesc: 'Temukan jawaban untuk pertanyaan umum tentang Template Generator',
   },
   theme: {
     light: 'Terang',
@@ -1476,6 +1532,33 @@ const en: Translations = {
       title: 'Frequently Asked Questions',
       subtitle: 'Find answers to common questions about Template Generator',
     },
+  },
+  dashboard: {
+    title: 'Dashboard',
+    welcome: "Welcome back! Here's an overview of your templates.",
+    totalTemplates: 'Total Templates',
+    thisMonth: 'This Month',
+    credits: 'Credits',
+    lastGenerated: 'Last Generated',
+    never: 'Never',
+    vsLastMonth: 'vs last month',
+    quickActions: 'Quick Actions',
+    quickActionsDesc: 'Start a new task or browse existing templates',
+    newTemplate: 'New Template',
+    newTemplateDesc: 'Start wizard to create new template',
+    browseTemplates: 'Browse Templates',
+    browseTemplatesDesc: 'View and manage your templates',
+    gettingStarted: 'Getting Started',
+    gettingStartedDesc: 'New to Template Generator? Follow these 3 steps',
+    step1Title: 'Step 1: Framework, Category & Output Format',
+    step1Desc: 'Choose CSS framework (Tailwind/Bootstrap/Pure CSS), template category, and output format (HTML+CSS, React, Vue, Angular, Svelte, or Custom).',
+    step2Title: 'Step 2: Visual Design & Content',
+    step2Desc: 'Select pages, configure layout & navigation, set theme (colors, dark/light mode), and choose needed components.',
+    step3Title: 'Step 3: Choose LLM Model',
+    step3Desc: 'Select AI model for generation (Free: Gemini Flash, Premium: GPT-4, Claude, etc). View credit cost estimate before generating.',
+    startCreating: 'Start Creating Template',
+    faqTitle: 'Frequently Asked Questions (FAQ)',
+    faqDesc: 'Find answers to common questions about Template Generator',
   },
   theme: {
     light: 'Light',

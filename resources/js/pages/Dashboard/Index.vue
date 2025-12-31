@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import StatCard from '@/components/dashboard/StatCard.vue';
 import Card from '@/components/dashboard/Card.vue';
 import Faq from '@/components/Faq.vue';
+import { useI18n } from '@/lib/i18n';
 
 interface Props {
   stats: {
@@ -21,89 +22,32 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const page = usePage();
-const currentLang = computed(() => (page.props.auth?.user as any)?.language || 'id');
-
-const t = computed(() => {
-  return currentLang.value === 'id' ? {
-    dashboard: 'Dashboard',
-    welcome: 'Selamat datang kembali! Berikut ringkasan template Anda.',
-    totalTemplates: 'Total Template',
-    thisMonth: 'Bulan Ini',
-    credits: 'Kredit',
-    lastGenerated: 'Terakhir Dibuat',
-    never: 'Belum Pernah',
-    vsLastMonth: 'vs bulan lalu',
-    quickActions: 'Aksi Cepat',
-    quickActionsDesc: 'Mulai tugas baru atau jelajahi template yang ada',
-    newTemplate: 'Template Baru',
-    newTemplateDesc: 'Mulai wizard untuk membuat template baru',
-    browseTemplates: 'Jelajahi Template',
-    browseTemplatesDesc: 'Lihat dan kelola template Anda',
-    gettingStarted: 'Memulai',
-    gettingStartedDesc: 'Baru menggunakan Template Generator? Ikuti 3 langkah berikut',
-    step1Title: 'Step 1: Framework, Kategori & Output Format',
-    step1Desc: 'Pilih CSS framework (Tailwind/Bootstrap/Pure CSS), kategori template, dan format output (HTML+CSS, React, Vue, Angular, Svelte, atau Custom).',
-    step2Title: 'Step 2: Desain Visual & Konten',
-    step2Desc: 'Pilih halaman, konfigurasi layout & navigasi, atur tema (warna, mode dark/light), dan pilih komponen yang dibutuhkan.',
-    step3Title: 'Step 3: Pilih Model LLM',
-    step3Desc: 'Pilih model AI untuk generasi (Free: Gemini Flash, Premium: GPT-4, Claude, dll). Lihat estimasi biaya kredit sebelum generate.',
-    startCreating: 'Mulai Membuat Template',
-    faqTitle: 'Pertanyaan yang Sering Diajukan (FAQ)',
-    faqDesc: 'Temukan jawaban untuk pertanyaan umum tentang Template Generator',
-  } : {
-    dashboard: 'Dashboard',
-    welcome: "Welcome back! Here's an overview of your templates.",
-    totalTemplates: 'Total Templates',
-    thisMonth: 'This Month',
-    credits: 'Credits',
-    lastGenerated: 'Last Generated',
-    never: 'Never',
-    vsLastMonth: 'vs last month',
-    quickActions: 'Quick Actions',
-    quickActionsDesc: 'Start a new task or browse existing templates',
-    newTemplate: 'New Template',
-    newTemplateDesc: 'Start wizard to create new template',
-    browseTemplates: 'Browse Templates',
-    browseTemplatesDesc: 'View and manage your templates',
-    gettingStarted: 'Getting Started',
-    gettingStartedDesc: 'New to Template Generator? Follow these 3 steps',
-    step1Title: 'Step 1: Framework, Category & Output Format',
-    step1Desc: 'Choose CSS framework (Tailwind/Bootstrap/Pure CSS), template category, and output format (HTML+CSS, React, Vue, Angular, Svelte, or Custom).',
-    step2Title: 'Step 2: Visual Design & Content',
-    step2Desc: 'Select pages, configure layout & navigation, set theme (colors, dark/light mode), and choose needed components.',
-    step3Title: 'Step 3: Choose LLM Model',
-    step3Desc: 'Select AI model for generation (Free: Gemini Flash, Premium: GPT-4, Claude, etc). View credit cost estimate before generating.',
-    startCreating: 'Start Creating Template',
-    faqTitle: 'Frequently Asked Questions (FAQ)',
-    faqDesc: 'Find answers to common questions about Template Generator',
-  };
-});
+const { t } = useI18n();
 
 const statCards = computed(() => [
   {
-    title: t.value.totalTemplates || 'Total Templates',
+    title: t.value.dashboard.totalTemplates,
     value: props.stats.total_templates,
     icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z',
     color: 'blue' as const,
     trend: { value: 0, isPositive: true }
   },
   {
-    title: t.value.thisMonth || 'This Month',
+    title: t.value.dashboard.thisMonth,
     value: props.stats.templates_this_month,
     icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     color: 'green' as const,
     trend: { value: 0, isPositive: true }
   },
   {
-    title: t.value.credits || 'Credits',
+    title: t.value.dashboard.credits,
     value: props.stats.credits_remaining,
     icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'purple' as const
   },
   {
-    title: t.value.lastGenerated || 'Last Generated',
-    value: props.stats.last_generated || t.value.never || 'Never',
+    title: t.value.dashboard.lastGenerated,
+    value: props.stats.last_generated || t.value.dashboard.never,
     icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
     color: 'orange' as const
   }
@@ -111,15 +55,15 @@ const statCards = computed(() => [
 
 const quickActions = computed(() => [
   {
-    title: t.value.newTemplate || 'New Template',
-    description: t.value.newTemplateDesc || 'Start wizard to create new template',
+    title: t.value.dashboard.newTemplate,
+    description: t.value.dashboard.newTemplateDesc,
     icon: 'M12 4v16m8-8H4',
     color: 'blue',
     href: '/wizard'
   },
   {
-    title: t.value.browseTemplates || 'Browse Templates',
-    description: t.value.browseTemplatesDesc || 'View and manage your templates',
+    title: t.value.dashboard.browseTemplates,
+    description: t.value.dashboard.browseTemplatesDesc,
     icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
     color: 'green',
     href: '/templates'
@@ -129,12 +73,12 @@ const quickActions = computed(() => [
 
 <template>
   <AppLayout>
-    <Head :title="t.dashboard" />
+    <Head :title="t.dashboard.title" />
 
     <!-- Page Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-2">{{ t.dashboard }}</h1>
-      <p class="text-slate-600 dark:text-slate-400">{{ t.welcome }}</p>
+      <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-2">{{ t.dashboard.title }}</h1>
+      <p class="text-slate-600 dark:text-slate-400">{{ t.dashboard.welcome }}</p>
     </div>
 
     <!-- Stats Grid -->
@@ -151,7 +95,7 @@ const quickActions = computed(() => [
     </div>
 
     <!-- Quick Actions -->
-    <Card :title="t.quickActions" :subtitle="t.quickActionsDesc" class="mb-8">
+    <Card :title="t.dashboard.quickActions" :subtitle="t.dashboard.quickActionsDesc" class="mb-8">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <a
           v-for="action in quickActions"
@@ -183,15 +127,15 @@ const quickActions = computed(() => [
     </Card>
 
     <!-- Getting Started -->
-    <Card :title="t.gettingStarted" :subtitle="t.gettingStartedDesc" class="mb-8">
+    <Card :title="t.dashboard.gettingStarted" :subtitle="t.dashboard.gettingStartedDesc" class="mb-8">
       <div class="space-y-4">
         <div class="flex items-start">
           <div class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm mr-4">
             1
           </div>
           <div class="flex-1">
-            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.step1Title }}</h4>
-            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.step1Desc }}</p>
+            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.dashboard.step1Title }}</h4>
+            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.dashboard.step1Desc }}</p>
           </div>
         </div>
 
@@ -200,8 +144,8 @@ const quickActions = computed(() => [
             2
           </div>
           <div class="flex-1">
-            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.step2Title }}</h4>
-            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.step2Desc }}</p>
+            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.dashboard.step2Title }}</h4>
+            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.dashboard.step2Desc }}</p>
           </div>
         </div>
 
@@ -210,8 +154,8 @@ const quickActions = computed(() => [
             3
           </div>
           <div class="flex-1">
-            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.step3Title }}</h4>
-            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.step3Desc }}</p>
+            <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ t.dashboard.step3Title }}</h4>
+            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t.dashboard.step3Desc }}</p>
           </div>
         </div>
 
@@ -220,7 +164,7 @@ const quickActions = computed(() => [
             href="/wizard"
             class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
           >
-            {{ t.startCreating }}
+            {{ t.dashboard.startCreating }}
             <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
@@ -230,7 +174,7 @@ const quickActions = computed(() => [
     </Card>
 
     <!-- FAQ Section -->
-    <Card :title="t.faqTitle" :subtitle="t.faqDesc">
+    <Card :title="t.dashboard.faqTitle" :subtitle="t.dashboard.faqDesc">
       <Faq />
     </Card>
   </AppLayout>

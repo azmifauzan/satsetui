@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
 import { useI18n } from '@/lib/i18n';
 
-const { t, currentLang } = useI18n();
+const { t } = useI18n();
 
 interface Props {
   onScrollToSection?: (sectionId: string) => void;

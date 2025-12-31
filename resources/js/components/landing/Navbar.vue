@@ -13,7 +13,7 @@ interface Props {
   isDark: boolean;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 
 const emit = defineEmits<{
   toggleTheme: [];
