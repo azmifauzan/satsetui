@@ -1,4 +1,4 @@
-# Product Instruction: Wizard-Driven Frontend Template Generator
+# Product Instruction: SatsetUI - Wizard-Driven Frontend Template Generator
 
 ## Problem Statement
 
@@ -11,12 +11,14 @@ Both approaches fail to provide **repeatable, configurable, and deterministic** 
 
 ## Solution: Wizard-First Configuration
 
-This system takes a fundamentally different approach:
+SatsetUI takes a fundamentally different approach:
 
 - **No Free-Text Prompts**: Users never describe what they want in natural language
 - **Structured Decisions**: Every configuration choice is explicit and constrained
 - **Deterministic Output**: Same selections = same result, always
 - **LLM as Tool**: AI implements requirements, never interprets intent
+
+> **"Sat-set"** - Bahasa slang Indonesia yang berarti cepat dan efisien. SatsetUI membuat pembuatan template UI jadi sat-set!
 
 ### Why Avoid Prompt-to-Design?
 
@@ -286,7 +288,7 @@ The following settings are automatically applied with optimal values and are NOT
 
 ### Generation Flow
 
-The system generates templates **per page** rather than all at once. This enables:
+SatsetUI generates templates **per page** rather than all at once. This enables:
 
 1. **Better LLM Context**: Each page gets focused attention with full context
 2. **Progress Tracking**: Users see real-time progress as each page completes
@@ -344,7 +346,7 @@ Every generation is recorded with:
 
 ### Credit Estimation Learning
 
-The system uses historical page generation data to improve credit estimation:
+SatsetUI uses historical page generation data to improve credit estimation:
 
 1. **Initial Estimation**: Based on model pricing and estimated tokens
 2. **Actual Recording**: Real token usage recorded after generation
@@ -402,7 +404,7 @@ With Margins:
 
 ### Recording Custom Pages
 
-When users create custom pages, the system records:
+When users create custom pages, SatsetUI records:
 
 1. **Custom Page Name**: Normalized lowercase
 2. **Category Context**: Which template category was selected
@@ -442,7 +444,7 @@ When a custom page reaches threshold (e.g., 100 uses), admin can:
    - Components: Buttons, Forms, Modals, Alerts, Cards, Tabs, Charts (Chart.js)
 3. **LLM Model**: Gemini 3 Pro Preview (12 credits)
 
-**Result**: System generates:
+**Result**: SatsetUI generates:
 - Blueprint JSON (stored in database)
 - 5 page-specific MCP prompts
 - Each page generated sequentially with progress tracking
@@ -456,7 +458,7 @@ When a custom page reaches threshold (e.g., 100 uses), admin can:
 
 ## Non-Goals and Constraints
 
-### What This System Does NOT Do
+### What SatsetUI Does NOT Do
 
 ❌ **Accept free-form prompts**: No text boxes asking "describe your design"
 
@@ -482,7 +484,7 @@ When a custom page reaches threshold (e.g., 100 uses), admin can:
 
 ## System-Level Requirements (Non-Wizard)
 
-The following requirements apply to the generator application itself (not the generated templates).
+The following requirements apply to the SatsetUI application itself (not the generated templates).
 
 ### Languages (ID/EN)
 
@@ -492,7 +494,7 @@ The following requirements apply to the generator application itself (not the ge
 
 ### Theme (Dark/Light)
 
-- The generator UI must support **dark** and **light** themes.
+- The SatsetUI UI must support **dark** and **light** themes.
 - Theme selection is distinct from the wizard's Step 2 theme settings (which describe generated template identity).
 - Default theme: Light.
 
@@ -533,8 +535,8 @@ Admin must be able to:
 
 ## Key Differentiators
 
-| Feature | This System | Prompt-to-Design Tools | Manual Coding |
-|---------|-------------|------------------------|---------------|
+| Feature | SatsetUI | Prompt-to-Design Tools | Manual Coding |
+|---------|----------|------------------------|---------------|
 | **Reproducibility** | ✅ Deterministic | ❌ Varies | ✅ Manual control |
 | **Speed** | ✅ Minutes | ✅ Minutes | ❌ Hours/Days |
 | **Customization** | ✅ 3 wizard steps | ❌ Limited | ✅ Unlimited |
@@ -546,7 +548,7 @@ Admin must be able to:
 
 ## Blueprint-to-MCP Flow
 
-This is the core intellectual property of the system:
+This is the core intellectual property of SatsetUI:
 
 ```
 WIZARD UI (Vue)
@@ -601,7 +603,7 @@ USER SEES TEMPLATE
 
 ## Success Metrics
 
-How we measure if this system works:
+How we measure if SatsetUI works:
 
 1. **Reproducibility**: Same Blueprint → Same output 100% of the time
 2. **Wizard Completion Rate**: >80% of users complete all 3 steps
@@ -614,8 +616,10 @@ How we measure if this system works:
 
 ## Conclusion
 
-This system replaces subjective, unpredictable prompt-to-design tools with a **structured, deterministic, and repeatable** wizard-driven workflow.
+SatsetUI replaces subjective, unpredictable prompt-to-design tools with a **structured, deterministic, and repeatable** wizard-driven workflow.
 
 Every decision is explicit. Every output is traceable. Every result is reproducible.
 
 The LLM is a tool, not a designer. The wizard is the source of truth.
+
+**Sat-set!** 🚀

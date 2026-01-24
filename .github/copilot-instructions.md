@@ -1,8 +1,10 @@
-# GitHub Copilot Instructions for Template Generator
+# GitHub Copilot Instructions for SatsetUI
 
 ## Project Philosophy
 
-This repository implements a **wizard-driven frontend template generator**. It is fundamentally different from prompt-to-design systems.
+SatsetUI is a **wizard-driven frontend template generator**. It is fundamentally different from prompt-to-design systems.
+
+> **"Sat-set"** - Bahasa slang Indonesia yang berarti cepat dan efisien. SatsetUI membuat pembuatan template UI jadi sat-set!
 
 ### Core Principles
 
@@ -18,21 +20,23 @@ This repository implements a **wizard-driven frontend template generator**. It i
 
 5. **Per-Page Generation**: Each page is generated separately with its own MCP prompt, enabling better context, progress tracking, and error recovery.
 
-## Technology Constraints
+## Technology Stack
 
 ### ALLOWED Technologies
 
-- **Backend**: Laravel (current version in composer.json)
-- **Frontend**: Vue.js with TypeScript
-- **CSS Frameworks**: Tailwind CSS, Bootstrap, Pure CSS ONLY
+- **Backend**: Laravel 12
+- **Frontend**: Vue.js 3 with TypeScript
+- **CSS Frameworks**: Tailwind CSS 4 (for SatsetUI UI)
+- **Generated Templates**: Tailwind CSS, Bootstrap, Pure CSS
 - **Charts**: Chart.js, Apache ECharts ONLY
 - **Build Tool**: Vite
 - **Testing**: Pest (PHP), Vitest (JS/TS)
+- **SPA Adapter**: Inertia.js v2
 
 ### FORBIDDEN Technologies
 
-- ❌ React, Angular, Svelte (Vue only for generator UI)
-- ❌ Other CSS frameworks (no Bulma, Material, etc.)
+- ❌ React, Angular, Svelte (Vue only for SatsetUI UI)
+- ❌ Other CSS frameworks for SatsetUI (no Bulma, Material, etc.)
 - ❌ Drag-and-drop builders
 - ❌ Visual editors
 - ❌ D3.js or other chart libraries
@@ -129,9 +133,9 @@ See `/docs/product-instruction.md` for complete wizard specification.
 - **Services**: Business logic lives here. Key services:
   - `McpPromptBuilder`: Core prompt generation (per-page)
   - `GenerationService`: Orchestrates per-page generation
-  - `GenerationHistoryService`: Records prompts/responses
-  - `CustomPageStatisticsService`: Tracks custom page usage
-  - `BillingCalculator`: Credit calculation with margins
+  - `CreditService`: Credit management
+  - `CostTrackingService`: LLM cost tracking
+  - `AdminStatisticsService`: Admin dashboard stats
 - **Validation**: Use Form Requests for wizard input validation.
 - **Routes**: RESTful structure. Use route model binding where appropriate.
 - **Blueprint Schema**: Must match `/app/Blueprints/template-blueprint.schema.json` exactly.
@@ -209,38 +213,55 @@ app/
 ├── Blueprints/           # Schema definitions
 ├── Http/
 │   ├── Controllers/      # Wizard controllers
-│   ├── Requests/         # Wizard validation
-│   └── Resources/        # API responses
+│   │   ├── Admin/        # Admin panel controllers
+│   │   └── Auth/         # Authentication controllers
+│   └── Requests/         # Wizard validation
 ├── Services/
 │   ├── McpPromptBuilder.php         # Per-page MCP generation
 │   ├── GenerationService.php        # Generation orchestration
-│   ├── GenerationHistoryService.php # History recording
-│   ├── CustomPageStatisticsService.php # Custom page tracking
-│   └── BillingCalculator.php        # Credit calculation
+│   ├── CreditService.php            # Credit management
+│   ├── CreditEstimationService.php  # Token estimation
+│   ├── CostTrackingService.php      # Cost tracking
+│   ├── AdminStatisticsService.php   # Admin stats
+│   ├── GeminiService.php            # Gemini API
+│   └── OpenAICompatibleService.php  # OpenAI API
 └── Models/
     ├── User.php
-    ├── Project.php
     ├── Generation.php
-    ├── PageGeneration.php      # Per-page history
-    ├── CustomPageStatistic.php # Custom page stats
-    └── AdminSetting.php        # Admin config
+    ├── PageGeneration.php
+    ├── LlmModel.php
+    ├── AdminSetting.php
+    ├── CreditTransaction.php
+    ├── CreditEstimation.php
+    ├── CustomPageStatistic.php
+    └── GenerationCost.php
 
 resources/js/
-├── wizard/               # Wizard-specific Vue components
+├── pages/                # Inertia pages
+│   ├── Home.vue
+│   ├── Auth/
+│   ├── Dashboard/
+│   ├── Wizard/
+│   ├── Generation/
+│   ├── Templates/
+│   └── Admin/
+├── wizard/               # Wizard-specific components
 │   ├── steps/
 │   │   ├── Step1FrameworkCategoryOutput.vue
 │   │   ├── Step2VisualDesignContent.vue
 │   │   └── Step3LlmModel.vue
 │   ├── wizardState.ts    # Central state management
 │   └── types.ts          # TypeScript interfaces
-├── preview/              # Preview rendering components
-└── lib/                  # Shared utilities
+├── components/           # Shared components
+├── layouts/              # Layout wrappers
+└── lib/                  # Utilities (i18n, theme)
 
 docs/
 ├── product-instruction.md  # 3-step wizard spec
 ├── architecture.md         # Per-page generation
 ├── mvp-plan.md
-└── llm-credit-system.md    # Credit calculation
+├── llm-credit-system.md    # Credit calculation
+└── admin-panel-architecture.md
 ```
 
 ## Behavior Guidelines for Copilot
@@ -307,7 +328,7 @@ docs/
   ```
 - Error margin: 10% default (admin configurable)
 - Profit margin: 5% default (admin configurable)
-- All calculations done in `BillingCalculator.php`
+- All calculations done in `CreditService.php`
 
 ## Testing Strategy
 
@@ -349,3 +370,54 @@ docs/
 - Blueprint schema: `/app/Blueprints/template-blueprint.schema.json`
 - MVP roadmap: `/docs/mvp-plan.md`
 - Credit system: `/docs/llm-credit-system.md`
+- Admin panel: `/docs/admin-panel-architecture.md`
+
+---
+
+## Laravel Boost Guidelines
+
+### Foundational Context
+This application is a Laravel application with the following key packages:
+
+- php - 8.4
+- inertiajs/inertia-laravel - v2
+- laravel/framework - v12
+- laravel/pint - v1
+- pestphp/pest - v4
+- @inertiajs/vue3 - v2
+- tailwindcss - v4
+- vue - v3
+
+### Conventions
+- Follow existing code conventions. Check sibling files for correct structure.
+- Use descriptive names for variables and methods.
+- Check for existing components to reuse before writing new ones.
+
+### Application Structure
+- Stick to existing directory structure.
+- Do not change dependencies without approval.
+
+### PHP Rules
+- Use PHP 8 constructor property promotion.
+- Always use explicit return type declarations.
+- Use curly braces for control structures, even for single lines.
+
+### Test Rules
+- Every change must be tested. Write or update tests.
+- Run minimum tests needed with `php artisan test --filter=`.
+- Use Pest for all PHP tests.
+
+### Inertia Rules
+- Use `Inertia::render()` for routing.
+- Use `useForm` for forms with proper error handling.
+- Components live in `resources/js/pages`.
+
+### Wayfinder Rules
+- Use generated TypeScript functions for routes.
+- Prefer named imports for tree-shaking.
+
+---
+
+## Sat-set! 🚀
+
+SatsetUI is about speed and efficiency. Every feature should help users generate templates quickly and reliably.

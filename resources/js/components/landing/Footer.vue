@@ -18,7 +18,7 @@ defineProps<Props>();
 
       <!-- Copyright -->
       <div class="border-slate-800 text-center text-sm">
-        <p>&copy; {{ new Date().getFullYear() }} TemplateGen. {{ t.landing?.footer?.rights || 'All Rights Reserved.' }}</p>
+        <p>&copy; {{ new Date().getFullYear() }} SatsetUI. {{ t.landing?.footer?.rights || 'All Rights Reserved.' }}</p>
       </div>
   </footer>
 </template>

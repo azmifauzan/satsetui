@@ -1,6 +1,32 @@
-# Changelog
+# Changelog - SatsetUI
 
-## [Unreleased] - 2025-12-31
+All notable changes to SatsetUI will be documented in this file.
+
+## [2.1.0] - 2026-01-25
+
+### Changed
+- **Rebranding**: Application renamed from "Template Generator" to **SatsetUI**
+  - "Sat-set" is Indonesian slang meaning quick and efficient
+  - Updated all documentation with new branding
+  - Updated README, architecture docs, and instructions
+
+### Added
+- **Antigravity Instructions**: Created `.gemini/AGENTS.md` for Gemini AI assistance
+- **Updated Copilot Instructions**: Comprehensive GitHub Copilot guidance
+
+### Documentation
+- Updated `README.md` with SatsetUI branding and current features
+- Updated `docs/product-instruction.md` with SatsetUI references
+- Updated `docs/architecture.md` with current implementation
+- Updated `docs/llm-credit-system.md` with current version
+- Updated `docs/mvp-plan.md` with implementation status
+- Updated `docs/admin-panel-architecture.md`
+- Updated `.github/copilot-instructions.md`
+- Created `.gemini/AGENTS.md`
+
+---
+
+## [2.0.0] - 2025-12-31
 
 ### Added
 - **Automatic Retry Mechanism**: System now automatically retries failed page generations up to 3 times before giving up
@@ -52,58 +78,17 @@
 - `generation_costs` table properly initialized with all required columns
 - Migration handles both fresh install and existing database scenarios
 
-### Technical Details
+---
 
-#### Retry Logic
-```php
-// In GenerationService::generateNextPage()
-$maxRetries = 3;
+## [1.0.0] - 2025-12-29
 
-if ($isTimeoutError && $retryCount < $maxRetries) {
-    sleep(pow(2, $retryCount)); // Exponential backoff
-    return $this->generateNextPage($generation, $retryCount + 1);
-}
-```
-
-#### Context Building
-```php
-// buildPreviousPageContext() extracts:
-- CSS classes from previous pages
-- Head section (first 500 chars)
-- Body structure preview
-- Last 2 pages only (prevents prompt bloat)
-```
-
-#### Prompt Enhancement
-```
-=== CRITICAL OUTPUT REQUIREMENTS ===
-- Return ONLY the complete, working code
-- DO NOT include any explanations, comments, or markdown formatting
-- DO NOT wrap code in ```html or ``` blocks
-- Start directly with <!DOCTYPE html>
-- End directly with </html>
-```
-
-### Database Schema
-
-#### New Tables
-- `generation_failures`: Records all generation failures with context
-- `credit_transactions`: Complete audit trail for credit movements
-- `generation_costs`: LLM provider cost tracking
-
-#### Modified Tables
-- `generation_costs`: Added `raw_request` and `raw_response` text fields
-- `credit_transactions`: Changed `description` to text type
-
-### Performance
-- Retry mechanism adds 1-7 seconds per failed attempt (exponential backoff)
-- Context extraction negligible (<10ms per page)
-- Raw response storage adds ~5-50KB per page generation
-
-### Migration Path
-Run migrations:
-```bash
-php artisan migrate
-```
-
-No data migration needed. System handles both new installs and upgrades gracefully.
+### Added
+- Initial release of Template Generator
+- 3-step wizard UI (Framework, Design, LLM Model)
+- Per-page template generation
+- 6 LLM models (Gemini, GPT, Claude families)
+- Credit system with margins
+- Admin panel
+- Bilingual support (Indonesian/English)
+- Dark/Light theme
+- User authentication

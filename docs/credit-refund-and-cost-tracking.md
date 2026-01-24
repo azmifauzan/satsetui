@@ -1,8 +1,8 @@
-# Credit Refund & Cost Tracking System
+# Credit Refund & Cost Tracking System - SatsetUI
 
 ## Overview
 
-Sistem untuk menangani credit refund saat generation gagal dan tracking biaya LLM untuk analisa admin.
+Sistem SatsetUI untuk menangani credit refund saat generation gagal dan tracking biaya LLM untuk analisa admin.
 
 ## Components
 

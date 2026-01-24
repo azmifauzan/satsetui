@@ -1,6 +1,6 @@
-# Quick Reference - Sistem LLM
+# Quick Reference - Sistem LLM SatsetUI
 
-Panduan singkat untuk developer yang bekerja dengan sistem LLM dan kredit.
+Panduan singkat untuk developer yang bekerja dengan sistem LLM dan kredit di SatsetUI.
 
 ## 🎯 Model LLM
 
@@ -240,4 +240,4 @@ Dokumentasi lengkap: [docs/llm-credit-system.md](./llm-credit-system.md)
 
 ---
 
-**Last Updated:** 30 Desember 2025
+**Last Updated:** 25 Januari 2026

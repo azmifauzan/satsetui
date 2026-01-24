@@ -1,9 +1,9 @@
-# Sistem LLM dan Kredit
+# Sistem LLM dan Kredit - SatsetUI
 
-Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kredit di Template Generator.
+Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kredit di SatsetUI.
 
-**Tanggal Update:** 30 Desember 2025  
-**Versi:** 2.0 (Updated untuk 3-Step Wizard & Per-Page Generation)
+**Tanggal Update:** 25 Januari 2026  
+**Versi:** 2.1 (Updated untuk SatsetUI)
 
 ---
 
@@ -23,9 +23,9 @@ Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kred
 
 ## Ringkasan Sistem
 
-Sistem LLM menggunakan OpenAI-compatible API untuk mendukung multiple model providers dalam satu interface yang konsisten. Setiap model memiliki pricing yang berbeda berdasarkan token input/output, dan users dikenakan biaya dalam bentuk kredit.
+SatsetUI menggunakan OpenAI-compatible API untuk mendukung multiple model providers dalam satu interface yang konsisten. Setiap model memiliki pricing yang berbeda berdasarkan token input/output, dan users dikenakan biaya dalam bentuk kredit.
 
-### Fitur Utama (v2.0)
+### Fitur Utama
 
 - ✅ **6 Model LLM** - Dari model gratis hingga premium
 - ✅ **Per-Page Generation** - Setiap halaman di-generate secara terpisah
@@ -95,7 +95,7 @@ Sistem LLM menggunakan OpenAI-compatible API untuk mendukung multiple model prov
 
 ## Perhitungan Kredit dengan Margin
 
-### Formula Baru (v2.0)
+### Formula
 
 ```
 subtotal = modelCredits + extraPageCredits + extraComponentCredits
@@ -110,7 +110,7 @@ totalCredits = CEIL(withErrorMargin × (1 + profitMarginPercent))
 | Halaman | 5 halaman | +1 kredit per halaman |
 | Komponen | 6 komponen | +0.5 kredit per komponen |
 
-### Margin System (NEW)
+### Margin System
 
 | Margin Type | Default | Range | Configurable |
 |-------------|---------|-------|--------------|
@@ -158,26 +158,6 @@ Dengan Margin:
 - Final (rounded up): 25 kredit
 ```
 
-#### Skenario 3: Template Gratis dengan Extra
-```
-Model: Gemini 2.5 Flash (FREE - 3 kredit equivalent)
-Halaman: 8 halaman (3 predefined + 5 custom)
-Komponen: 8 komponen (4 predefined + 4 custom)
-
-Kalkulasi:
-- Model Cost: 3 kredit
-- Extra Pages: MAX(0, 8-5) × 1 = 3 kredit
-- Extra Components: MAX(0, 8-6) × 0.5 = 1 kredit
-- Subtotal: 3 + 3 + 1 = 7 kredit
-
-Dengan Margin:
-- After Error Margin (10%): 7 × 1.10 = 7.7 kredit
-- After Profit Margin (5%): 7.7 × 1.05 = 8.085 kredit
-- Final (rounded up): 9 kredit
-
-Note: Untuk FREE user, kredit tidak di-charge, tapi estimasi tetap ditampilkan.
-```
-
 ### Credit Breakdown Display (Step 3)
 
 Di Step 3 (LLM Model Selection), user dapat melihat breakdown kredit:
@@ -205,7 +185,7 @@ Di Step 3 (LLM Model Selection), user dapat melihat breakdown kredit:
 
 ### Konsep
 
-Daripada generate semua halaman sekaligus, sistem sekarang generate **per halaman**:
+SatsetUI generate **per halaman** untuk hasil yang lebih baik:
 
 1. **Better LLM Context** - Setiap halaman mendapat fokus penuh
 2. **Progress Tracking** - User melihat progress real-time
@@ -290,7 +270,7 @@ Setiap halaman yang di-generate akan mencatat:
 
 ### Credit Learning Algorithm
 
-Sistem belajar dari data historis untuk estimasi kredit yang lebih akurat:
+SatsetUI belajar dari data historis untuk estimasi kredit yang lebih akurat:
 
 ```
 estimated_tokens = weighted_average(
@@ -304,22 +284,6 @@ estimated_tokens = weighted_average(
 - `dashboard` page historically uses ~2000 output tokens  
 - `charts` page historically uses ~1500 output tokens
 - `custom` pages use average of all custom pages
-
-### Learning Data Storage
-
-```sql
--- credit_estimations table
-┌─────────────────┬──────────────────┬─────────────────┬─────────────────┐
-│ page_type       │ category         │ model_id        │ avg_output_tokens│
-├─────────────────┼──────────────────┼─────────────────┼─────────────────┤
-│ login           │ admin-dashboard  │ gemini-2.5-flash│ 520             │
-│ dashboard       │ admin-dashboard  │ gemini-2.5-flash│ 2150            │
-│ charts          │ admin-dashboard  │ gemini-2.5-flash│ 1480            │
-│ custom          │ admin-dashboard  │ gemini-2.5-flash│ 1200            │
-│ login           │ landing-page     │ claude-sonnet   │ 480             │
-│ ...             │ ...              │ ...             │ ...             │
-└─────────────────┴──────────────────┴─────────────────┴─────────────────┘
-```
 
 ---
 
@@ -344,7 +308,7 @@ CREATE TABLE llm_models (
 );
 ```
 
-### Tabel: `page_generations` (NEW)
+### Tabel: `page_generations`
 
 ```sql
 CREATE TABLE page_generations (
@@ -361,31 +325,11 @@ CREATE TABLE page_generations (
     error_message TEXT,
     created_at TIMESTAMP,
     completed_at TIMESTAMP,
-    FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE,
-    INDEX idx_page_type (page_type),
-    INDEX idx_status (status)
+    FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
 );
 ```
 
-### Tabel: `custom_page_statistics` (NEW)
-
-```sql
-CREATE TABLE custom_page_statistics (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    page_name_normalized VARCHAR(100) NOT NULL,
-    original_names JSON,
-    category VARCHAR(50) NOT NULL,
-    usage_count INT DEFAULT 1,
-    first_used_at TIMESTAMP,
-    last_used_at TIMESTAMP,
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    UNIQUE KEY unique_page_category (page_name_normalized, category),
-    INDEX idx_usage_count (usage_count DESC)
-);
-```
-
-### Tabel: `admin_settings` (NEW)
+### Tabel: `admin_settings`
 
 ```sql
 CREATE TABLE admin_settings (
@@ -397,43 +341,13 @@ CREATE TABLE admin_settings (
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
-
--- Default settings
-INSERT INTO admin_settings (key, value, type, description) VALUES
-('error_margin_percent', '10', 'float', 'Error margin percentage for credit calculation (0-50)'),
-('profit_margin_percent', '5', 'float', 'Profit margin percentage for credit calculation (0-50)');
-```
-
-### Tabel: `credit_estimations` (NEW)
-
-```sql
-CREATE TABLE credit_estimations (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    page_type VARCHAR(50) NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    model_id VARCHAR(100) NOT NULL,
-    avg_input_tokens INT DEFAULT 0,
-    avg_output_tokens INT DEFAULT 0,
-    sample_count INT DEFAULT 0,
-    last_updated_at TIMESTAMP,
-    UNIQUE KEY unique_estimation (page_type, category, model_id)
-);
-```
-
-### Updated: `generations` Table
-
-```sql
-ALTER TABLE generations 
-ADD COLUMN error_margin_percent DECIMAL(5,2) DEFAULT 10.00,
-ADD COLUMN profit_margin_percent DECIMAL(5,2) DEFAULT 5.00,
-ADD COLUMN credit_breakdown JSON;
 ```
 
 ---
 
 ## Service Architecture
 
-### 1. GenerationService (Updated)
+### GenerationService
 
 ```php
 class GenerationService
@@ -462,132 +376,21 @@ class GenerationService
 }
 ```
 
-### 2. BillingCalculator (Updated)
+### CreditService
 
 ```php
-class BillingCalculator
+class CreditService
 {
     public function calculateCharge(
         int $modelCredits,
         int $totalPages,
         int $totalComponents
     ): CreditBreakdown {
-        $extraPageCredits = max(0, $totalPages - 5) * 1;
-        $extraComponentCredits = max(0, $totalComponents - 6) * 0.5;
-        
-        $subtotal = $modelCredits + $extraPageCredits + $extraComponentCredits;
-        $withErrorMargin = $subtotal * (1 + $this->getErrorMargin());
-        $total = ceil($withErrorMargin * (1 + $this->getProfitMargin()));
-        
-        return new CreditBreakdown([
-            'modelCost' => $modelCredits,
-            'totalPages' => $totalPages,
-            'extraPages' => max(0, $totalPages - 5),
-            'extraPageCredits' => $extraPageCredits,
-            'totalComponents' => $totalComponents,
-            'extraComponents' => max(0, $totalComponents - 6),
-            'extraComponentCredits' => $extraComponentCredits,
-            'subtotal' => $subtotal,
-            'errorMarginPercent' => $this->getErrorMargin() * 100,
-            'errorMarginCredits' => $subtotal * $this->getErrorMargin(),
-            'profitMarginPercent' => $this->getProfitMargin() * 100,
-            'profitMarginCredits' => $withErrorMargin * $this->getProfitMargin(),
-            'total' => $total,
-        ]);
+        // Apply margins and calculate total
     }
     
-    private function getErrorMargin(): float
-    {
-        return AdminSetting::getValue('error_margin_percent', 10) / 100;
-    }
-    
-    private function getProfitMargin(): float
-    {
-        return AdminSetting::getValue('profit_margin_percent', 5) / 100;
-    }
-}
-```
-
-### 3. GenerationHistoryService (NEW)
-
-```php
-class GenerationHistoryService
-{
-    public function recordPage(
-        Generation $generation,
-        string $pageName,
-        string $pageType,
-        string $mcpPrompt,
-        ?string $llmResponse,
-        int $inputTokens,
-        int $outputTokens,
-        int $processingTimeMs,
-        string $status,
-        ?string $errorMessage = null
-    ): PageGeneration {
-        // Create page generation record
-        // Update credit estimation data
-    }
-    
-    public function updateCreditEstimation(
-        string $pageType,
-        string $category,
-        string $modelId,
-        int $inputTokens,
-        int $outputTokens
-    ): void {
-        // Update running average
-    }
-    
-    public function getEstimatedTokens(
-        string $pageType,
-        string $category,
-        string $modelId
-    ): array {
-        // Return estimated input/output tokens
-    }
-}
-```
-
-### 4. CustomPageStatisticsService (NEW)
-
-```php
-class CustomPageStatisticsService
-{
-    public function recordCustomPage(
-        string $pageName,
-        string $category
-    ): void {
-        $normalized = $this->normalize($pageName);
-        
-        CustomPageStatistic::updateOrCreate(
-            ['page_name_normalized' => $normalized, 'category' => $category],
-            [
-                'original_names' => DB::raw("JSON_ARRAY_APPEND(IFNULL(original_names, '[]'), '$', '$pageName')"),
-                'usage_count' => DB::raw('usage_count + 1'),
-                'last_used_at' => now(),
-            ]
-        );
-    }
-    
-    public function getPopularCustomPages(int $limit = 20): Collection
-    {
-        return CustomPageStatistic::orderByDesc('usage_count')
-            ->limit($limit)
-            ->get();
-    }
-    
-    public function getCandidatesForPromotion(int $threshold = 100): Collection
-    {
-        return CustomPageStatistic::where('usage_count', '>=', $threshold)
-            ->orderByDesc('usage_count')
-            ->get();
-    }
-    
-    private function normalize(string $pageName): string
-    {
-        return strtolower(trim(preg_replace('/[^a-zA-Z0-9]/', '', $pageName)));
-    }
+    public function deductCredits(User $user, int $amount, string $reason): bool;
+    public function refundCredits(User $user, int $amount, string $reason): bool;
 }
 ```
 
@@ -599,16 +402,6 @@ class CustomPageStatisticsService
 
 **Base URL:** `https://ai.sumopod.com/v1`  
 **Format:** OpenAI-compatible API
-
-### Configuration
-
-```php
-// config/services.php
-'llm' => [
-    'api_key' => env('LLM_API_KEY'),
-    'base_url' => env('LLM_BASE_URL', 'https://ai.sumopod.com/v1'),
-],
-```
 
 ### Environment Variables
 
@@ -628,118 +421,37 @@ LLM_BASE_URL=https://ai.sumopod.com/v1
 | `error_margin_percent` | float | 10 | Error margin (0-50%) |
 | `profit_margin_percent` | float | 5 | Profit margin (0-50%) |
 
-### Admin API Endpoints
-
-```
-GET  /api/admin/settings                    - Get all settings
-PUT  /api/admin/settings                    - Update settings
-GET  /api/admin/custom-pages                - Get custom page statistics
-GET  /api/admin/custom-pages/candidates     - Get promotion candidates
-GET  /api/admin/generation-history          - Get generation history
-GET  /api/admin/statistics                  - Get usage statistics
-```
-
 ### Admin UI Features
 
 1. **Margin Configuration**
    - Adjust error margin (0-50%)
    - Adjust profit margin (0-50%)
-   - Preview impact on sample calculation
 
-2. **Custom Page Statistics**
-   - View most popular custom pages
-   - Filter by category
-   - Mark for promotion to predefined
-
-3. **Generation History**
+2. **Generation History**
    - View all generations
-   - Drill down to page-level details
    - View prompts and responses
    - Filter by user, date, status
 
-4. **Usage Statistics**
+3. **Usage Statistics**
    - Total generations
    - Credits consumed
-   - Revenue (credits × Rp 1,000)
-   - Popular models
-   - Popular categories
-
----
-
-## Migration Commands
-
-```bash
-# Create new tables
-php artisan make:migration create_page_generations_table
-php artisan make:migration create_custom_page_statistics_table
-php artisan make:migration create_admin_settings_table
-php artisan make:migration create_credit_estimations_table
-php artisan make:migration add_margins_to_generations_table
-
-# Run migrations
-php artisan migrate
-```
-
----
-
-## Testing
-
-### Unit Tests
-
-```php
-// BillingCalculatorTest
-public function test_calculates_credits_with_margins()
-{
-    $calculator = new BillingCalculator();
-    
-    $breakdown = $calculator->calculateCharge(
-        modelCredits: 15,
-        totalPages: 9,
-        totalComponents: 10
-    );
-    
-    $this->assertEquals(15, $breakdown->modelCost);
-    $this->assertEquals(4, $breakdown->extraPageCredits);
-    $this->assertEquals(2, $breakdown->extraComponentCredits);
-    $this->assertEquals(21, $breakdown->subtotal);
-    $this->assertEquals(25, $breakdown->total); // After margins and rounding
-}
-```
-
-### Feature Tests
-
-```php
-// GenerationTest
-public function test_records_page_generation_history()
-{
-    $user = User::factory()->create(['credits' => 100]);
-    $blueprint = [...];
-    
-    $generation = $this->generationService->startGeneration($blueprint, $user);
-    
-    $this->assertDatabaseHas('page_generations', [
-        'generation_id' => $generation->id,
-        'page_name' => 'login',
-        'status' => 'completed',
-    ]);
-}
-```
+   - Revenue tracking
 
 ---
 
 ## Changelog
 
+### v2.1 (25 Januari 2026)
+- ✅ Rebranding ke SatsetUI
+- ✅ Automatic retry mechanism (3x)
+- ✅ Previous page context for consistency
+- ✅ Credit refund system
+
 ### v2.0 (30 Desember 2025)
-- ✅ Per-page generation instead of all-at-once
-- ✅ History recording for all prompts/responses
-- ✅ Credit learning from historical data
-- ✅ Error margin (10% default, configurable)
-- ✅ Profit margin (5% default, configurable)
-- ✅ Custom page statistics tracking
-- ✅ 3-step wizard support
+- ✅ Per-page generation
+- ✅ History recording
+- ✅ Credit learning
+- ✅ Configurable margins
 
 ### v1.0 (29 Desember 2025)
 - Initial release
-- 6 LLM models
-- Basic credit calculation
-- 5% margin (fixed)

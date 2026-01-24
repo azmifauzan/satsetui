@@ -1,8 +1,8 @@
-# Arsitektur Halaman Admin
+# Arsitektur Halaman Admin - SatsetUI
 
 ## Overview
 
-Halaman admin dirancang untuk memberikan kontrol penuh kepada administrator platform dalam mengelola sistem, pengguna, model LLM, dan konfigurasi platform. Panel admin terpisah dari halaman landing dan hanya dapat diakses oleh user dengan role admin.
+Halaman admin SatsetUI dirancang untuk memberikan kontrol penuh kepada administrator platform dalam mengelola sistem, pengguna, model LLM, dan konfigurasi platform. Panel admin terpisah dari halaman landing dan hanya dapat diakses oleh user dengan role admin.
 
 ## Prinsip Desain
 
@@ -63,12 +63,6 @@ Halaman admin dirancang untuk memberikan kontrol penuh kepada administrator plat
   - Average generation time
   - Error rate
 
-**Visualisasi**:
-- Line chart: Generations per day (7 hari terakhir)
-- Pie chart: Template categories distribution
-- Bar chart: Model usage comparison
-- Area chart: Credits usage trend
-
 ### 2. User Management (`/admin/users`)
 **Tujuan**: Mengelola akun pengguna
 
@@ -119,22 +113,6 @@ Halaman admin dirancang untuk memberikan kontrol penuh kepada administrator plat
 - Is active
 - Sort order
 
-**Form fields**:
-```typescript
-interface LlmModelForm {
-  name: string; // e.g., "gemini-2.0-flash"
-  display_name: string; // e.g., "Gemini 2.0 Flash"
-  description: string;
-  input_price_per_million: number; // USD
-  output_price_per_million: number; // USD
-  estimated_credits_per_generation: number;
-  context_length: number; // tokens
-  is_free: boolean;
-  is_active: boolean;
-  sort_order: number;
-}
-```
-
 ### 4. Settings Management (`/admin/settings`)
 **Tujuan**: Konfigurasi platform secara keseluruhan
 
@@ -156,29 +134,17 @@ interface LlmModelForm {
 - Queue driver preference
 
 #### c. LLM API Settings
-- OpenAI API key
-- Google AI API key
-- Other LLM provider keys
+- LLM API key
+- LLM base URL
 - Default model for free users
 - API timeout settings
 
-#### d. Email Settings
-- SMTP configuration
-- Email notifications enabled
-- Admin notification email
-
-#### e. General Settings
-- Platform name
+#### d. General Settings
+- Platform name (SatsetUI)
 - Platform description
 - Support email
 - Maintenance mode
 - Registration enabled
-
-**Implementation**:
-- Menggunakan `AdminSetting` model
-- Settings di-cache untuk performance
-- Validation untuk setiap setting type
-- Grouping untuk organization
 
 ### 5. Generation History (`/admin/generations`)
 **Tujuan**: Monitoring semua generation yang terjadi
@@ -211,36 +177,7 @@ interface LlmModelForm {
 - Processing time
 - Actions
 
-### 6. Custom Page Statistics (`/admin/custom-pages`)
-**Tujuan**: Analisis custom pages untuk promosi
-
-**Fitur**:
-- List custom pages dengan usage count
-- Sort by usage (most popular)
-- Filter by category
-- Actions:
-  - Promote to predefined page
-  - View example generations
-  - Mark as featured
-
-**Data ditampilkan**:
-- Page name
-- Category
-- Usage count
-- Average rating (future)
-- Created by (users)
-- Actions
-
-### 7. System Logs (`/admin/logs`)
-**Tujuan**: Monitoring dan debugging
-
-**Fitur**:
-- View Laravel logs
-- Filter by level (error, warning, info)
-- Filter by date
-- Search logs
-- Download logs
-- Clear old logs
+---
 
 ## Technical Architecture
 
@@ -251,25 +188,17 @@ app/
 ├── Http/
 │   ├── Controllers/
 │   │   └── Admin/
-│   │       ├── DashboardController.php      # Admin dashboard
-│   │       ├── UserManagementController.php # User management
-│   │       ├── LlmModelController.php       # LLM model CRUD
-│   │       ├── SettingsController.php       # Settings management
-│   │       ├── GenerationHistoryController.php
-│   │       ├── CustomPageStatsController.php
-│   │       └── SystemLogsController.php
-│   ├── Middleware/
-│   │   └── AdminMiddleware.php              # Check is_admin
-│   └── Requests/
-│       └── Admin/
-│           ├── UpdateLlmModelRequest.php
-│           ├── UpdateSettingRequest.php
-│           └── UpdateUserRequest.php
+│   │       ├── DashboardController.php
+│   │       ├── UserManagementController.php
+│   │       ├── LlmModelController.php
+│   │       ├── SettingsController.php
+│   │       └── GenerationHistoryController.php
+│   └── Middleware/
+│       └── AdminMiddleware.php
 ├── Services/
-│   ├── AdminStatisticsService.php           # Dashboard stats
-│   └── SystemHealthService.php              # System health checks
+│   └── AdminStatisticsService.php
 └── Models/
-    └── AdminSetting.php                      # Existing
+    └── AdminSetting.php
 ```
 
 ### Frontend Structure
@@ -278,34 +207,15 @@ app/
 resources/js/
 ├── pages/
 │   └── Admin/
-│       ├── Index.vue                        # Dashboard
+│       ├── Index.vue              # Dashboard
 │       ├── Users/
-│       │   ├── Index.vue                    # Users list
-│       │   ├── Show.vue                     # User detail
-│       │   └── Edit.vue                     # Edit user
-│       ├── Models/
-│       │   ├── Index.vue                    # LLM models list
-│       │   ├── Create.vue                   # Add model
-│       │   └── Edit.vue                     # Edit model
-│       ├── Settings/
-│       │   └── Index.vue                    # Settings page
-│       ├── Generations/
-│       │   ├── Index.vue                    # Generations list
-│       │   └── Show.vue                     # Generation detail
-│       ├── CustomPages/
-│       │   └── Index.vue                    # Custom pages stats
-│       └── Logs/
-│           └── Index.vue                    # System logs
-├── components/
-│   └── admin/
-│       ├── StatCard.vue                     # Statistics card
-│       ├── ChartCard.vue                    # Chart wrapper
-│       ├── UsersTable.vue                   # Users table
-│       ├── ModelsTable.vue                  # LLM models table
-│       ├── GenerationsTable.vue             # Generations table
-│       └── SettingsForm.vue                 # Settings form
-└── lib/
-    └── charts.ts                            # Chart.js utilities
+│       │   └── Index.vue          # Users list
+│       └── Models/
+│           ├── Index.vue          # LLM models list
+│           └── Edit.vue           # Edit model
+└── components/
+    └── admin/
+        └── (admin components)
 ```
 
 ### Routes Structure
@@ -337,25 +247,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('generations/{generation}', [Admin\GenerationHistoryController::class, 'show'])->name('generations.show');
     Route::post('generations/{generation}/refund', [Admin\GenerationHistoryController::class, 'refund'])->name('generations.refund');
     Route::post('generations/{generation}/retry', [Admin\GenerationHistoryController::class, 'retry'])->name('generations.retry');
-    
-    // Custom Pages Statistics
-    Route::get('custom-pages', [Admin\CustomPageStatsController::class, 'index'])->name('custom-pages.index');
-    Route::post('custom-pages/{id}/promote', [Admin\CustomPageStatsController::class, 'promote'])->name('custom-pages.promote');
-    
-    // System Logs
-    Route::get('logs', [Admin\SystemLogsController::class, 'index'])->name('logs.index');
-    Route::post('logs/clear', [Admin\SystemLogsController::class, 'clear'])->name('logs.clear');
 });
 ```
 
-### Database Schema Updates
-
-#### Users Table
-```sql
-ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE;
-ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
-ALTER TABLE users ADD COLUMN suspended_at TIMESTAMP NULL;
-```
+---
 
 ## Security Considerations
 
@@ -369,170 +264,30 @@ ALTER TABLE users ADD COLUMN suspended_at TIMESTAMP NULL;
    - All inputs validated via Form Requests
    - XSS protection on output
    - SQL injection protection via Eloquent
-   - File upload restrictions (logs, exports)
 
-3. **Audit Trail**
-   - Log all admin actions
-   - Track who changed what settings
-   - Record credit adjustments
-   - Monitor model configuration changes
-
-4. **Data Protection**
-   - Sensitive settings encrypted
+3. **Data Protection**
    - API keys never displayed in full
    - User passwords never shown
-   - PII handling compliant
+   - Sensitive settings encrypted
 
-## Performance Considerations
-
-1. **Caching**
-   - Cache AdminSettings for 1 hour
-   - Cache dashboard statistics for 5 minutes
-   - Cache model lists for 10 minutes
-   - Clear cache on updates
-
-2. **Pagination**
-   - All lists paginated (25 items default)
-   - Lazy loading for large datasets
-   - Optimized queries with relationships
-
-3. **Real-time Updates**
-   - Use polling for dashboard stats (30s interval)
-   - WebSocket for live generation monitoring (future)
-   - Queue status updates
-
-## Internationalization
-
-Semua teks admin panel ditambahkan ke `i18n.ts`:
-
-```typescript
-admin: {
-  dashboard: {
-    title: string;
-    statistics: string;
-    users: string;
-    templates: string;
-    credits: string;
-    models: string;
-    systemHealth: string;
-  };
-  users: {
-    title: string;
-    totalUsers: string;
-    premiumUsers: string;
-    freeUsers: string;
-    editCredits: string;
-    // ... more keys
-  };
-  models: {
-    title: string;
-    addModel: string;
-    editModel: string;
-    // ... more keys
-  };
-  settings: {
-    title: string;
-    billingSettings: string;
-    generationSettings: string;
-    // ... more keys
-  };
-  // ... more sections
-}
-```
-
-## Charts & Visualizations
-
-Menggunakan **Chart.js** (sesuai constraint):
-
-1. **Dashboard Charts**:
-   - Line Chart: Generations trend
-   - Pie Chart: Category distribution
-   - Bar Chart: Model usage
-   - Doughnut Chart: Credit distribution
-
-2. **Chart Configuration**:
-   - Responsive
-   - Dark mode aware
-   - Animated transitions
-   - Interactive tooltips
-   - Export to PNG
+---
 
 ## Implementation Priority
 
-### Phase 1 (MVP) - Priority High
+### Phase 1 (MVP) - Completed ✅
 1. ✅ Middleware admin
 2. ✅ Dashboard admin (basic stats)
 3. ✅ User management (view, edit credits)
 4. ✅ LLM models management (CRUD)
 5. ✅ Settings management (billing & generation)
+6. ✅ Generation history
 
-### Phase 2 - Priority Medium
-6. ⏳ Generation history (full)
+### Phase 2 - Pending ⏳
 7. ⏳ Custom pages statistics
 8. ⏳ Advanced charts & visualizations
 9. ⏳ Bulk actions
+10. ⏳ Export functionality
 
-### Phase 3 - Priority Low
-10. ⏳ System logs viewer
-11. ⏳ Audit trail
-12. ⏳ Export functionality
-13. ⏳ Advanced filtering
+---
 
-## Testing Strategy
-
-### Unit Tests
-- AdminStatisticsService methods
-- AdminMiddleware logic
-- Credit adjustment calculations
-- Setting validation
-
-### Feature Tests
-- Admin dashboard loading
-- User management CRUD
-- Model management CRUD
-- Settings update
-- Access control (non-admin blocked)
-- Credit refund workflow
-
-### Browser Tests (Manual)
-- Responsive layout
-- Dark mode
-- Charts rendering
-- Form validations
-- Real-time updates
-
-## Maintenance
-
-1. **Regular Tasks**
-   - Monitor system health metrics
-   - Review failed generations weekly
-   - Audit credit transactions monthly
-   - Update LLM pricing quarterly
-   - Clear old logs monthly
-
-2. **Monitoring**
-   - Track admin actions
-   - Monitor API usage
-   - Watch error rates
-   - Review performance metrics
-
-## Future Enhancements
-
-1. **Advanced Features**
-   - Role-based admin levels
-   - Multi-admin support
-   - API key management UI
-   - Webhook configuration
-   - A/B testing tools
-
-2. **Analytics**
-   - User behavior tracking
-   - Conversion funnel
-   - Retention metrics
-   - Cohort analysis
-
-3. **Automation**
-   - Auto-scaling credits
-   - Anomaly detection
-   - Automated reports
-   - Smart recommendations
+## Sat-set! 🚀

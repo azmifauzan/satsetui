@@ -60,7 +60,7 @@ const scrollToSection = (sectionId: string) => {
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-    <Head :title="t.landing?.title || 'Template Generator'" />
+    <Head :title="t.landing?.title || 'SatsetUI'" />
 
     <!-- Navbar -->
     <Navbar 

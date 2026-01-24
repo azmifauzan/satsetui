@@ -24,7 +24,7 @@ class AdminUserSeeder extends Seeder
         // Create admin user
         User::create([
             'name' => 'Admin',
-            'email' => 'admin@templategen.com',
+            'email' => 'admin@satsetui.com',
             'password' => Hash::make('admin123'),
             'credits' => 1000,
             'is_premium' => true,
@@ -34,7 +34,7 @@ class AdminUserSeeder extends Seeder
         ]);
 
         $this->command->info('Admin user created successfully!');
-        $this->command->info('Email: admin@templategen.com');
+        $this->command->info('Email: admin@satsetui.com');
         $this->command->info('Password: admin123');
         $this->command->warn('Please change the password after first login!');
     }

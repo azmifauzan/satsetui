@@ -19,7 +19,7 @@ const toggleFaq = (index: number) => {
           {{ t.landing?.faq?.title || 'Frequently Asked Questions' }}
         </h2>
         <p class="text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-          {{ t.landing?.faq?.subtitle || 'Find answers to common questions about Template Generator' }}
+          {{ t.landing?.faq?.subtitle || 'Find answers to common questions about SatsetUI' }}
         </p>
       </div>
       

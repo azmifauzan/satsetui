@@ -79,7 +79,7 @@ const navigation = computed(() => [
           </div>
           <div>
             <span class="text-lg font-bold text-slate-900 dark:text-white">Admin Panel</span>
-            <div class="text-xs text-red-600 dark:text-red-400 font-medium">Template Generator</div>
+            <div class="text-xs text-red-600 dark:text-red-400 font-medium">SatsetUI</div>
           </div>
         </Link>
         <button

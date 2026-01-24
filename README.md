@@ -1,6 +1,8 @@
-# Template Generator
+# SatsetUI
 
 Platform wizard-driven untuk menghasilkan template frontend yang konsisten, dapat diprediksi, dan siap produksi. Sistem berbasis konfigurasi terstruktur, bukan prompt bebas.
+
+> **"Sat-set"** - Bahasa slang Indonesia yang berarti cepat dan efisien. SatsetUI membuat pembuatan template UI jadi sat-set!
 
 ## 🌟 Fitur Utama
 
@@ -40,8 +42,8 @@ Platform wizard-driven untuk menghasilkan template frontend yang konsisten, dapa
 
 1. Clone repository
 ```bash
-git clone https://github.com/yourusername/template-aspri.git
-cd template-aspri
+git clone https://github.com/yourusername/satsetui.git
+cd satsetui
 ```
 
 2. Install dependencies
@@ -61,7 +63,7 @@ php artisan key:generate
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_DATABASE=your_database
+DB_DATABASE=satsetui
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
 ```
@@ -71,7 +73,12 @@ DB_PASSWORD=your_password
 php artisan migrate
 ```
 
-6. Start development servers
+6. Seed data awal
+```bash
+php artisan db:seed --class=LlmModelSeeder
+```
+
+7. Start development servers
 ```bash
 # Terminal 1 - Laravel
 php artisan serve
@@ -81,11 +88,6 @@ npm run dev
 
 # Terminal 3 - Queue Worker (untuk generasi template)
 php artisan queue:work
-```
-
-7. Seed data awal (opsional)
-```bash
-php artisan db:seed --class=LlmModelSeeder
 ```
 
 8. Buka aplikasi di browser
@@ -118,7 +120,7 @@ Kredit dihitung berdasarkan:
 ## 🎨 Cara Menggunakan Generator
 
 ### 1. Login atau Register
-Buat akun baru atau login dengan akun existing
+Buat akun baru atau login dengan akun existing. User baru mendapat 25 kredit gratis.
 
 ### 2. Akses Dashboard
 Setelah login, Anda akan diarahkan ke dashboard yang menampilkan:
@@ -160,7 +162,7 @@ Setelah login, Anda akan diarahkan ke dashboard yang menampilkan:
 ### Build Docker Image
 
 ```bash
-docker build -t template-generator .
+docker build -t satsetui .
 ```
 
 ### Run dengan Docker Compose
@@ -174,12 +176,13 @@ Aplikasi akan berjalan di `http://localhost:8000`
 ## 📁 Struktur Project
 
 ```
-template-aspri/
+satsetui/
 ├── app/
 │   ├── Blueprints/              # JSON schema untuk blueprint template
 │   ├── Http/
 │   │   ├── Controllers/         # Controllers (Wizard, Generation, Admin)
-│   │   │   └── Auth/           # Authentication controllers
+│   │   │   ├── Auth/           # Authentication controllers
+│   │   │   └── Admin/          # Admin panel controllers
 │   │   └── Requests/           # Form requests & validasi
 │   ├── Jobs/                   # Background jobs
 │   │   └── ProcessTemplateGeneration.php  # Job generasi template
@@ -188,6 +191,7 @@ template-aspri/
 │   │   ├── Generation.php      # Model untuk generasi template
 │   │   ├── PageGeneration.php  # Model untuk generasi per halaman
 │   │   ├── LlmModel.php        # Model untuk LLM yang tersedia
+│   │   ├── AdminSetting.php    # Model untuk konfigurasi admin
 │   │   └── ...
 │   ├── Notifications/          # Email & notifikasi
 │   └── Services/               # Business logic
@@ -196,7 +200,8 @@ template-aspri/
 │       ├── GeminiService.php         # Integrasi Gemini API
 │       ├── OpenAICompatibleService.php  # Integrasi OpenAI-compatible API
 │       ├── CreditService.php         # Manajemen kredit
-│       └── CostTrackingService.php   # Tracking biaya generasi
+│       ├── CostTrackingService.php   # Tracking biaya generasi
+│       └── AdminStatisticsService.php # Statistik admin
 ├── resources/
 │   ├── js/
 │   │   ├── pages/              # Inertia pages
@@ -205,9 +210,12 @@ template-aspri/
 │   │   │   ├── Wizard/         # Template wizard
 │   │   │   ├── Generation/     # Halaman monitor generasi
 │   │   │   ├── Templates/      # Halaman template
-│   │   │   └── Welcome.vue     # Landing page
+│   │   │   ├── Admin/          # Admin panel pages
+│   │   │   └── Home.vue        # Landing page
 │   │   ├── layouts/            # Layout components
 │   │   │   └── AppLayout.vue   # Layout utama dengan sidebar
+│   │   ├── wizard/             # Wizard components
+│   │   │   └── steps/          # Step 1, 2, 3 components
 │   │   └── lib/                # Utilities (i18n, theme)
 │   └── css/
 │       └── app.css             # Tailwind CSS
@@ -221,6 +229,7 @@ template-aspri/
     ├── product-instruction.md  # Spesifikasi wizard 3 langkah
     ├── architecture.md         # Arsitektur per-page generation
     ├── llm-credit-system.md    # Sistem kredit
+    ├── admin-panel-architecture.md # Arsitektur admin panel
     └── ...
 ```
 
@@ -247,11 +256,15 @@ template-aspri/
 Tambahkan ke file `.env`:
 
 ```env
+# Application
+APP_NAME=SatsetUI
+APP_URL=http://localhost:8000
+
 # Database
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_DATABASE=template_aspri
+DB_DATABASE=satsetui
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
 
@@ -266,8 +279,12 @@ GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_API_URL=https://api.openai.com/v1
 
+# LLM API via Sumopod
+LLM_API_KEY=your_llm_api_key
+LLM_BASE_URL=https://ai.sumopod.com/v1
+
 # Kredit Sistem
-DEFAULT_FREE_CREDITS=100
+DEFAULT_FREE_CREDITS=25
 CREDIT_ERROR_MARGIN=10
 CREDIT_PROFIT_MARGIN=5
 ```
@@ -281,6 +298,17 @@ Aplikasi menggunakan Laravel authentication dengan fitur:
 - ✅ Rate limiting (5 attempts)
 - ✅ Session management
 - ✅ Protected routes
+- ✅ Admin middleware untuk panel admin
+
+## 👨‍💼 Admin Panel
+
+Admin panel tersedia di `/admin` dengan fitur:
+
+- **Dashboard**: Statistik sistem, user, dan generasi
+- **User Management**: Kelola user, kredit, dan status premium
+- **LLM Models**: Konfigurasi model LLM yang tersedia
+- **Settings**: Konfigurasi margin, API, dan sistem
+- **Generation History**: Riwayat semua generasi dengan detail
 
 ## 🌍 Bilingual Support
 
@@ -308,6 +336,9 @@ php artisan test --filter=AuthenticationTest
 
 # Run with coverage
 php artisan test --coverage
+
+# Run frontend tests
+npm run test
 ```
 
 ## 📝 License

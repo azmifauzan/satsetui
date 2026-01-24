@@ -97,7 +97,7 @@ export interface Translations {
     hideBlueprint: string;
     wizardFirst: string;
     wizardFirstDescription: string;
-    
+
     // Steps
     steps: {
       framework: {
@@ -896,7 +896,7 @@ const id: Translations = {
     confirmPassword: 'Konfirmasi Password',
   },
   landing: {
-    title: 'Template Generator - Buat Template Frontend dengan Mudah',
+    title: 'SatsetUI - Buat Template Frontend dengan Mudah & Sat-set!',
     hero: {
       title: 'Buat Template Frontend Profesional dalam Hitungan Menit',
       subtitle: 'Platform wizard-driven untuk menghasilkan template UI yang konsisten, dapat diprediksi, dan siap produksi. Tanpa coding manual, tanpa hasil yang acak.',
@@ -979,7 +979,7 @@ const id: Translations = {
     },
     faq: {
       title: 'Pertanyaan yang Sering Ditanyakan',
-      subtitle: 'Temukan jawaban atas pertanyaan umum tentang Template Generator',
+      subtitle: 'Temukan jawaban atas pertanyaan umum tentang SatsetUI',
     },
   },
   dashboard: {
@@ -998,7 +998,7 @@ const id: Translations = {
     browseTemplates: 'Jelajahi Template',
     browseTemplatesDesc: 'Lihat dan kelola template Anda',
     gettingStarted: 'Memulai',
-    gettingStartedDesc: 'Baru menggunakan Template Generator? Ikuti 3 langkah berikut',
+    gettingStartedDesc: 'Baru menggunakan SatsetUI? Ikuti 3 langkah berikut',
     step1Title: 'Step 1: Framework, Kategori & Output Format',
     step1Desc: 'Pilih CSS framework (Tailwind/Bootstrap/Pure CSS), kategori template, dan format output (HTML+CSS, React, Vue, Angular, Svelte, atau Custom).',
     step2Title: 'Step 2: Desain Visual & Konten',
@@ -1007,7 +1007,7 @@ const id: Translations = {
     step3Desc: 'Pilih model AI untuk generasi (Free: Gemini Flash, Premium: GPT-4, Claude, dll). Lihat estimasi biaya kredit sebelum generate.',
     startCreating: 'Mulai Membuat Template',
     faqTitle: 'Pertanyaan yang Sering Diajukan (FAQ)',
-    faqDesc: 'Temukan jawaban untuk pertanyaan umum tentang Template Generator',
+    faqDesc: 'Temukan jawaban untuk pertanyaan umum tentang SatsetUI',
   },
   theme: {
     light: 'Terang',
@@ -1016,11 +1016,11 @@ const id: Translations = {
   },
   faq: [
     {
-      question: 'Apa itu Template Generator?',
-      answer: 'Template Generator adalah platform wizard-driven untuk menghasilkan template frontend yang deterministic dan siap produksi. Berbeda dengan sistem prompt-to-design, kami menggunakan konfigurasi terstruktur melalui wizard 3 langkah yang menjamin hasil identik untuk pilihan yang sama. LLM hanya mengimplementasikan keputusan Anda, tidak menebak atau menginterpretasi.'
+      question: 'Apa itu SatsetUI?',
+      answer: 'SatsetUI ("sat-set" = cepat & efisien) adalah platform wizard-driven untuk menghasilkan template frontend yang deterministic dan siap produksi. Berbeda dengan sistem prompt-to-design, kami menggunakan konfigurasi terstruktur melalui wizard 3 langkah yang menjamin hasil identik untuk pilihan yang sama. LLM hanya mengimplementasikan keputusan Anda, tidak menebak atau menginterpretasi.'
     },
     {
-      question: 'Bagaimana cara menggunakan Template Generator?',
+      question: 'Bagaimana cara menggunakan SatsetUI?',
       answer: 'Klik "Mulai Membuat Template" di dashboard. Wizard 3 langkah akan memandu Anda: (1) Pilih Framework CSS (Tailwind/Bootstrap/Pure CSS), Kategori Template, dan Output Format (HTML+CSS/React/Vue/Angular/Svelte), (2) Konfigurasi Desain Visual & Konten - pilih halaman, layout navigasi, tema warna, UI density, dan komponen UI, (3) Pilih Model LLM. Estimasi kredit ditampilkan sebelum generate.'
     },
     {
@@ -1447,7 +1447,7 @@ const en: Translations = {
     confirmPassword: 'Confirm Password',
   },
   landing: {
-    title: 'Template Generator - Create Frontend Templates Easily',
+    title: 'SatsetUI - Create Frontend Templates Easily & Quickly!',
     hero: {
       title: 'Create Professional Frontend Templates in Minutes',
       subtitle: 'A wizard-driven platform for generating consistent, predictable, and production-ready UI templates. No manual coding, no random results.',
@@ -1530,7 +1530,7 @@ const en: Translations = {
     },
     faq: {
       title: 'Frequently Asked Questions',
-      subtitle: 'Find answers to common questions about Template Generator',
+      subtitle: 'Find answers to common questions about SatsetUI',
     },
   },
   dashboard: {
@@ -1549,7 +1549,7 @@ const en: Translations = {
     browseTemplates: 'Browse Templates',
     browseTemplatesDesc: 'View and manage your templates',
     gettingStarted: 'Getting Started',
-    gettingStartedDesc: 'New to Template Generator? Follow these 3 steps',
+    gettingStartedDesc: 'New to SatsetUI? Follow these 3 steps',
     step1Title: 'Step 1: Framework, Category & Output Format',
     step1Desc: 'Choose CSS framework (Tailwind/Bootstrap/Pure CSS), template category, and output format (HTML+CSS, React, Vue, Angular, Svelte, or Custom).',
     step2Title: 'Step 2: Visual Design & Content',
@@ -1558,7 +1558,7 @@ const en: Translations = {
     step3Desc: 'Select AI model for generation (Free: Gemini Flash, Premium: GPT-4, Claude, etc). View credit cost estimate before generating.',
     startCreating: 'Start Creating Template',
     faqTitle: 'Frequently Asked Questions (FAQ)',
-    faqDesc: 'Find answers to common questions about Template Generator',
+    faqDesc: 'Find answers to common questions about SatsetUI',
   },
   theme: {
     light: 'Light',
@@ -1567,11 +1567,11 @@ const en: Translations = {
   },
   faq: [
     {
-      question: 'What is Template Generator?',
-      answer: 'Template Generator is a wizard-driven platform for generating deterministic, production-ready frontend templates. Unlike prompt-to-design systems, we use structured configuration through a 3-step wizard that guarantees identical results for the same choices. The LLM only implements your decisions, never guesses or interprets.'
+      question: 'What is SatsetUI?',
+      answer: 'SatsetUI ("sat-set" = quick & efficient in Indonesian slang) is a wizard-driven platform for generating deterministic, production-ready frontend templates. Unlike prompt-to-design systems, we use structured configuration through a 3-step wizard that guarantees identical results for the same choices. The LLM only implements your decisions, never guesses or interprets.'
     },
     {
-      question: 'How to use Template Generator?',
+      question: 'How to use SatsetUI?',
       answer: 'Click "Start Creating Template" on dashboard. The 3-step wizard guides you: (1) Choose CSS Framework (Tailwind/Bootstrap/Pure CSS), Template Category, and Output Format (HTML+CSS/React/Vue/Angular/Svelte), (2) Configure Visual Design & Content - select pages, navigation layout, theme colors, UI density, and UI components, (3) Choose LLM Model. Credit estimate shown before generation.'
     },
     {
@@ -1666,7 +1666,7 @@ export function initLanguage(): void {
  */
 export function useI18n() {
   const t: ComputedRef<Translations> = computed(() => translations[currentLanguage.value]);
-  
+
   return {
     t,
     currentLang: computed(() => currentLanguage.value),

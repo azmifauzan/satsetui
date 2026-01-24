@@ -68,7 +68,7 @@ Opsi 2 - Clear Cookies:
 
 Kredensial default admin:
 ```
-Email: admin@templategen.com
+Email: admin@satsetui.com
 Password: admin123
 ```
 
@@ -188,7 +188,7 @@ APP_DEBUG=true
 - POST `/login` dengan body:
 ```json
 {
-  "email": "admin@templategen.com",
+  "email": "admin@satsetui.com",
   "password": "admin123"
 }
 ```
