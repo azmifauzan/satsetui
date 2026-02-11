@@ -30,7 +30,7 @@ return new class extends Migration
             $table->unsignedBigInteger('reference_id')->nullable();
             
             // Description & metadata
-            $table->string('description');
+            $table->text('description')->nullable();
             $table->json('metadata')->nullable(); // Model used, pages count, etc
             
             // Admin tracking

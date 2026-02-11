@@ -56,16 +56,18 @@ async function fetchModels() {
     const response = await axios.get(`/api/llm/models?${params.toString()}`);
     availableModels.value = response.data.models;
     
-    // Auto-select most expensive available model if none selected
+    // Auto-select middle model if none selected
     if (!wizardState.llmModel && availableModels.value.length > 0) {
-      // Sort by credits descending to get most expensive first
-      const sortedByExpensive = [...availableModels.value]
+      // Filter available models that user can afford
+      const affordableModels = [...availableModels.value]
         .filter(m => m.is_free || userCredits.value >= m.credits_required)
-        .sort((a, b) => b.credits_required - a.credits_required);
+        .sort((a, b) => a.credits_required - b.credits_required);
       
-      if (sortedByExpensive.length > 0) {
-        const mostExpensive = sortedByExpensive[0];
-        selectModel(mostExpensive.id, mostExpensive.credits_required);
+      if (affordableModels.length > 0) {
+        // Select the middle model (or middle-right if even number)
+        const middleIndex = Math.floor(affordableModels.length / 2);
+        const middleModel = affordableModels[middleIndex];
+        selectModel(middleModel.id, middleModel.credits_required);
       }
     }
   } catch (error) {
@@ -149,6 +151,18 @@ const allPages = computed(() => {
   
   return [...regularPages, ...customPages, ...componentPages, ...customComponentPages];
 });
+
+// Get model title from i18n based on model type
+function getModelTitle(modelType: string): string {
+  const key = modelType as 'fast' | 'professional' | 'expert';
+  return t.value.wizard?.steps?.llmModel?.[`${key}Title` as keyof typeof t.value.wizard.steps.llmModel] as string || modelType;
+}
+
+// Get model description from i18n based on model type
+function getModelDescription(modelType: string): string {
+  const key = modelType as 'fast' | 'professional' | 'expert';
+  return t.value.wizard?.steps?.llmModel?.[`${key}Desc` as keyof typeof t.value.wizard.steps.llmModel] as string || '';
+}
 </script>
 
 <template>
@@ -358,7 +372,7 @@ const allPages = computed(() => {
           >
             <div class="flex items-center justify-between mb-3">
               <h4 class="text-lg font-semibold text-slate-900 dark:text-white">
-                {{ model.name }}
+                {{ getModelTitle(model.id) }}
               </h4>
               <div
                 :class="[
@@ -384,7 +398,7 @@ const allPages = computed(() => {
             </div>
             
             <p class="text-slate-600 dark:text-slate-400 text-sm mb-4">
-              {{ model.description }}
+              {{ getModelDescription(model.id) }}
             </p>
             
             <!-- Total Credits -->
@@ -407,12 +421,6 @@ const allPages = computed(() => {
                 class="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
               >
                 {{ t.wizard?.steps?.llmModel?.insufficientCredits }}
-              </span>
-              <span 
-                v-else-if="model.credits_required <= 5"
-                class="text-xs px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-              >
-                {{ t.wizard?.steps?.llmModel?.economical }}
               </span>
             </div>
           </button>

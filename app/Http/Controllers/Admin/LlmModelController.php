@@ -5,73 +5,37 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\LlmModel;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 /**
- * LLM Model Management Controller
+ * LLM Model Configuration Controller
  * 
- * Handles CRUD operations for LLM models configuration.
+ * Manages the 3 fixed model types (fast, professional, expert)
+ * with configurable providers and settings
  */
 class LlmModelController extends Controller
 {
     /**
-     * Display a listing of LLM models
+     * Display the 3 model configurations
      */
     public function index()
     {
         $models = LlmModel::ordered()->get();
 
         return Inertia::render('Admin/Models/Index', [
-            'models' => $models,
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new model
-     */
-    public function create()
-    {
-        return Inertia::render('Admin/Models/Create');
-    }
-
-    /**
-     * Store a newly created model
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:llm_models,name'],
-            'display_name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string', 'max:500'],
-            'input_price_per_million' => ['required', 'numeric', 'min:0'],
-            'output_price_per_million' => ['required', 'numeric', 'min:0'],
-            'estimated_credits_per_generation' => ['required', 'integer', 'min:0'],
-            'context_length' => ['required', 'integer', 'min:0'],
-            'is_free' => ['required', 'boolean'],
-            'is_active' => ['required', 'boolean'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
-        ]);
-
-        // Auto-assign sort_order if not provided
-        if (!isset($validated['sort_order'])) {
-            $maxOrder = LlmModel::max('sort_order') ?? 0;
-            $validated['sort_order'] = $maxOrder + 1;
-        }
-
-        $model = LlmModel::create($validated);
-
-        return redirect()->route('admin.models.index')
-            ->with('success', 'Model LLM berhasil ditambahkan.');
-    }
-
-    /**
-     * Display the specified model
-     */
-    public function show(LlmModel $model)
-    {
-        return Inertia::render('Admin/Models/Show', [
-            'model' => $model,
+            'models' => $models->map(function ($model) {
+                return [
+                    'id' => $model->id,
+                    'model_type' => $model->model_type,
+                    'display_name' => $model->display_name,
+                    'description' => $model->description,
+                    'provider' => $model->provider,
+                    'model_name' => $model->model_name,
+                    'base_credits' => $model->base_credits,
+                    'is_active' => $model->is_active,
+                    // Don't expose API keys and base URLs in list
+                ];
+            }),
         ]);
     }
 
@@ -81,70 +45,65 @@ class LlmModelController extends Controller
     public function edit(LlmModel $model)
     {
         return Inertia::render('Admin/Models/Edit', [
-            'model' => $model,
+            'model' => [
+                'id' => $model->id,
+                'model_type' => $model->model_type,
+                'display_name' => $model->display_name,
+                'description' => $model->description,
+                'provider' => $model->provider,
+                'model_name' => $model->model_name,
+                'base_credits' => $model->base_credits,
+                'is_active' => $model->is_active,
+                // Don't send actual keys, just indicator
+                'has_api_key' => !empty($model->api_key),
+                'has_base_url' => !empty($model->base_url),
+            ],
         ]);
     }
 
     /**
-     * Update the specified model
+     * Update the specified model configuration
      */
     public function update(Request $request, LlmModel $model)
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', Rule::unique('llm_models')->ignore($model->id)],
-            'display_name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string', 'max:500'],
-            'input_price_per_million' => ['required', 'numeric', 'min:0'],
-            'output_price_per_million' => ['required', 'numeric', 'min:0'],
-            'estimated_credits_per_generation' => ['required', 'integer', 'min:0'],
-            'context_length' => ['required', 'integer', 'min:0'],
-            'is_free' => ['required', 'boolean'],
+            'provider' => ['required', 'in:gemini,openai'],
+            'model_name' => ['required', 'string', 'max:255'],
+            'api_key' => ['nullable', 'string'],
+            'base_url' => ['nullable', 'string', 'url'],
+            'base_credits' => ['required', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        // Only update API key if provided
+        if (empty($validated['api_key'])) {
+            unset($validated['api_key']);
+        }
+
+        // Only update base URL if provided
+        if (empty($validated['base_url'])) {
+            $validated['base_url'] = null;
+        }
 
         $model->update($validated);
 
         return redirect()->route('admin.models.index')
-            ->with('success', 'Model LLM berhasil diperbarui.');
+            ->with('success', 'Konfigurasi model berhasil diperbarui.');
     }
 
     /**
-     * Remove the specified model
+     * Toggle model activation status
      */
-    public function destroy(LlmModel $model)
+    public function toggleActive(LlmModel $model)
     {
-        // Check if model is being used in any generations
-        $usageCount = \App\Models\Generation::where('model_used', $model->name)->count();
-        
-        if ($usageCount > 0) {
-            return redirect()->back()
-                ->with('error', "Tidak dapat menghapus model ini karena sudah digunakan dalam {$usageCount} generation.");
-        }
-
-        $model->delete();
-
-        return redirect()->route('admin.models.index')
-            ->with('success', 'Model LLM berhasil dihapus.');
-    }
-
-    /**
-     * Reorder models (bulk update sort_order)
-     */
-    public function reorder(Request $request)
-    {
-        $validated = $request->validate([
-            'models' => ['required', 'array'],
-            'models.*.id' => ['required', 'exists:llm_models,id'],
-            'models.*.sort_order' => ['required', 'integer', 'min:0'],
+        $model->update([
+            'is_active' => !$model->is_active,
         ]);
 
-        foreach ($validated['models'] as $modelData) {
-            LlmModel::where('id', $modelData['id'])
-                ->update(['sort_order' => $modelData['sort_order']]);
-        }
+        $status = $model->is_active ? 'diaktifkan' : 'dinonaktifkan';
 
         return redirect()->back()
-            ->with('success', 'Urutan model berhasil diperbarui.');
+            ->with('success', "Model {$model->display_name} berhasil {$status}.");
     }
 }
+

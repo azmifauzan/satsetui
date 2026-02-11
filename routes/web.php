@@ -71,10 +71,15 @@ Route::middleware('auth')->group(function () {
         Route::post('users/{user}/toggle-status', [App\Http\Controllers\Admin\UserManagementController::class, 'toggleStatus'])
             ->name('users.toggle-status');
         
-        // LLM Models Management
-        Route::resource('models', App\Http\Controllers\Admin\LlmModelController::class);
-        Route::post('models/reorder', [App\Http\Controllers\Admin\LlmModelController::class, 'reorder'])
-            ->name('models.reorder');
+        // LLM Models Management (3 Fixed Models)
+        Route::get('models', [App\Http\Controllers\Admin\LlmModelController::class, 'index'])
+            ->name('models.index');
+        Route::get('models/{model}/edit', [App\Http\Controllers\Admin\LlmModelController::class, 'edit'])
+            ->name('models.edit');
+        Route::put('models/{model}', [App\Http\Controllers\Admin\LlmModelController::class, 'update'])
+            ->name('models.update');
+        Route::post('models/{model}/toggle-active', [App\Http\Controllers\Admin\LlmModelController::class, 'toggleActive'])
+            ->name('models.toggle-active');
         
         // Settings
         Route::get('settings', [App\Http\Controllers\Admin\SettingsController::class, 'index'])

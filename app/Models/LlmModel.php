@@ -2,32 +2,62 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
+/**
+ * LLM Model
+ * 
+ * Represents 3 fixed model types (fast, professional, expert)
+ * Each can be configured with different providers (Gemini or OpenAI)
+ */
 class LlmModel extends Model
 {
     protected $fillable = [
-        'name',
-        'display_name',
-        'description',
-        'input_price_per_million',
-        'output_price_per_million',
-        'estimated_credits_per_generation',
-        'context_length',
-        'is_free',
+        'model_type',
+        'provider',
+        'model_name',
+        'api_key',
+        'base_url',
+        'base_credits',
         'is_active',
-        'sort_order',
     ];
 
     protected $casts = [
-        'input_price_per_million' => 'decimal:7',
-        'output_price_per_million' => 'decimal:7',
-        'estimated_credits_per_generation' => 'integer',
-        'context_length' => 'integer',
-        'is_free' => 'boolean',
+        'base_credits' => 'integer',
         'is_active' => 'boolean',
-        'sort_order' => 'integer',
     ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     */
+    protected $hidden = [
+        'api_key',
+        'base_url',
+    ];
+
+    /**
+     * Get the model's encrypted API key
+     */
+    protected function apiKey(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value) => $value ? Crypt::decryptString($value) : null,
+            set: fn (?string $value) => $value ? Crypt::encryptString($value) : null,
+        );
+    }
+
+    /**
+     * Get the model's encrypted base URL
+     */
+    protected function baseUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value) => $value ? Crypt::decryptString($value) : null,
+            set: fn (?string $value) => $value ? Crypt::encryptString($value) : null,
+        );
+    }
 
     /**
      * Get active models only
@@ -38,26 +68,51 @@ class LlmModel extends Model
     }
 
     /**
-     * Get models ordered by sort order
+     * Get model by type
+     */
+    public function scopeByType($query, string $type)
+    {
+        return $query->where('model_type', $type);
+    }
+
+    /**
+     * Get all models ordered by type (fast -> professional -> expert)
      */
     public function scopeOrdered($query)
     {
-        return $query->orderBy('sort_order')->orderBy('name');
+        return $query->orderByRaw("
+            CASE model_type
+                WHEN 'fast' THEN 1
+                WHEN 'professional' THEN 2
+                WHEN 'expert' THEN 3
+            END
+        ");
     }
 
     /**
-     * Get free models
+     * Get display name based on model type
      */
-    public function scopeFree($query)
+    public function getDisplayNameAttribute(): string
     {
-        return $query->where('is_free', true);
+        return match($this->model_type) {
+            'fast' => 'Cepat',
+            'professional' => 'Profesional',
+            'expert' => 'Expert',
+            default => ucfirst($this->model_type),
+        };
     }
 
     /**
-     * Get premium models
+     * Get description based on model type
      */
-    public function scopePremium($query)
+    public function getDescriptionAttribute(): string
     {
-        return $query->where('is_free', false);
+        return match($this->model_type) {
+            'fast' => 'Generasi cepat dengan hasil berkualitas baik untuk template sederhana',
+            'professional' => 'Hasil berkualitas tinggi dengan keseimbangan kecepatan dan detail',
+            'expert' => 'Kualitas terbaik untuk template kompleks dengan fitur lengkap',
+            default => '',
+        };
     }
 }
+

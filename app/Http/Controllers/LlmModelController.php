@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LlmModel;
 use App\Services\CreditEstimationService;
-use App\Services\OpenAICompatibleService;
 use Illuminate\Http\Request;
 
+/**
+ * LLM Model API Controller
+ * 
+ * Provides the 3 model types to the wizard
+ */
 class LlmModelController extends Controller
 {
     public function __construct(
-        private OpenAICompatibleService $llmService,
         private CreditEstimationService $creditEstimation
     ) {}
 
@@ -19,7 +23,9 @@ class LlmModelController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $models = $this->llmService->getAvailableModels($user->hasPremiumAccess());
+        
+        // Get the 3 active models ordered by type
+        $models = LlmModel::active()->ordered()->get();
         
         // Get wizard context for better estimates (optional parameters from query)
         $category = $request->query('category');
@@ -28,24 +34,28 @@ class LlmModelController extends Controller
         $componentCount = (int) ($request->query('component_count', 0));
 
         // Enhance models with learned credit estimates
-        $enhancedModels = array_map(function ($model) use ($category, $framework, $pageCount, $componentCount) {
+        $enhancedModels = $models->map(function ($model) use ($category, $framework, $pageCount, $componentCount) {
             $estimation = $this->creditEstimation->estimateCredits(
-                $model['id'],
+                $model->model_type,
                 $category,
                 $framework,
                 $pageCount,
                 $componentCount
             );
             
-            return array_merge($model, [
+            return [
+                'id' => $model->model_type,
+                'name' => $model->display_name,
+                'description' => $model->description,
                 'credits_required' => $estimation['base_credits'],
+                'is_free' => false, // All models cost credits now
                 'estimation_confidence' => $estimation['confidence'],
                 'estimation_sample_count' => $estimation['sample_count'],
                 'estimation_source' => $estimation['source'],
                 // Keep original for comparison
-                'original_estimate' => $model['credits_required'],
-            ]);
-        }, $models);
+                'original_estimate' => $model->base_credits,
+            ];
+        })->toArray();
 
         return response()->json([
             'models' => $enhancedModels,
@@ -53,3 +63,4 @@ class LlmModelController extends Controller
         ]);
     }
 }
+

@@ -23,96 +23,34 @@ class OpenAICompatibleService
     }
 
     /**
-     * Generate template code using specified model
+     * Generate template code using specified model type
      * 
      * @param string $prompt The MCP prompt to send
-     * @param string $modelName The model identifier (e.g., 'claude-haiku-4-5')
+     * @param string $modelType The model type identifier ('fast', 'professional', 'expert')
      * @return array Response with success status, content, and token usage
      */
-    public function generateTemplate(string $prompt, string $modelName): array
+    public function generateTemplate(string $prompt, string $modelType): array
     {
         try {
-            $http = Http::timeout(300)
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                    'Authorization' => "Bearer {$this->apiKey}",
-                ]);
+            $model = $this->getModelByType($modelType);
             
-            // Disable SSL verification for development environment only
-            if (config('app.env') !== 'production') {
-                $http = $http->withOptions([
-                    'verify' => false,
-                ]);
-            }
-            
-            $response = $http->post("{$this->baseUrl}/chat/completions", [
-                    'model' => $modelName,
-                    'messages' => [
-                        [
-                            'role' => 'user',
-                            'content' => $prompt,
-                        ],
-                    ],
-                    'max_tokens' => 60000,
-                    'temperature' => 1.0,
-                ]);
-
-            if ($response->failed()) {
-                Log::error('LLM API Error', [
-                    'model' => $modelName,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                
+            if (!$model) {
                 return [
                     'success' => false,
-                    'error' => 'Failed to generate template: ' . $response->body(),
+                    'error' => "Model type '{$modelType}' not found or inactive",
                 ];
             }
 
-            $data = $response->json();
-            
-            if (!isset($data['choices'][0]['message']['content'])) {
-                Log::error('Invalid LLM API Response', [
-                    'model' => $modelName,
-                    'response' => $data,
-                ]);
-                
-                return [
-                    'success' => false,
-                    'error' => 'Invalid response from LLM API',
-                ];
+            // Route to appropriate provider
+            if ($model->provider === 'gemini') {
+                return $this->generateWithGemini($prompt, $model);
+            } else {
+                return $this->generateWithOpenAI($prompt, $model);
             }
-
-            $content = $data['choices'][0]['message']['content'];
-            $usage = $data['usage'] ?? null;
-
-            return [
-                'success' => true,
-                'content' => $content,
-                'model' => $modelName,
-                'usage' => [
-                    'input_tokens' => $usage['prompt_tokens'] ?? 0,
-                    'output_tokens' => $usage['completion_tokens'] ?? 0,
-                    'total_tokens' => $usage['total_tokens'] ?? 0,
-                ],
-                'raw_request' => json_encode([
-                    'model' => $modelName,
-                    'messages' => [
-                        [
-                            'role' => 'user',
-                            'content' => $prompt,
-                        ],
-                    ],
-                    'max_tokens' => 60000,
-                    'temperature' => 1.0,
-                ]),
-                'raw_response' => $response->body(),
-            ];
 
         } catch (\Exception $e) {
             Log::error('LLM Service Exception', [
-                'model' => $modelName,
+                'model_type' => $modelType,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -125,70 +63,180 @@ class OpenAICompatibleService
     }
 
     /**
-     * Get available models for user
-     * 
-     * @param bool $isPremium Whether user has premium access (credits > 0)
-     * @return array List of available models
+     * Generate with Gemini provider
      */
-    public function getAvailableModels(bool $isPremium): array
+    private function generateWithGemini(string $prompt, LlmModel $model): array
     {
-        $query = LlmModel::active()->ordered();
+        $baseUrl = $model->base_url ?: 'https://generativelanguage.googleapis.com/v1beta';
+        $apiKey = $model->api_key;
         
-        if (!$isPremium) {
-            $query->free();
+        $http = Http::timeout(300);
+        
+        // Disable SSL verification for development environment only
+        if (config('app.env') !== 'production') {
+            $http = $http->withOptions(['verify' => false]);
         }
         
-        return $query->get()
-            ->map(fn($model) => [
-                'id' => $model->name,
-                'name' => $model->display_name,
-                'description' => $model->description,
-                'credits_required' => $model->estimated_credits_per_generation,
-                'is_free' => $model->is_free,
-            ])
-            ->toArray();
+        $response = $http->post("{$baseUrl}/models/{$model->model_name}:generateContent?key={$apiKey}", [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => 1.0,
+                'topK' => 40,
+                'topP' => 0.95,
+                'maxOutputTokens' => 60000,
+            ],
+        ]);
+
+        if ($response->failed()) {
+            Log::error('Gemini API Error', [
+                'model' => $model->model_name,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            
+            return [
+                'success' => false,
+                'error' => 'Failed to generate template: ' . $response->body(),
+            ];
+        }
+
+        $data = $response->json();
+        
+        if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+            Log::error('Invalid Gemini API Response', [
+                'model' => $model->model_name,
+                'response' => $data,
+            ]);
+            
+            return [
+                'success' => false,
+                'error' => 'Invalid response from Gemini API',
+            ];
+        }
+
+        $content = $data['candidates'][0]['content']['parts'][0]['text'];
+        $usage = $data['usageMetadata'] ?? null;
+
+        return [
+            'success' => true,
+            'content' => $content,
+            'model' => $model->model_name,
+            'usage' => [
+                'input_tokens' => $usage['promptTokenCount'] ?? 0,
+                'output_tokens' => $usage['candidatesTokenCount'] ?? 0,
+                'total_tokens' => $usage['totalTokenCount'] ?? 0,
+            ],
+            'raw_response' => $response->body(),
+        ];
     }
 
     /**
-     * Get model by name
+     * Generate with OpenAI-compatible provider
      */
-    public function getModel(string $modelName): ?LlmModel
+    private function generateWithOpenAI(string $prompt, LlmModel $model): array
     {
-        return LlmModel::where('name', $modelName)
+        $baseUrl = $model->base_url ?: 'https://api.openai.com/v1';
+        $apiKey = $model->api_key;
+        
+        $http = Http::timeout(300)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                'Authorization' => "Bearer {$apiKey}",
+            ]);
+        
+        // Disable SSL verification for development environment only
+        if (config('app.env') !== 'production') {
+            $http = $http->withOptions(['verify' => false]);
+        }
+        
+        $response = $http->post("{$baseUrl}/chat/completions", [
+            'model' => $model->model_name,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+            ],
+            'max_tokens' => 60000,
+            'temperature' => 1.0,
+        ]);
+
+        if ($response->failed()) {
+            Log::error('OpenAI API Error', [
+                'model' => $model->model_name,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            
+            return [
+                'success' => false,
+                'error' => 'Failed to generate template: ' . $response->body(),
+            ];
+        }
+
+        $data = $response->json();
+        
+        if (!isset($data['choices'][0]['message']['content'])) {
+            Log::error('Invalid OpenAI API Response', [
+                'model' => $model->model_name,
+                'response' => $data,
+            ]);
+            
+            return [
+                'success' => false,
+                'error' => 'Invalid response from OpenAI API',
+            ];
+        }
+
+        $content = $data['choices'][0]['message']['content'];
+        $usage = $data['usage'] ?? null;
+
+        return [
+            'success' => true,
+            'content' => $content,
+            'model' => $model->model_name,
+            'usage' => [
+                'input_tokens' => $usage['prompt_tokens'] ?? 0,
+                'output_tokens' => $usage['completion_tokens'] ?? 0,
+                'total_tokens' => $usage['total_tokens'] ?? 0,
+            ],
+            'raw_response' => $response->body(),
+        ];
+    }
+
+    /**
+     * Get model by type (fast, professional, expert)
+     */
+    public function getModelByType(string $modelType): ?LlmModel
+    {
+        return LlmModel::where('model_type', $modelType)
             ->active()
             ->first();
     }
 
     /**
-     * Calculate actual credits used based on token usage
+     * Calculate actual credits used based on model's base credits
      * 
-     * This provides more accurate billing after generation completes
+     * This provides billing after generation completes
      */
     public function calculateActualCredits(
-        string $modelName,
+        string $modelType,
         int $inputTokens,
         int $outputTokens
     ): float {
-        $model = $this->getModel($modelName);
+        $model = $this->getModelByType($modelType);
         
         if (!$model) {
             return 0;
         }
 
-        // Constants
-        $usdToIdr = 18000;
-        $margin = 0.05; // 5%
-        $creditValue = 1000; // IDR
-
-        // Calculate USD cost
-        $inputCost = ($inputTokens / 1_000_000) * $model->input_price_per_million;
-        $outputCost = ($outputTokens / 1_000_000) * $model->output_price_per_million;
-        $totalUsd = $inputCost + $outputCost;
-
-        // Convert to IDR with margin
-        $totalIdr = $totalUsd * $usdToIdr * (1 + $margin);
-
-        // Convert to credits
-        return ceil($totalIdr / $creditValue);
+        // Use base credits as configured by admin
+        return $model->base_credits;
     }
 }

@@ -27,43 +27,40 @@ class GenerationService
      * 
      * @param array $blueprint The template blueprint
      * @param User $user The user initiating generation
-     * @param string|null $modelName Optional model name (if null, auto-select)
+     * @param string|null $modelType Optional model type (fast/professional/expert)
      * @param string|null $projectName Optional project name
      */
     public function startGeneration(
         array $blueprint, 
         User $user, 
-        ?string $modelName = null,
+        ?string $modelType = null,
         ?string $projectName = null
     ): array {
         // Get all pages to generate (includes regular pages, custom pages, and component showcase pages)
         $pages = $this->mcpPromptBuilder->getPageList($blueprint);
         $totalPages = count($pages);
         
-        // Auto-select model if not provided
-        if (!$modelName) {
-            $isPremium = $user->credits > 0;
-            $modelName = $isPremium ? 'claude-haiku-4-5' : 'gemini-2.5-flash';
+        // Default to 'professional' if not provided
+        if (!$modelType) {
+            $modelType = 'professional';
         }
 
         // Get model details
-        $model = $this->llmService->getModel($modelName);
+        $model = $this->llmService->getModelByType($modelType);
         if (!$model) {
             return [
                 'success' => false,
-                'error' => 'Model not found or inactive',
+                'error' => 'Model type not found or inactive',
             ];
         }
 
-        // Check if user has enough credits for premium models
-        if (!$model->is_free) {
-            $requiredCredits = $model->estimated_credits_per_generation;
-            if ($user->credits < $requiredCredits) {
-                return [
-                    'success' => false,
-                    'error' => 'Insufficient credits. Required: ' . $requiredCredits . ', Available: ' . $user->credits,
-                ];
-            }
+        // Check if user has enough credits
+        $requiredCredits = $model->base_credits;
+        if ($user->credits < $requiredCredits) {
+            return [
+                'success' => false,
+                'error' => 'Insufficient credits. Required: ' . $requiredCredits . ', Available: ' . $user->credits,
+            ];
         }
 
         DB::beginTransaction();
@@ -81,8 +78,8 @@ class GenerationService
             $generation = Generation::create([
                 'user_id' => $user->id,
                 'project_id' => $project->id,
-                'model_used' => $modelName,
-                'credits_used' => $model->is_free ? 0 : $model->estimated_credits_per_generation,
+                'model_used' => $modelType,
+                'credits_used' => $requiredCredits,
                 'status' => 'processing',
                 'current_status' => 'generating',
                 'total_pages' => $totalPages,
@@ -92,12 +89,11 @@ class GenerationService
                 'started_at' => now(),
             ]);
 
-            // Charge credits upfront if premium model
-            if (!$model->is_free) {
-                $this->creditService->charge(
-                    $user,
-                    $model->estimated_credits_per_generation,
-                    $generation,
+            // Charge credits upfront
+            $this->creditService->charge(
+                $user,
+                $requiredCredits,
+                $generation,
                     "Template generation: {$projectName}"
                 );
             }
@@ -108,7 +104,7 @@ class GenerationService
                 'success' => true,
                 'generation_id' => $generation->id,
                 'total_pages' => $totalPages,
-                'model' => $modelName,
+                'model' => $modelType,
                 'credits_charged' => $generation->credits_used,
             ];
 
@@ -149,9 +145,9 @@ class GenerationService
         ]);
 
         try {
-            // Get model details to check context length
-            $model = $this->llmService->getModel($generation->model_used);
-            $contextLimit = $model ? $model->context_length : 8192; // Default 8k tokens
+            // Get model details
+            $model = $this->llmService->getModelByType($generation->model_used);
+            $contextLimit = $model ? 200000 : 8192; // Default context or reasonable limit
             
             // Build prompt for current page with context from previous pages
             $project = $generation->project;

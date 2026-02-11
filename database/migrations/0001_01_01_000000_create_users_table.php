@@ -19,6 +19,9 @@ return new class extends Migration
             $table->string('password');
             $table->integer('credits')->default(25);
             $table->boolean('is_premium')->default(false);
+            $table->boolean('is_admin')->default(false);
+            $table->boolean('is_active')->default(true);
+            $table->timestamp('suspended_at')->nullable();
             $table->string('preferred_model')->nullable();
             $table->string('language')->default('id'); // 'id' or 'en'
             $table->rememberToken();

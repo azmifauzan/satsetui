@@ -19,6 +19,7 @@ return new class extends Migration
             $table->decimal('input_price_per_million', 10, 7); // USD per 1M tokens
             $table->decimal('output_price_per_million', 10, 7); // USD per 1M tokens
             $table->integer('estimated_credits_per_generation'); // Pre-calculated credits
+            $table->integer('context_length')->default(8192)->comment('Maximum context window size in tokens');
             $table->boolean('is_free')->default(false);
             $table->boolean('is_active')->default(true);
             $table->integer('sort_order')->default(0);

@@ -9,6 +9,7 @@ interface User {
   name: string;
   email: string;
   language?: string;
+  is_admin?: boolean;
 }
 
 const page = usePage();
@@ -37,10 +38,24 @@ const changeLanguage = (lang: 'id' | 'en') => {
   });
 };
 
-const navigation = computed(() => [
-  { name: t.value?.nav?.dashboard || 'Dashboard', href: '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', current: page.url === '/dashboard' },
-  { name: t.value?.nav?.templates || 'Templates', href: '/templates', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', current: page.url === '/templates' },
-]);
+const navigation = computed(() => {
+  const nav = [
+    { name: t.value?.nav?.dashboard || 'Dashboard', href: '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', current: page.url === '/dashboard' },
+    { name: t.value?.nav?.templates || 'Templates', href: '/templates', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', current: page.url === '/templates' },
+  ];
+  
+  // Add admin menu if user is admin
+  if (user.value?.is_admin) {
+    nav.push({
+      name: t.value?.nav?.admin || 'Admin',
+      href: '/admin',
+      icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+      current: page.url.startsWith('/admin')
+    });
+  }
+  
+  return nav;
+});
 </script>
 
 <template>
@@ -97,7 +112,7 @@ const navigation = computed(() => [
     <div :class="['transition-all duration-200', sidebarOpen ? 'lg:ml-64' : 'ml-0']">
       <!-- Top Bar -->
       <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40">
-        <div class="flex items-center justify-between px-6 py-4">
+        <div class="flex items-center justify-between h-16 px-6">
           <button
             @click="toggleSidebar"
             class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
