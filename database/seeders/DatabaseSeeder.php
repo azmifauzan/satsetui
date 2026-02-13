@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             LlmModelSeeder::class,
             AdminUserSeeder::class,
+            AdminSettingSeeder::class,
         ]);
     }
 }

@@ -10,13 +10,13 @@ use Inertia\Inertia;
 /**
  * LLM Model Configuration Controller
  * 
- * Manages the 3 fixed model types (fast, professional, expert)
+ * Manages the 2 fixed model types (satset, expert)
  * with configurable providers and settings
  */
 class LlmModelController extends Controller
 {
     /**
-     * Display the 3 model configurations
+     * Display the 2 model configurations
      */
     public function index()
     {
@@ -57,6 +57,7 @@ class LlmModelController extends Controller
                 // Don't send actual keys, just indicator
                 'has_api_key' => !empty($model->api_key),
                 'has_base_url' => !empty($model->base_url),
+                'base_url' => $model->base_url,
             ],
         ]);
     }

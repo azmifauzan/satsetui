@@ -5,7 +5,7 @@ import { useI18n } from '@/lib/i18n';
 
 interface LlmModel {
   id: number;
-  model_type: 'fast' | 'professional' | 'expert';
+  model_type: 'satset' | 'expert';
   display_name: string;
   description: string;
   provider: 'gemini' | 'openai';
@@ -55,7 +55,7 @@ const formatNumber = (num: number) => {
         <div class="mb-6">
           <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Model AI</h1>
           <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Kelola konfigurasi 3 model AI (Cepat, Profesional, Expert) untuk generasi template
+            Kelola konfigurasi 2 model AI (Satset & Expert) untuk generasi template
           </p>
         </div>
 
@@ -67,17 +67,17 @@ const formatNumber = (num: number) => {
             </svg>
             <div class="flex-1">
               <h3 class="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">
-                💡 Sistem 3 Model Tetap
+                💡 Sistem 2 Model
               </h3>
               <p class="text-sm text-blue-700 dark:text-blue-300">
-                SatsetUI menggunakan 3 tipe model tetap. Anda dapat mengkonfigurasi setiap model untuk menggunakan provider (Gemini/OpenAI) dan model yang berbeda, serta mengatur base credit untuk setiap generasi.
+                SatsetUI menggunakan 2 tipe model: <strong>Satset</strong> (cepat & hemat) dan <strong>Expert</strong> (kualitas tinggi). Anda dapat mengkonfigurasi provider, model, base URL, dan base credit untuk masing-masing.
               </p>
             </div>
           </div>
         </div>
 
         <!-- Models Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div
             v-for="model in props.models"
             :key="model.id"
@@ -88,8 +88,7 @@ const formatNumber = (num: number) => {
               <span 
                 :class="[
                   'px-3 py-1 rounded-lg text-sm font-semibold',
-                  model.model_type === 'fast' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                  model.model_type === 'professional' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' :
+                  model.model_type === 'satset' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
                   'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
                 ]"
               >
@@ -158,7 +157,7 @@ const formatNumber = (num: number) => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
           </svg>
           <h3 class="mt-2 text-sm font-medium text-slate-900 dark:text-white">Tidak ada model</h3>
-          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Jalankan seeder untuk membuat 3 model default.</p>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Jalankan seeder untuk membuat 2 model default.</p>
         </div>
       </div>
     </div>

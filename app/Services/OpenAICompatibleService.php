@@ -26,7 +26,7 @@ class OpenAICompatibleService
      * Generate template code using specified model type
      * 
      * @param string $prompt The MCP prompt to send
-     * @param string $modelType The model type identifier ('fast', 'professional', 'expert')
+     * @param string $modelType The model type identifier ('satset', 'expert')
      * @return array Response with success status, content, and token usage
      */
     public function generateTemplate(string $prompt, string $modelType): array

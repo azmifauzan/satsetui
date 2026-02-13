@@ -1,96 +1,48 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import { useTheme } from '@/lib/theme';
 import { useI18n } from '@/lib/i18n';
 import Navbar from '@/components/landing/Navbar.vue';
 import HeroSection from '@/components/landing/HeroSection.vue';
+import FeaturesSection from '@/components/landing/FeaturesSection.vue';
 import HowItWorksSection from '@/components/landing/HowItWorksSection.vue';
-import CategoriesSection from '@/components/landing/CategoriesSection.vue';
 import FaqSection from '@/components/landing/FaqSection.vue';
 import CtaSection from '@/components/landing/CtaSection.vue';
 import Footer from '@/components/landing/Footer.vue';
 
-interface Props {
-  auth?: {
-    user: {
-      name: string;
-      email: string;
-    };
-  };
+const { isDark, toggleTheme } = useTheme();
+const { toggleLanguage } = useI18n();
+
+const page = usePage();
+const auth = computed(() => (page.props as any).auth);
+
+function scrollToSection(sectionId: string) {
+  const el = document.getElementById(sectionId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' });
+  }
 }
-
-const props = defineProps<Props>();
-
-const { t, setLang, currentLang } = useI18n();
-const isDark = ref(false); // Default: Light mode
-
-const toggleLang = () => {
-  setLang(currentLang.value === 'id' ? 'en' : 'id');
-};
-
-// Initialize dark mode from localStorage
-onMounted(() => {
-  const savedTheme = localStorage.getItem('theme');
-  isDark.value = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  updateTheme();
-});
-
-const toggleTheme = () => {
-  isDark.value = !isDark.value;
-  updateTheme();
-};
-
-const updateTheme = () => {
-  if (isDark.value) {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('theme', 'dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('theme', 'light');
-  }
-};
-
-const scrollToSection = (sectionId: string) => {
-  const element = document.getElementById(sectionId);
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth' });
-  }
-};
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-    <Head :title="t.landing?.title || 'SatsetUI'" />
-
-    <!-- Navbar -->
-    <Navbar 
-      :auth="auth" 
-      :isDark="isDark"
-      @toggle-theme="toggleTheme"
-      @toggle-lang="toggleLang"
-      @scroll-to-section="scrollToSection"
-    />
-
-    <!-- Hero Section -->
-    <HeroSection />
-
-    <!-- How It Works Section -->
-    <HowItWorksSection />
-
-    <!-- Categories Section -->
-    <CategoriesSection />
-
-    <!-- FAQ Section -->
-    <FaqSection />
-
-    <!-- CTA Section -->
-    <CtaSection />
-
-    <!-- Footer -->
-    <Footer :on-scroll-to-section="scrollToSection" />
+  <div class="min-h-screen" :class="isDark ? 'dark' : ''">
+    <div class="bg-white dark:bg-slate-900 transition-colors duration-200">
+      <Navbar
+        :auth="auth"
+        :is-dark="isDark"
+        @toggle-theme="toggleTheme"
+        @toggle-lang="toggleLanguage"
+        @scroll-to-section="scrollToSection"
+      />
+      <main>
+        <HeroSection />
+        <FeaturesSection />
+        <HowItWorksSection />
+        <FaqSection />
+        <CtaSection />
+      </main>
+      <Footer />
+    </div>
   </div>
 </template>
-
-
-
-

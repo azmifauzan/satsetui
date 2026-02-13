@@ -55,8 +55,10 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
-        Auth::login($user);
+        // Don't auto-login, send verification email instead
+        // Auth::login($user);
 
-        return redirect('/dashboard');
+        return redirect('/login')
+            ->with('status', 'Silakan cek email Anda untuk verifikasi akun.');
     }
 }

@@ -27,7 +27,7 @@ class GenerationService
      * 
      * @param array $blueprint The template blueprint
      * @param User $user The user initiating generation
-     * @param string|null $modelType Optional model type (fast/professional/expert)
+     * @param string|null $modelType Optional model type ('satset' or 'expert')
      * @param string|null $projectName Optional project name
      */
     public function startGeneration(
@@ -40,9 +40,9 @@ class GenerationService
         $pages = $this->mcpPromptBuilder->getPageList($blueprint);
         $totalPages = count($pages);
         
-        // Default to 'professional' if not provided
+        // Default to 'satset' if not provided
         if (!$modelType) {
-            $modelType = 'professional';
+            $modelType = 'satset';
         }
 
         // Get model details
@@ -94,9 +94,8 @@ class GenerationService
                 $user,
                 $requiredCredits,
                 $generation,
-                    "Template generation: {$projectName}"
-                );
-            }
+                "Template generation: {$projectName}"
+            );
 
             DB::commit();
 
@@ -372,8 +371,12 @@ class GenerationService
     /**
      * Refine generated content with additional prompt
      */
-    public function refineGeneration(Generation $generation, string $refinementPrompt): array
-    {
+    public function refineGeneration(
+        Generation $generation,
+        string $refinementPrompt,
+        ?string $pageName = null,
+        ?string $model = null
+    ): array {
         if ($generation->status !== 'completed') {
             return [
                 'success' => false,
@@ -382,38 +385,131 @@ class GenerationService
         }
 
         try {
+            // Parse page name from prompt if not provided (legacy support)
+            if (!$pageName && preg_match('/For the page ["\']([^"\']+)["\']:/', $refinementPrompt, $matches)) {
+                $pageName = $matches[1];
+            }
+
+            // Store user message
+            $generation->refinementMessages()->create([
+                'role' => 'user',
+                'content' => $refinementPrompt,
+                'type' => 'refine',
+                'page_name' => $pageName,
+            ]);
+
+            // Store status message
+            $statusMsg = $pageName 
+                ? "Refining {$pageName}..." 
+                : "Refining generation...";
+            $generation->refinementMessages()->create([
+                'role' => 'system',
+                'content' => $statusMsg,
+                'type' => 'status',
+                'page_name' => $pageName,
+            ]);
+
+            // Get the content to refine
+            $progressData = $generation->progress_data;
+            $existingContent = null;
+            
+            if ($pageName && isset($progressData[$pageName]['content'])) {
+                $existingContent = $progressData[$pageName]['content'];
+            } elseif (!$pageName) {
+                // Refine all content if no specific page
+                $existingContent = $generation->generated_content;
+            }
+
+            if (!$existingContent) {
+                $errorMsg = $pageName 
+                    ? "Page '{$pageName}' not found" 
+                    : "No content to refine";
+                    
+                $generation->refinementMessages()->create([
+                    'role' => 'system',
+                    'content' => $errorMsg,
+                    'type' => 'error',
+                    'page_name' => $pageName,
+                ]);
+                
+                return [
+                    'success' => false,
+                    'error' => $errorMsg,
+                ];
+            }
+
             // Build refinement prompt
             $fullPrompt = "You have previously generated the following code:\n\n";
-            $fullPrompt .= $generation->generated_content;
+            $fullPrompt .= $existingContent;
             $fullPrompt .= "\n\n=== REFINEMENT REQUEST ===\n\n";
             $fullPrompt .= $refinementPrompt;
             $fullPrompt .= "\n\nPlease modify the code above according to the refinement request.";
             $fullPrompt .= " Return ONLY the complete updated code, no explanations.";
 
             $startTime = microtime(true);
-            $result = $this->llmService->generateTemplate($fullPrompt, $generation->model_used);
+            $modelToUse = $model ?? $generation->model_used;
+            $result = $this->llmService->generateTemplate($fullPrompt, $modelToUse);
             $processingTime = (int) ((microtime(true) - $startTime) * 1000);
 
             if (!$result['success']) {
+                $generation->refinementMessages()->create([
+                    'role' => 'system',
+                    'content' => $result['error'] ?? 'Refinement failed',
+                    'type' => 'error',
+                    'page_name' => $pageName,
+                ]);
+                
                 return [
                     'success' => false,
                     'error' => $result['error'],
                 ];
             }
 
-            // Update with refined content
-            $generation->update([
-                'generated_content' => $result['content'],
-                'processing_time' => $generation->processing_time + $processingTime,
+            // Update the appropriate content
+            if ($pageName && isset($progressData[$pageName])) {
+                // Update specific page in progress_data
+                $progressData[$pageName]['content'] = $result['content'];
+                $generation->update([
+                    'progress_data' => $progressData,
+                    'processing_time' => $generation->processing_time + $processingTime,
+                ]);
+            } else {
+                // Update generated_content (legacy)
+                $generation->update([
+                    'generated_content' => $result['content'],
+                    'processing_time' => $generation->processing_time + $processingTime,
+                ]);
+            }
+
+            // Store success message
+            $successMsg = $pageName 
+                ? "Refinement applied to **{$pageName}**. Preview updated." 
+                : "Refinement applied. Preview updated.";
+            $generation->refinementMessages()->create([
+                'role' => 'assistant',
+                'content' => $successMsg,
+                'type' => 'refine',
+                'page_name' => $pageName,
             ]);
 
             return [
                 'success' => true,
                 'content' => $result['content'],
+                'page_name' => $pageName,
                 'processing_time' => $processingTime,
             ];
 
         } catch (\Exception $e) {
+            // Store error message
+            if (isset($generation)) {
+                $generation->refinementMessages()->create([
+                    'role' => 'system',
+                    'content' => $e->getMessage(),
+                    'type' => 'error',
+                    'page_name' => $pageName ?? null,
+                ]);
+            }
+            
             return [
                 'success' => false,
                 'error' => $e->getMessage(),

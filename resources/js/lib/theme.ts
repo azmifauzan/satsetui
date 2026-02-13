@@ -15,9 +15,9 @@ import { ref, computed } from 'vue';
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
-// Global reactive theme state - defaults to 'light'
-const currentTheme = ref<Theme>('light');
-const systemTheme = ref<ResolvedTheme>('light');
+// Global reactive theme state - defaults to 'dark'
+const currentTheme = ref<Theme>('dark');
+const systemTheme = ref<ResolvedTheme>('dark');
 
 /**
  * Get system theme preference

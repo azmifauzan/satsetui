@@ -47,6 +47,8 @@ class AdminSetting extends Model
     public const GROUP_GENERAL = 'general';
     public const GROUP_BILLING = 'billing';
     public const GROUP_GENERATION = 'generation';
+    public const GROUP_EMAIL = 'email';
+    public const GROUP_NOTIFICATION = 'notification';
 
     /**
      * Get a setting value by key.

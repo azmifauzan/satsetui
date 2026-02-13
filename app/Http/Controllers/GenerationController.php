@@ -170,12 +170,16 @@ class GenerationController extends Controller
 
         $validated = $request->validate([
             'prompt' => 'required|string|max:2000',
+            'page_name' => 'nullable|string|max:100',
+            'model' => 'nullable|string',
         ]);
 
         try {
             $result = $this->generationService->refineGeneration(
                 $generation,
-                $validated['prompt']
+                $validated['prompt'],
+                $validated['page_name'] ?? null,
+                $validated['model'] ?? $generation->model_used
             );
 
             if (!$result['success']) {
@@ -185,6 +189,7 @@ class GenerationController extends Controller
             return response()->json([
                 'success' => true,
                 'content' => $result['content'],
+                'page_name' => $result['page_name'] ?? null,
             ]);
 
         } catch (\Exception $e) {
@@ -196,16 +201,133 @@ class GenerationController extends Controller
     }
 
     /**
+     * Stream generation - SSE endpoint for live preview
+     * Generates pages one by one and streams content back
+     */
+    public function stream(Generation $generation)
+    {
+        $this->authorize('view', $generation);
+
+        // SSE streams can take a long time - remove PHP time limit
+        set_time_limit(0);
+        ini_set('max_execution_time', '0');
+
+        return response()->stream(function () use ($generation) {
+            // Disable output buffering
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
+            $progressData = $generation->progress_data;
+            $pages = array_keys($progressData);
+
+            while ($generation->current_page_index < $generation->total_pages) {
+                $currentIndex = $generation->current_page_index;
+                $currentPage = $pages[$currentIndex] ?? null;
+                if (!$currentPage) {
+                    break;
+                }
+
+                // Send status update
+                echo "data: " . json_encode([
+                    'type' => 'status',
+                    'page' => $currentPage,
+                    'index' => $currentIndex,
+                    'total' => $generation->total_pages,
+                    'message' => "Generating {$currentPage}...",
+                ]) . "\n\n";
+
+                if (connection_aborted()) {
+                    break;
+                }
+
+                flush();
+
+                try {
+                    $result = app(GenerationService::class)->generateNextPage($generation);
+                    $generation->refresh();
+
+                    if ($result['success']) {
+                        // Get page content from progress_data
+                        $pageContent = $generation->progress_data[$currentPage]['content'] ?? '';
+
+                        echo "data: " . json_encode([
+                            'type' => 'page_complete',
+                            'page' => $currentPage,
+                            'content' => $pageContent,
+                            'index' => $currentIndex + 1,
+                            'total' => $generation->total_pages,
+                            'completed' => $result['completed'] ?? false,
+                        ]) . "\n\n";
+                    } else {
+                        echo "data: " . json_encode([
+                            'type' => 'page_error',
+                            'page' => $currentPage,
+                            'error' => $result['error'] ?? 'Unknown error',
+                        ]) . "\n\n";
+                        break;
+                    }
+
+                    flush();
+
+                    if ($result['completed'] ?? false) {
+                        break;
+                    }
+                } catch (\Exception $e) {
+                    echo "data: " . json_encode([
+                        'type' => 'error',
+                        'message' => $e->getMessage(),
+                    ]) . "\n\n";
+                    flush();
+                    break;
+                }
+            }
+
+            // Send final complete event
+            $generation->refresh();
+            echo "data: " . json_encode([
+                'type' => 'complete',
+                'status' => $generation->status,
+                'total_pages' => $generation->total_pages,
+            ]) . "\n\n";
+            flush();
+
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
      * Show generation result
      */
     public function show(Generation $generation)
     {
         $this->authorize('view', $generation);
 
-        $generation->load('project');
+        $generation->load(['project', 'refinementMessages']);
 
         return Inertia::render('Generation/Show', [
             'generation' => $generation,
+            'userCredits' => Auth::user()->credits ?? 0,
         ]);
+    }
+
+    /**
+     * Update project name
+     */
+    public function updateName(Request $request, Generation $generation)
+    {
+        $this->authorize('view', $generation);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $generation->project->update(['name' => $validated['name']]);
+
+        return response()->json(['success' => true]);
     }
 }

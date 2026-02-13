@@ -5,7 +5,7 @@ import AdminLayout from '@/layouts/AdminLayout.vue';
 
 interface LlmModel {
   id: number;
-  model_type: 'fast' | 'professional' | 'expert';
+  model_type: 'satset' | 'expert';
   display_name: string;
   description: string;
   provider: 'gemini' | 'openai';
@@ -14,6 +14,7 @@ interface LlmModel {
   is_active: boolean;
   has_api_key: boolean;
   has_base_url: boolean;
+  base_url: string | null;
 }
 
 interface Props {
@@ -195,10 +196,15 @@ const modelSuggestions = {
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Base URL (Opsional)
                 </label>
+                <!-- Show current URL if exists -->
+                <div v-if="model.base_url" class="mb-3 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">✓ URL saat ini:</p>
+                  <p class="text-sm font-mono text-slate-700 dark:text-slate-300 break-all">{{ model.base_url }}</p>
+                </div>
                 <input
                   v-model="form.base_url"
                   type="url"
-                  :placeholder="model.has_base_url ? 'Leave empty to keep current URL' : defaultBaseUrls[form.provider]"
+                  :placeholder="model.base_url ? 'Leave empty to keep current URL' : defaultBaseUrls[form.provider]"
                   class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent font-mono text-sm"
                   :class="{ 'border-red-500': form.errors.base_url }"
                 />
@@ -268,194 +274,6 @@ const modelSuggestions = {
             >
               <span v-if="form.processing">Menyimpan...</span>
               <span v-else>Simpan Perubahan</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </AdminLayout>
-</template>
-                  class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                  :class="{ 'border-red-500': form.errors.display_name }"
-                />
-                <p v-if="form.errors.display_name" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.display_name }}
-                </p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Deskripsi
-                </label>
-                <textarea
-                  v-model="form.description"
-                  rows="3"
-                  placeholder="Model cepat dan efisien untuk penggunaan umum..."
-                  class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none"
-                  :class="{ 'border-red-500': form.errors.description }"
-                ></textarea>
-                <p v-if="form.errors.description" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.description }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pricing Configuration -->
-          <div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-            <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Konfigurasi Harga</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Harga Input (per 1M token) <span class="text-red-500">*</span>
-                </label>
-                <div class="relative">
-                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                  <input
-                    v-model.number="form.input_price_per_million"
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    placeholder="0.075"
-                    class="w-full pl-8 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                    :class="{ 'border-red-500': form.errors.input_price_per_million }"
-                  />
-                </div>
-                <p v-if="form.errors.input_price_per_million" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.input_price_per_million }}
-                </p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Harga Output (per 1M token) <span class="text-red-500">*</span>
-                </label>
-                <div class="relative">
-                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                  <input
-                    v-model.number="form.output_price_per_million"
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    placeholder="0.30"
-                    class="w-full pl-8 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                    :class="{ 'border-red-500': form.errors.output_price_per_million }"
-                  />
-                </div>
-                <p v-if="form.errors.output_price_per_million" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.output_price_per_million }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Model Configuration -->
-          <div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-            <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Konfigurasi Model</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Estimasi Kredit per Generasi <span class="text-red-500">*</span>
-                </label>
-                <input
-                  v-model.number="form.estimated_credits_per_generation"
-                  type="number"
-                  min="0"
-                  placeholder="3"
-                  class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                  :class="{ 'border-red-500': form.errors.estimated_credits_per_generation }"
-                />
-                <p v-if="form.errors.estimated_credits_per_generation" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.estimated_credits_per_generation }}
-                </p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Context Length <span class="text-red-500">*</span>
-                </label>
-                <input
-                  v-model.number="form.context_length"
-                  type="number"
-                  min="0"
-                  placeholder="128000"
-                  class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                  :class="{ 'border-red-500': form.errors.context_length }"
-                />
-                <p v-if="form.errors.context_length" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.context_length }}
-                </p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Sort Order <span class="text-red-500">*</span>
-                </label>
-                <input
-                  v-model.number="form.sort_order"
-                  type="number"
-                  min="0"
-                  placeholder="1"
-                  class="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                  :class="{ 'border-red-500': form.errors.sort_order }"
-                />
-                <p v-if="form.errors.sort_order" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.sort_order }}
-                </p>
-                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Angka lebih kecil akan ditampilkan lebih dulu
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Status Settings -->
-          <div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-            <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Pengaturan Status</h2>
-            
-            <div class="space-y-4">
-              <div class="flex items-center">
-                <input
-                  v-model="form.is_free"
-                  type="checkbox"
-                  id="is_free"
-                  class="w-4 h-4 text-blue-600 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
-                <label for="is_free" class="ml-2 text-sm text-slate-700 dark:text-slate-300">
-                  Model Gratis (tersedia untuk semua user)
-                </label>
-              </div>
-
-              <div class="flex items-center">
-                <input
-                  v-model="form.is_active"
-                  type="checkbox"
-                  id="is_active"
-                  class="w-4 h-4 text-blue-600 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
-                <label for="is_active" class="ml-2 text-sm text-slate-700 dark:text-slate-300">
-                  Model Aktif (dapat dipilih saat generasi)
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="flex items-center justify-end gap-3">
-            <Link
-              href="/admin/models"
-              class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              Batal
-            </Link>
-            <button
-              type="submit"
-              :disabled="form.processing"
-              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {{ form.processing ? 'Menyimpan...' : 'Simpan Perubahan' }}
             </button>
           </div>
         </form>

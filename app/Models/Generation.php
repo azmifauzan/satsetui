@@ -120,6 +120,14 @@ class Generation extends Model
     }
 
     /**
+     * Get all refinement/chat messages for this generation.
+     */
+    public function refinementMessages(): HasMany
+    {
+        return $this->hasMany(RefinementMessage::class)->orderBy('created_at');
+    }
+
+    /**
      * Calculate the credit breakdown from current state.
      *
      * @return array{base: float, extraPages: float, extraComponents: float, subtotal: float, errorMargin: float, profitMargin: float, total: int}

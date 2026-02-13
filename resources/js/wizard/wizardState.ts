@@ -95,7 +95,9 @@ export type PredefinedCategory =
   | 'landing-page'
   | 'saas-application'
   | 'blog-content-site'
-  | 'e-commerce';
+  | 'e-commerce'
+  | 'mobile-apps'
+  | 'dashboard';
 
 export type Category = PredefinedCategory | 'custom';
 
@@ -263,7 +265,7 @@ export interface WizardState {
   chartLibrary?: ChartLibrary; // Required if 'charts' in components
 
   // Step 3: LLM Model Selection
-  llmModel: string; // Dynamic model ID from API (e.g., 'gemini-2.5-flash')
+  llmModel: string; // Model type ('satset' or 'expert')
   modelCredits: number; // Base credits required for selected model
   templateName: string; // User-provided template name for easy identification
 
@@ -275,6 +277,15 @@ export interface WizardState {
   // Credit Calculation
   creditBreakdown: CreditBreakdown;
   calculatedCredits: number; // Final calculated credits including margins
+
+  // Simplified Wizard (single-step) additions
+  colorScheme: string;       // Color preset ID
+  stylePreset: string;       // Style preset ID  
+  fontFamily: string;        // Font family ID
+  navStyle: string;          // Navigation style: top, sidebar, both
+  themeMode: string;         // Generated output theme mode: light, dark, both
+  logoFile: File | null;     // Optional logo upload
+  customInstructions: string; // Optional custom text instructions
 }
 
 /**
@@ -321,14 +332,23 @@ export const wizardState = reactive<WizardState>({
     density: 'comfortable',
     borderRadius: 'rounded',
   },
-  components: ['buttons', 'forms', 'cards', 'alerts'],
+  components: [],
   customComponents: [],
   chartLibrary: undefined,
 
   // Step 3: LLM Model Selection
-  llmModel: '', // Will be set dynamically from API
+  llmModel: 'satset', // Default to Satset model (fast & affordable), can be changed to 'expert'
   modelCredits: 0,
   templateName: '', // User-provided name
+
+  // Simplified Wizard additions
+  colorScheme: 'blue',
+  stylePreset: 'modern',
+  fontFamily: 'inter',
+  navStyle: 'top',
+  themeMode: 'dark',
+  logoFile: null,
+  customInstructions: '',
 
   // Auto-Selected Values (best defaults, not shown to user)
   responsiveness: 'fully-responsive',
@@ -489,6 +509,8 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
         'saas-application',
         'blog-content-site',
         'e-commerce',
+        'mobile-apps',
+        'dashboard',
         'custom',
       ].includes(wizardState.category);
       const validOutputFormat = [
@@ -548,11 +570,8 @@ export const isCurrentStepValid: ComputedRef<boolean> = computed(() => {
       const validDensity = ['compact', 'comfortable', 'spacious'].includes(density);
       const validBorderRadius = ['sharp', 'rounded'].includes(borderRadius);
 
-      // At least one component must be selected
-      const hasComponents = wizardState.components.length > 0 || wizardState.customComponents.length > 0;
-      if (!hasComponents) return false;
-
-      // Validate custom components have required fields
+      // Components are optional (Custom Modifications section)
+      // Validate custom components have required fields if any exist
       const validCustomComponents = wizardState.customComponents.every(
         c => c.name.trim().length >= 2 && c.description.trim().length >= 5
       );
@@ -773,7 +792,7 @@ export function resetWizard(): void {
     density: 'comfortable',
     borderRadius: 'rounded',
   };
-  wizardState.components = ['buttons', 'forms', 'cards', 'alerts'];
+  wizardState.components = [];
   wizardState.customComponents = [];
   wizardState.chartLibrary = undefined;
   wizardState.llmModel = '';
@@ -1014,6 +1033,16 @@ export function generateBlueprintJson(): Record<string, unknown> {
 
     // Step 3: LLM Model Selection
     llmModel: wizardState.llmModel,
+
+    // Simplified wizard fields
+    colorScheme: wizardState.colorScheme,
+    stylePreset: wizardState.stylePreset,
+    fontFamily: wizardState.fontFamily,
+    navStyle: wizardState.navStyle,
+    themeMode: wizardState.themeMode,
+    ...(wizardState.customInstructions && {
+      customInstructions: wizardState.customInstructions,
+    }),
 
     // Auto-Selected Values (included in blueprint for LLM)
     autoSelected: {

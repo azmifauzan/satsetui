@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import axios from 'axios';
-import AppLayout from '@/layouts/AppLayout.vue';
+import JSZip from 'jszip';
 import { useI18n } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme';
 
 interface PageProgress {
   status: 'pending' | 'generating' | 'completed' | 'failed';
@@ -23,6 +24,7 @@ interface Generation {
   current_page_index: number;
   total_pages: number;
   progress_data: Record<string, PageProgress>;
+  blueprint_json: any;
   mcp_prompt: string;
   generated_content: string | null;
   error_message: string | null;
@@ -38,397 +40,725 @@ interface Generation {
     status: string;
     generated_at: string;
   };
+  refinement_messages?: Array<{
+    id: number;
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+    type: string | null;
+    page_name: string | null;
+    created_at: string;
+  }>;
+}
+
+interface ChatMessage {
+  id: number;
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  type?: 'status' | 'page_complete' | 'error' | 'refine';
+  pageName?: string;
 }
 
 interface Props {
   generation: Generation;
+  userCredits: number;
 }
 
 const props = defineProps<Props>();
-const { t } = useI18n();
+const { currentLang } = useI18n();
+const { isDark, toggleTheme } = useTheme();
 
-const activeTab = ref<'code' | 'preview' | 'blueprint' | 'prompt'>('code');
+// State
 const generationData = ref<Generation>(props.generation);
-const isGenerating = ref(false);
-const progressInterval = ref<number | null>(null);
-const refinementPrompt = ref('');
+const activeView = ref<'preview' | 'code'>('preview');
+const selectedPage = ref<string | null>(null);
+const chatMessages = ref<ChatMessage[]>([]);
+const commandInput = ref('');
 const isRefining = ref(false);
+const isGenerating = ref(false);
+const chatContainer = ref<HTMLElement | null>(null);
+const iframeSrc = ref('');
+const isEditingTitle = ref(false);
+const editTitleValue = ref('');
+const titleInput = ref<HTMLInputElement | null>(null);
+const selectedRefineModel = ref('satset');
+const userCredits = ref(props.userCredits);
+let msgId = 0;
 
-// Get the generated content
-const generatedContent = computed(() => {
-  return generationData.value.generated_content || 'Generating...';
+// Blueprint info for wizard summary
+const blueprint = computed(() => generationData.value.blueprint_json || generationData.value.project?.blueprint || {});
+const categoryLabel = computed(() => {
+  const c = blueprint.value?.category;
+  const labels: Record<string, string> = {
+    'admin-dashboard': 'Admin Dashboard',
+    'company-profile': 'Company Profile',
+    'landing-page': 'Landing Page',
+    'saas-application': 'SaaS Application',
+    'blog-content-site': 'Blog / Content Site',
+    'e-commerce': 'E-Commerce',
+    'dashboard': 'Dashboard',
+    'mobile-apps': 'Mobile App UI',
+  };
+  return labels[c] || c || '-';
 });
 
-const modelDisplayName = computed(() => {
-  return generationData.value.model_used === 'gemini-pro' ? 'Gemini Pro (Premium)' : 'Gemini Flash (Free)';
+const colorSchemeLabel = computed(() => {
+  const c = blueprint.value?.colorScheme;
+  const labels: Record<string, string> = {
+    blue: 'Ocean Blue', green: 'Forest Green', purple: 'Royal Purple',
+    red: 'Ruby Red', amber: 'Warm Amber', slate: 'Slate Gray',
+  };
+  return labels[c] || c || '-';
 });
 
-const processingTimeFormatted = computed(() => {
-  const ms = generationData.value.processing_time;
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
+const styleLabel = computed(() => blueprint.value?.stylePreset || '-');
+const fontLabel = computed(() => blueprint.value?.fontFamily || '-');
+const navStyleLabel = computed(() => {
+  const n = blueprint.value?.navStyle;
+  if (n === 'top') return 'Top Nav';
+  if (n === 'sidebar') return 'Sidebar Nav';
+  if (n === 'both') return 'Top + Sidebar';
+  return n || '-';
 });
+
+// Computed
+const pagesList = computed(() => Object.entries(generationData.value.progress_data || {}));
+
+const pageNames = computed(() => Object.keys(generationData.value.progress_data || {}));
+
+const isCompleted = computed(() => generationData.value.status === 'completed');
+const isFailed = computed(() => generationData.value.status === 'failed');
 
 const progressPercentage = computed(() => {
   if (!generationData.value.total_pages) return 0;
   return Math.round((generationData.value.current_page_index / generationData.value.total_pages) * 100);
 });
 
-const pagesList = computed(() => {
-  return Object.entries(generationData.value.progress_data || {});
+const modelLabel = computed(() => {
+  const m = generationData.value.model_used;
+  if (m === 'satset' || m?.includes('flash')) return 'Satset';
+  if (m === 'expert' || m?.includes('pro')) return 'Expert';
+  return m;
 });
 
-const isCompleted = computed(() => {
-  return generationData.value.status === 'completed';
+const currentPageContent = computed(() => {
+  if (!selectedPage.value) {
+    const firstCompleted = pagesList.value.find(([, d]) => d.status === 'completed');
+    if (firstCompleted) return firstCompleted[1].content || '';
+    return '';
+  }
+  const pd = generationData.value.progress_data?.[selectedPage.value];
+  return pd?.content || '';
 });
 
-const isFailed = computed(() => {
-  return generationData.value.status === 'failed';
+const allPagesContent = computed(() => {
+  return pagesList.value
+    .filter(([, d]) => d.status === 'completed' && d.content)
+    .map(([, d]) => d.content)
+    .join('\n');
 });
 
-// Start progressive generation
-async function startProgressiveGeneration() {
-  if (isGenerating.value || isCompleted.value) return;
-  
-  isGenerating.value = true;
-  
-  try {
-    // Call generateNext endpoint repeatedly using axios
-    while (generationData.value.current_page_index < generationData.value.total_pages) {
-      const response = await axios.post(`/generation/${generationData.value.id}/next`);
+// Watch selected page for preview update
+watch([selectedPage, activeView], () => {
+  updatePreview();
+});
 
-      const result = response.data;
-
-      if (!result.success) {
-        console.error('Generation failed:', result.error);
-        break;
-      }
-
-      // Refresh data
-      await fetchProgress();
-
-      if (result.completed) {
-        break;
-      }
-
-      // Small delay between pages
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-  } catch (error) {
-    console.error('Error during generation:', error);
-  } finally {
-    isGenerating.value = false;
-    await fetchProgress(); // Final refresh
+function updatePreview() {
+  const content = selectedPage.value ? currentPageContent.value : allPagesContent.value;
+  if (content) {
+    const blob = new Blob([content], { type: 'text/html' });
+    iframeSrc.value = URL.createObjectURL(blob);
   }
 }
 
-// Fetch progress
-async function fetchProgress() {
+// Title editing
+function startEditTitle() {
+  editTitleValue.value = generationData.value.project.name;
+  isEditingTitle.value = true;
+  nextTick(() => titleInput.value?.focus());
+}
+
+async function saveTitle() {
+  const newName = editTitleValue.value.trim();
+  if (!newName) { isEditingTitle.value = false; return; }
   try {
-    const response = await axios.get(`/generation/${generationData.value.id}/progress`);
-    const data = response.data;
-    
-    // Update generation data
-    generationData.value = {
-      ...generationData.value,
-      status: data.status,
-      current_status: data.current_status,
-      current_page_index: data.current_page_index,
-      total_pages: data.total_pages,
-      progress_data: data.progress_data,
-      completed_at: data.completed_at,
+    await axios.patch(`/generation/${generationData.value.id}/name`, { name: newName });
+    generationData.value.project.name = newName;
+  } catch { /* ignore */ }
+  isEditingTitle.value = false;
+}
+
+function cancelEditTitle() {
+  isEditingTitle.value = false;
+}
+
+// Chat helpers
+function addMessage(role: ChatMessage['role'], content: string, type?: ChatMessage['type'], pageName?: string) {
+  chatMessages.value.push({
+    id: ++msgId,
+    role,
+    content,
+    timestamp: new Date(),
+    type,
+    pageName,
+  });
+  nextTick(() => {
+    if (chatContainer.value) {
+      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+    }
+  });
+}
+
+// Stream generation with SSE
+async function startStreamGeneration() {
+  if (isGenerating.value || isCompleted.value) return;
+  isGenerating.value = true;
+
+  addMessage('system', currentLang.value === 'en'
+    ? `Starting generation with ${modelLabel.value} model...`
+    : `Memulai generasi dengan model ${modelLabel.value}...`, 'status');
+
+  try {
+    const evtSource = new EventSource(`/generation/${generationData.value.id}/stream`);
+
+    evtSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'status') {
+          addMessage('system', currentLang.value === 'en'
+            ? `Generating page: **${data.page}** (${data.index + 1}/${data.total})`
+            : `Membuat halaman: **${data.page}** (${data.index + 1}/${data.total})`, 'status', data.page);
+
+          // Update local progress
+          if (generationData.value.progress_data[data.page]) {
+            generationData.value.progress_data[data.page].status = 'generating';
+          }
+          generationData.value.current_page_index = data.index;
+        }
+
+        if (data.type === 'page_complete') {
+          // Update local state
+          if (generationData.value.progress_data[data.page]) {
+            generationData.value.progress_data[data.page].status = 'completed';
+            generationData.value.progress_data[data.page].content = data.content;
+          }
+          generationData.value.current_page_index = data.index;
+
+          addMessage('assistant', currentLang.value === 'en'
+            ? `✅ Page **${data.page}** generated successfully!`
+            : `✅ Halaman **${data.page}** berhasil dibuat!`, 'page_complete', data.page);
+
+          // Auto-select first completed page and update preview
+          if (!selectedPage.value) {
+            selectedPage.value = data.page;
+          }
+          updatePreview();
+        }
+
+        if (data.type === 'page_error') {
+          if (generationData.value.progress_data[data.page]) {
+            generationData.value.progress_data[data.page].status = 'failed';
+          }
+          addMessage('system', `❌ Error on ${data.page}: ${data.error}`, 'error', data.page);
+        }
+
+        if (data.type === 'complete') {
+          generationData.value.status = data.status;
+          generationData.value.current_page_index = data.total_pages;
+          addMessage('system', currentLang.value === 'en'
+            ? '🎉 Generation complete! You can now refine your pages using commands below.'
+            : '🎉 Generasi selesai! Kamu bisa merevisi halaman menggunakan perintah di bawah.', 'status');
+          isGenerating.value = false;
+          evtSource.close();
+          // Reload to get full data
+          router.reload({ only: ['generation'] });
+        }
+
+        if (data.type === 'error') {
+          addMessage('system', `❌ ${data.message}`, 'error');
+          isGenerating.value = false;
+          evtSource.close();
+        }
+      } catch (e) {
+        console.error('SSE parse error:', e);
+      }
     };
 
-    // Reload full data when completed to get generated_content
-    if (data.status === 'completed' && !generationData.value.generated_content) {
-      router.reload({ only: ['generation'] });
-    }
+    evtSource.onerror = () => {
+      evtSource.close();
+      isGenerating.value = false;
+      addMessage('system', currentLang.value === 'en'
+        ? '⚠️ Connection lost. Checking progress...'
+        : '⚠️ Koneksi terputus. Memeriksa progres...', 'error');
+      // Fallback: reload page
+      setTimeout(() => router.reload(), 2000);
+    };
   } catch (error) {
-    console.error('Error fetching progress:', error);
+    isGenerating.value = false;
+    addMessage('system', `Error: ${error}`, 'error');
   }
 }
 
-// Refine generation
-async function refineGeneration() {
-  if (!refinementPrompt.value.trim() || isRefining.value) return;
-  
+// Refine via chat command
+async function handleCommand() {
+  const cmd = commandInput.value.trim();
+  if (!cmd || isRefining.value) return;
+
+  const targetPage = selectedPage.value || pageNames.value[0];
+
+  // Add user message immediately for instant feedback
+  addMessage('user', cmd);
+  commandInput.value = '';
   isRefining.value = true;
-  
+
   try {
+    // Add status message
+    addMessage('system', currentLang.value === 'en'
+      ? `Refining ${targetPage}...`
+      : `Merevisi ${targetPage}...`, 'status', targetPage);
+
     const response = await axios.post(`/generation/${generationData.value.id}/refine`, {
-      prompt: refinementPrompt.value,
+      prompt: cmd,
+      page_name: targetPage,
+      model: selectedRefineModel.value,
     });
 
-    const result = response.data;
+    if (response.data.success) {
+      const refinedPage = response.data.page_name || targetPage;
+      
+      // Update local state
+      if (generationData.value.progress_data[refinedPage]) {
+        generationData.value.progress_data[refinedPage].content = response.data.content;
+      }
 
-    if (result.success) {
-      generationData.value.generated_content = result.content;
-      refinementPrompt.value = '';
+      // Add success message
+      addMessage('assistant', currentLang.value === 'en'
+        ? `Refinement applied to **${refinedPage}**. Preview updated.`
+        : `Revisi diterapkan ke **${refinedPage}**. Preview diperbarui.`, 'refine', refinedPage);
+
+      updatePreview();
     } else {
-      alert(result.error || 'Refinement failed');
+      addMessage('system', `${response.data.error || 'Refinement failed'}`, 'error');
     }
-  } catch (error) {
-    console.error('Error refining:', error);
-    alert('An error occurred during refinement');
+  } catch (error: any) {
+    addMessage('system', `${error.response?.data?.error || error.message}`, 'error');
   } finally {
     isRefining.value = false;
   }
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text);
+function copyPageCode() {
+  const code = currentPageContent.value;
+  if (code) navigator.clipboard.writeText(code);
 }
 
-function downloadCode() {
-  const blob = new Blob([generatedContent.value], { type: 'text/plain' });
+function downloadPage() {
+  const code = currentPageContent.value;
+  const name = selectedPage.value || 'page';
+  const blob = new Blob([code], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${generationData.value.project.name}.txt`;
+  a.download = `${name}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-onMounted(() => {
-  // If not completed, start progressive generation
-  if (!isCompleted.value && !isFailed.value) {
-    startProgressiveGeneration();
-    
-    // Poll progress every 2 seconds
-    progressInterval.value = window.setInterval(fetchProgress, 2000);
+function downloadAll() {
+  const zip = new JSZip();
+  const projectName = generationData.value.project.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+  
+  // Add all completed pages to ZIP
+  for (const [pageName, pageData] of pagesList.value) {
+    if (pageData.status === 'completed' && pageData.content) {
+      zip.file(`${pageName}.html`, pageData.content);
+    }
   }
-});
+  
+  // Generate and download ZIP
+  zip.generateAsync({ type: 'blob' }).then((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectName}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
 
-onUnmounted(() => {
-  if (progressInterval.value) {
-    clearInterval(progressInterval.value);
+function selectPage(pageName: string) {
+  selectedPage.value = pageName;
+}
+
+onMounted(() => {
+  // Load stored refinement messages first
+  if (generationData.value.refinement_messages && generationData.value.refinement_messages.length > 0) {
+    generationData.value.refinement_messages.forEach((msg) => {
+      chatMessages.value.push({
+        id: ++msgId,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        type: msg.type as ChatMessage['type'],
+        pageName: msg.page_name || undefined,
+      });
+    });
+  }
+
+  if (!isCompleted.value && !isFailed.value) {
+    startStreamGeneration();
+  } else {
+    // Already completed - init preview and messages
+    if (isCompleted.value) {
+      // Only add completion message if there are no stored messages
+      if (chatMessages.value.length === 0) {
+        addMessage('system', currentLang.value === 'en'
+          ? '✅ Generation was already completed. You can refine pages using the command input.'
+          : '✅ Generasi sudah selesai. Kamu bisa merevisi halaman melalui input perintah.', 'status');
+      }
+      const firstPage = pageNames.value[0];
+      if (firstPage) {
+        selectedPage.value = firstPage;
+      }
+    } else {
+      addMessage('system', currentLang.value === 'en'
+        ? '❌ Generation failed. Try generating again from the wizard.'
+        : '❌ Generasi gagal. Coba generate ulang dari wizard.', 'error');
+    }
+    updatePreview();
   }
 });
 </script>
 
 <template>
-  <AppLayout>
-    <Head title="Generation Result" />
+  <div class="h-screen flex flex-col bg-white dark:bg-slate-950 text-slate-900 dark:text-white overflow-hidden" :class="isDark ? 'dark' : ''">
+    <Head :title="generationData.project.name" />
 
-    <div class="max-w-7xl mx-auto">
-      <!-- Header -->
-      <div class="mb-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">
-              {{ generationData.project.name }}
-            </h1>
-            <p class="text-slate-600 dark:text-slate-400 mt-1">
-              Generated with {{ modelDisplayName }}
-            </p>
-          </div>
-          <div class="flex items-center gap-3">
-            <button
-              v-if="isCompleted"
-              @click="copyToClipboard(generatedContent)"
-              class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-2"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              Copy
-            </button>
-            <button
-              v-if="isCompleted"
-              @click="downloadCode"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download
-            </button>
-          </div>
-        </div>
-
-        <!-- Progress Bar -->
-        <div v-if="!isCompleted && !isFailed" class="mt-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-slate-600 dark:text-slate-400">
-              {{ generationData.current_status }}
-            </span>
-            <span class="text-sm font-medium text-slate-900 dark:text-white">
-              {{ progressPercentage }}%
-            </span>
-          </div>
-          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-            <div
-              class="bg-blue-600 h-2 rounded-full transition-all duration-500"
-              :style="{ width: `${progressPercentage}%` }"
-            ></div>
-          </div>
-          <div class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Page {{ generationData.current_page_index }} of {{ generationData.total_pages }}
-          </div>
-        </div>
-
-        <!-- Stats -->
-        <div class="mt-4 flex items-center gap-6 text-sm">
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <!-- Top Bar - Simplified: editable title + credits -->
+    <header class="h-11 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 flex-shrink-0">
+      <div class="flex items-center gap-3 min-w-0 flex-1">
+        <a href="/" class="flex items-center gap-2 flex-shrink-0">
+          <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
             </svg>
-            <span class="text-slate-600 dark:text-slate-400">{{ processingTimeFormatted }}</span>
           </div>
-          <div class="flex items-center gap-1.5">
-            <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 3h10l4 4-9 14L3 7l4-4zm5 2L9 7h6l-3-2zm-6 3l3.5 8L5 8zm7.5 8L17 8l-3.5 8z"/>
-            </svg>
-            <span class="text-slate-600 dark:text-slate-400 font-medium">{{ generationData.credits_used }} kredit</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div :class="[
-              'w-2 h-2 rounded-full',
-              isCompleted ? 'bg-green-500' : isFailed ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
-            ]"></div>
-            <span class="text-slate-600 dark:text-slate-400 capitalize">{{ generationData.status }}</span>
-          </div>
+          <span class="text-xl font-bold text-slate-900 dark:text-white">Satset<span class="text-blue-600">UI</span></span>
+        </a>
+        <span class="text-slate-300 dark:text-slate-700">|</span>
+        <!-- Editable Title -->
+        <div v-if="isEditingTitle" class="flex items-center gap-1.5 min-w-0 flex-1">
+          <input
+            ref="titleInput"
+            v-model="editTitleValue"
+            @keyup.enter="saveTitle"
+            @keyup.escape="cancelEditTitle"
+            @blur="saveTitle"
+            class="flex-1 min-w-0 px-2 py-0.5 text-sm bg-white dark:bg-slate-800 border border-blue-500 rounded text-slate-900 dark:text-white focus:outline-none"
+          />
         </div>
+        <button v-else @click="startEditTitle" class="flex items-center gap-1.5 min-w-0 group" :title="currentLang === 'en' ? 'Click to edit' : 'Klik untuk edit'">
+          <span class="text-sm text-slate-600 dark:text-slate-300 truncate max-w-80">{{ generationData.project.name }}</span>
+          <svg class="w-3 h-3 text-slate-400 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        </button>
       </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <!-- Theme Toggle -->
+        <button @click="toggleTheme" class="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded transition-colors" :title="currentLang === 'en' ? 'Toggle theme' : 'Ganti tema'">
+          <svg v-if="isDark" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>
+          <svg v-else class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>
+        </button>
+        <!-- Credits -->
+        <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-200 dark:bg-slate-800 rounded-lg">
+          <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24"><path d="M7 3h10l4 4-9 14L3 7l4-4zm5 2L9 7h6l-3-2zm-6 3l3.5 8L5 8zm7.5 8L17 8l-3.5 8z"/></svg>
+          <span class="text-xs font-semibold text-blue-700 dark:text-blue-300">{{ userCredits }}</span>
+          <span class="text-[10px] text-blue-600 dark:text-blue-400">{{ currentLang === 'en' ? 'credits' : 'kredit' }}</span>
+        </div>
+        <button @click="downloadAll" v-if="isCompleted"
+          class="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
+          {{ currentLang === 'en' ? 'Download All' : 'Unduh Semua' }}
+        </button>
+        <a href="/wizard" class="px-2.5 py-1 text-xs bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded transition-colors">
+          {{ currentLang === 'en' ? 'New Satset' : 'Satset Baru' }}
+        </a>
+        <a href="/dashboard" class="text-xs text-slate-600 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">Dashboard</a>
+      </div>
+    </header>
 
-      <!-- Pages Progress List -->
-      <div v-if="pagesList.length > 0" class="mb-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
-        <h3 class="text-sm font-medium text-slate-900 dark:text-white mb-3">Pages</h3>
-        <div class="space-y-2">
-          <div
-            v-for="[pageName, pageData] in pagesList"
-            :key="pageName"
-            class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-          >
-            <div class="flex items-center gap-3">
-              <div v-if="pageData.status === 'completed'" class="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <svg class="w-3 h-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div v-else-if="pageData.status === 'generating'" class="w-5 h-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></div>
-              <div v-else-if="pageData.status === 'failed'" class="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <svg class="w-3 h-3 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-              <div v-else class="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-600"></div>
-              <span class="text-sm font-medium text-slate-900 dark:text-white capitalize">{{ pageName }}</span>
+    <!-- Main Layout -->
+    <div class="flex-1 flex overflow-hidden">
+
+      <!-- Left Sidebar: Wizard Summary + Chat -->
+      <aside class="w-[420px] bg-slate-100 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col flex-shrink-0">
+
+        <!-- Wizard Summary Card -->
+        <div class="border-b border-slate-200 dark:border-slate-800 p-3">
+          <div class="bg-gradient-to-br from-slate-200 dark:from-slate-800 to-slate-100 dark:to-slate-800/50 rounded-lg p-3 border border-slate-300 dark:border-slate-700/50">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
+                {{ currentLang === 'en' ? 'Project Summary' : 'Ringkasan Proyek' }}
+              </span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-600 dark:text-blue-300 font-medium">
+                {{ modelLabel }}
+              </span>
             </div>
-            <span v-if="pageData.processing_time > 0" class="text-xs text-slate-500 dark:text-slate-400">
-              {{ pageData.processing_time < 1000 ? `${pageData.processing_time}ms` : `${(pageData.processing_time / 1000).toFixed(2)}s` }}
-            </span>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Type' : 'Tipe' }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ categoryLabel }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Color' : 'Warna' }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ colorSchemeLabel }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Style' : 'Gaya' }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium capitalize">{{ styleLabel }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">Font</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium capitalize">{{ fontLabel }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">Nav</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ navStyleLabel }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Pages' : 'Halaman' }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ generationData.total_pages }}</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Tabs -->
-      <div class="border-b border-slate-200 dark:border-slate-700 mb-6">
-        <nav class="flex gap-6">
-          <button
-            @click="activeTab = 'code'"
-            :class="[
-              'pb-3 border-b-2 font-medium transition-colors',
-              activeTab === 'code'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            ]"
-          >
-            Generated Code
-          </button>
-          <button
-            @click="activeTab = 'preview'"
-            :class="[
-              'pb-3 border-b-2 font-medium transition-colors',
-              activeTab === 'preview'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            ]"
-          >
-            Preview
-          </button>
-          <button
-            @click="activeTab = 'prompt'"
-            :class="[
-              'pb-3 border-b-2 font-medium transition-colors',
-              activeTab === 'prompt'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            ]"
-          >
-            MCP Prompt
-          </button>
-          <button
-            @click="activeTab = 'blueprint'"
-            :class="[
-              'pb-3 border-b-2 font-medium transition-colors',
-              activeTab === 'blueprint'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            ]"
-          >
-            Blueprint
-          </button>
-        </nav>
-      </div>
+        <!-- Progress Only (Pages moved to preview area) -->
+        <div class="border-b border-slate-200 dark:border-slate-800 px-3 py-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
+              {{ currentLang === 'en' ? 'Progress' : 'Progres' }}
+            </span>
+            <span class="text-[10px] text-slate-600 dark:text-slate-600">{{ generationData.current_page_index }}/{{ generationData.total_pages }}</span>
+          </div>
+          <!-- Progress bar -->
+          <div class="w-full bg-slate-300 dark:bg-slate-800 rounded-full h-0.5 mb-2">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-500 h-0.5 rounded-full transition-all duration-700"
+              :style="{ width: `${progressPercentage}%` }"></div>
+          </div>
+        </div>
 
-      <!-- Content -->
-      <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-        <!-- Code Tab -->
-        <div v-if="activeTab === 'code'">
-          <pre class="bg-slate-900 dark:bg-black rounded-lg p-6 overflow-auto max-h-[600px] text-sm"><code class="text-green-400 font-mono whitespace-pre-wrap">{{ generatedContent }}</code></pre>
-          
-          <!-- Refinement Section -->
-          <div v-if="isCompleted" class="mt-6 border-t border-slate-200 dark:border-slate-700 pt-6">
-            <h3 class="text-sm font-medium text-slate-900 dark:text-white mb-3">Refine Code</h3>
-            <div class="flex gap-3">
-              <input
-                v-model="refinementPrompt"
-                type="text"
-                placeholder="Enter refinement instructions (e.g., 'Make it more responsive', 'Add dark mode support')"
-                class="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                @keyup.enter="refineGeneration"
-              />
-              <button
-                @click="refineGeneration"
-                :disabled="!refinementPrompt.trim() || isRefining"
-                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+        <!-- Chat Messages -->
+        <div ref="chatContainer" class="flex-1 overflow-y-auto p-3 space-y-2.5">
+          <div v-for="msg in chatMessages" :key="msg.id"
+            :class="[
+              'text-sm rounded-lg px-3 py-2 max-w-full',
+              msg.role === 'user'
+                ? 'bg-blue-100 dark:bg-blue-600/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-600/30 ml-8'
+                : msg.role === 'assistant'
+                  ? 'bg-green-100 dark:bg-green-600/10 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-600/20'
+                  : msg.type === 'error'
+                    ? 'bg-red-100 dark:bg-red-600/10 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-600/20'
+                    : 'bg-slate-200 dark:bg-slate-800/60 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-700/50'
+            ]"
+          >
+            <div class="flex items-start gap-2">
+              <span v-if="msg.role === 'user'" class="text-[10px] font-medium text-blue-600 dark:text-blue-400 flex-shrink-0">You</span>
+              <span v-else-if="msg.role === 'assistant'" class="text-[10px] font-medium text-green-600 dark:text-green-400 flex-shrink-0">AI</span>
+              <span v-else class="text-[10px] font-medium text-slate-500 dark:text-slate-500 flex-shrink-0">System</span>
+            </div>
+            <p class="mt-0.5 text-xs leading-relaxed whitespace-pre-wrap" v-html="msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')"></p>
+            <div class="text-[9px] text-slate-500 dark:text-slate-600 mt-1">
+              {{ msg.timestamp.toLocaleTimeString() }}
+            </div>
+          </div>
+
+          <!-- Generating indicator -->
+          <div v-if="isGenerating" class="flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300 px-3 py-2 bg-blue-100 dark:bg-blue-600/10 rounded-lg border border-blue-200 dark:border-blue-600/20">
+            <div class="w-3 h-3 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+            {{ currentLang === 'en' ? 'Generating...' : 'Membuat...' }}
+          </div>
+
+          <!-- Refining indicator -->
+          <div v-if="isRefining" class="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300 px-3 py-2 bg-purple-100 dark:bg-purple-600/10 rounded-lg border border-purple-200 dark:border-purple-600/20">
+            <div class="w-3 h-3 border-2 border-purple-600 dark:border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+            {{ currentLang === 'en' ? 'Refining...' : 'Merevisi...' }}
+          </div>
+        </div>
+
+        <!-- Chat Input Area - Bigger, with model selector -->
+        <div class="border-t border-slate-200 dark:border-slate-800 p-3">
+          <!-- Target page indicator -->
+          <div v-if="selectedPage" class="flex items-center gap-1.5 mb-2">
+            <span class="text-[10px] text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Targeting' : 'Target' }}:</span>
+            <span class="text-[10px] px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-medium">{{ selectedPage }}</span>
+          </div>
+          <!-- Text input - larger -->
+          <textarea
+            v-model="commandInput"
+            :placeholder="currentLang === 'en' ? 'Describe changes... (e.g. &quot;Make navbar fixed&quot;, &quot;Change button color to red&quot;)' : 'Jelaskan perubahan... (contoh: &quot;Buat navbar fixed&quot;, &quot;Ubah warna tombol jadi merah&quot;)'"
+            :disabled="isRefining || isGenerating || !isCompleted"
+            class="w-full px-3 py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 resize-none"
+            rows="3"
+            @keydown.enter.exact.prevent="handleCommand"
+          ></textarea>
+          <!-- Bottom row: model selector + send button -->
+          <div class="flex items-center justify-between mt-2">
+            <div class="flex items-center gap-2">
+              <!-- Model selector -->
+              <select
+                v-model="selectedRefineModel"
+                class="px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
-                <svg v-if="isRefining" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>{{ isRefining ? 'Refining...' : 'Refine' }}</span>
+                <option value="satset">⚡ Satset</option>
+                <option value="expert">🧠 Expert</option>
+              </select>
+              <span class="text-[10px] text-slate-500 dark:text-slate-600">
+                {{ selectedRefineModel === 'expert' ? '(3 credits)' : '(1 credit)' }}
+              </span>
+            </div>
+            <button
+              @click="handleCommand"
+              :disabled="!commandInput.trim() || isRefining || isGenerating || !isCompleted"
+              class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              {{ currentLang === 'en' ? 'Send' : 'Kirim' }}
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Panel: Preview / Code -->
+      <main class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-950">
+
+        <!-- Pages Navigation -->
+        <div class="bg-slate-100 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 px-4 py-2 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-widest flex-shrink-0">
+              {{ currentLang === 'en' ? 'Pages' : 'Halaman' }}
+            </span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="page in pageNames"
+                :key="page"
+                @click="selectPage(page)"
+                :class="[
+                  'px-2.5 py-1 text-xs rounded-md font-medium transition-all',
+                  selectedPage === page
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-300'
+                ]"
+              >
+                {{ page }}
+                <span
+                  v-if="generationData.progress_data[page]"
+                  :class="[
+                    'ml-1.5 inline-block w-1.5 h-1.5 rounded-full',
+                    generationData.progress_data[page].status === 'completed' ? 'bg-green-400' :
+                    generationData.progress_data[page].status === 'generating' ? 'bg-blue-400 animate-pulse' :
+                    generationData.progress_data[page].status === 'failed' ? 'bg-red-400' :
+                    'bg-slate-600'
+                  ]"
+                ></span>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Preview Tab -->
-        <div v-if="activeTab === 'preview'">
-          <div v-if="isCompleted" class="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-white">
-            <iframe
-              :srcdoc="generatedContent"
-              class="w-full h-[600px]"
-              sandbox="allow-scripts"
-            ></iframe>
+        <!-- View Tabs + Actions -->
+        <div class="h-10 bg-slate-100 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 flex-shrink-0">
+          <div class="flex items-center gap-1">
+            <button
+              @click="activeView = 'preview'"
+              :class="[
+                'px-3 py-1.5 text-xs font-medium rounded transition-colors',
+                activeView === 'preview'
+                  ? 'bg-blue-100 dark:bg-blue-600/20 text-blue-700 dark:text-blue-300'
+                  : 'text-slate-600 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+              ]"
+            >
+              <span class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                Preview
+              </span>
+            </button>
+            <button
+              @click="activeView = 'code'"
+              :class="[
+                'px-3 py-1.5 text-xs font-medium rounded transition-colors',
+                activeView === 'code'
+                  ? 'bg-blue-100 dark:bg-blue-600/20 text-blue-700 dark:text-blue-300'
+                  : 'text-slate-600 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+              ]"
+            >
+              <span class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                {{ currentLang === 'en' ? 'Code' : 'Kode' }}
+              </span>
+            </button>
           </div>
-          <div v-else class="text-center text-slate-500 dark:text-slate-400 py-12">
-            Preview will be available after generation completes
+          <div class="flex items-center gap-2">
+            <span v-if="selectedPage" class="text-xs text-slate-600 dark:text-slate-500">{{ selectedPage }}</span>
+            <button v-if="currentPageContent" @click="copyPageCode"
+              class="p-1.5 text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white rounded transition-colors" title="Copy">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            </button>
+            <button v-if="currentPageContent" @click="downloadPage"
+              class="p-1.5 text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white rounded transition-colors" title="Download">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            </button>
           </div>
         </div>
 
-        <!-- Prompt Tab -->
-        <div v-if="activeTab === 'prompt'">
-          <pre class="bg-slate-900 dark:bg-black rounded-lg p-6 overflow-auto max-h-[600px] text-sm"><code class="text-yellow-400 font-mono whitespace-pre-wrap">{{ generationData.mcp_prompt }}</code></pre>
-        </div>
+        <!-- Content Area -->
+        <div class="flex-1 overflow-hidden relative">
+          <!-- Preview Tab -->
+          <div v-show="activeView === 'preview'" class="h-full">
+            <div v-if="currentPageContent || allPagesContent" class="h-full bg-white">
+              <iframe
+                v-if="iframeSrc"
+                :src="iframeSrc"
+                class="w-full h-full border-0"
+                sandbox="allow-scripts allow-same-origin"
+              ></iframe>
+            </div>
+            <div v-else class="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+              <div class="text-center">
+                <div v-if="isGenerating" class="mb-4">
+                  <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                </div>
+                <svg v-else class="w-12 h-12 text-slate-400 dark:text-slate-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <p class="text-slate-500 dark:text-slate-500 text-sm">
+                  {{ isGenerating
+                    ? (currentLang === 'en' ? 'Generating preview...' : 'Membuat preview...')
+                    : (currentLang === 'en' ? 'Preview will appear here' : 'Preview akan muncul di sini') }}
+                </p>
+              </div>
+            </div>
+          </div>
 
-        <!-- Blueprint Tab -->
-        <div v-if="activeTab === 'blueprint'">
-          <pre class="bg-slate-900 dark:bg-black rounded-lg p-6 overflow-auto max-h-[600px] text-sm"><code class="text-blue-400 font-mono">{{ JSON.stringify(generationData.project.blueprint, null, 2) }}</code></pre>
+          <!-- Code Tab -->
+          <div v-show="activeView === 'code'" class="h-full overflow-auto bg-slate-50 dark:bg-slate-900">
+            <pre v-if="currentPageContent" class="p-4 text-xs"><code class="text-green-600 dark:text-green-400 font-mono whitespace-pre-wrap">{{ currentPageContent }}</code></pre>
+            <div v-else class="h-full flex items-center justify-center">
+              <p class="text-slate-500 dark:text-slate-500 text-sm">
+                {{ currentLang === 'en' ? 'No code generated yet' : 'Belum ada kode' }}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
-  </AppLayout>
+  </div>
 </template>

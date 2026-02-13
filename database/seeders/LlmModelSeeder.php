@@ -27,7 +27,7 @@ class LlmModelSeeder extends Seeder
         
         $models = [
             [
-                'model_type' => 'fast',
+                'model_type' => 'satset',
                 'provider' => 'gemini',
                 'model_name' => 'gemini-2.0-flash-exp',
                 'api_key' => $defaultApiKey,
@@ -36,21 +36,12 @@ class LlmModelSeeder extends Seeder
                 'is_active' => true,
             ],
             [
-                'model_type' => 'professional',
+                'model_type' => 'expert',
                 'provider' => 'gemini',
                 'model_name' => 'gemini-2.5-pro-preview',
                 'api_key' => $defaultApiKey,
                 'base_url' => $defaultBaseUrl,
-                'base_credits' => 13,
-                'is_active' => true,
-            ],
-            [
-                'model_type' => 'expert',
-                'provider' => 'gemini',
-                'model_name' => 'gemini-3-pro-preview',
-                'api_key' => $defaultApiKey,
-                'base_url' => $defaultBaseUrl,
-                'base_credits' => 24,
+                'base_credits' => 15,
                 'is_active' => true,
             ],
         ];

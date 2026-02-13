@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 /**
  * LLM Model API Controller
  * 
- * Provides the 3 model types to the wizard
+ * Provides the 2 model types (Satset & Expert) to the wizard
  */
 class LlmModelController extends Controller
 {
@@ -24,7 +24,7 @@ class LlmModelController extends Controller
     {
         $user = $request->user();
         
-        // Get the 3 active models ordered by type
+        // Get the 2 active models (Satset & Expert) ordered by type
         $models = LlmModel::active()->ordered()->get();
         
         // Get wizard context for better estimates (optional parameters from query)

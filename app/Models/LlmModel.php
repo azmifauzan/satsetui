@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Crypt;
 /**
  * LLM Model
  * 
- * Represents 3 fixed model types (fast, professional, expert)
+ * Represents 2 fixed model types (satset, expert)
  * Each can be configured with different providers (Gemini or OpenAI)
  */
 class LlmModel extends Model
@@ -82,9 +82,8 @@ class LlmModel extends Model
     {
         return $query->orderByRaw("
             CASE model_type
-                WHEN 'fast' THEN 1
-                WHEN 'professional' THEN 2
-                WHEN 'expert' THEN 3
+                WHEN 'satset' THEN 1
+                WHEN 'expert' THEN 2
             END
         ");
     }
@@ -95,8 +94,7 @@ class LlmModel extends Model
     public function getDisplayNameAttribute(): string
     {
         return match($this->model_type) {
-            'fast' => 'Cepat',
-            'professional' => 'Profesional',
+            'satset' => 'Satset',
             'expert' => 'Expert',
             default => ucfirst($this->model_type),
         };
@@ -108,9 +106,8 @@ class LlmModel extends Model
     public function getDescriptionAttribute(): string
     {
         return match($this->model_type) {
-            'fast' => 'Generasi cepat dengan hasil berkualitas baik untuk template sederhana',
-            'professional' => 'Hasil berkualitas tinggi dengan keseimbangan kecepatan dan detail',
-            'expert' => 'Kualitas terbaik untuk template kompleks dengan fitur lengkap',
+            'satset' => 'Fast generation with good quality — perfect for quick builds',
+            'expert' => 'Best quality with detailed, production-ready output',
             default => '',
         };
     }

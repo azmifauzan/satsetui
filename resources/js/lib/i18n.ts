@@ -23,10 +23,10 @@ function getInitialLanguage(): Language {
       return saved;
     }
   }
-  return 'id'; // Default to Indonesian
+  return 'en'; // Default to English
 }
 
-// Global reactive language state - defaults to Indonesian
+// Global reactive language state - defaults to English
 const currentLanguage = ref<Language>(getInitialLanguage());
 
 // Translation keys type
@@ -394,6 +394,13 @@ export interface Translations {
     forgotPassword: string;
     name: string;
     confirmPassword: string;
+    verifyEmail: string;
+    verifyEmailMessage: string;
+    verificationLinkSent: string;
+    resendVerificationEmail: string;
+    agreeToTerms: string;
+    showPassword: string;
+    hidePassword: string;
   };
 
   // Landing Page
@@ -895,6 +902,13 @@ const id: Translations = {
     forgotPassword: 'Lupa Password',
     name: 'Nama',
     confirmPassword: 'Konfirmasi Password',
+    verifyEmail: 'Verifikasi Email',
+    verifyEmailMessage: 'Terima kasih telah mendaftar! Sebelum memulai, silakan verifikasi alamat email Anda dengan mengklik link yang baru saja kami kirimkan. Jika Anda tidak menerima email, kami akan dengan senang hati mengirimkan yang baru.',
+    verificationLinkSent: 'Link verifikasi baru telah dikirim ke alamat email yang Anda berikan saat pendaftaran.',
+    resendVerificationEmail: 'Kirim Ulang Email Verifikasi',
+    agreeToTerms: 'Saya setuju dengan Syarat dan Ketentuan',
+    showPassword: 'Tampilkan Password',
+    hidePassword: 'Sembunyikan Password',
   },
   landing: {
     title: 'SatsetUI - Buat Template Frontend dengan Mudah & Sat-set!',
@@ -1446,6 +1460,13 @@ const en: Translations = {
     forgotPassword: 'Forgot Password',
     name: 'Name',
     confirmPassword: 'Confirm Password',
+    verifyEmail: 'Verify Email',
+    verifyEmailMessage: 'Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you? If you didn\'t receive the email, we will gladly send you another.',
+    verificationLinkSent: 'A new verification link has been sent to the email address you provided during registration.',
+    resendVerificationEmail: 'Resend Verification Email',
+    agreeToTerms: 'I agree to the Terms and Conditions',
+    showPassword: 'Show Password',
+    hidePassword: 'Hide Password',
   },
   landing: {
     title: 'SatsetUI - Create Frontend Templates Easily & Quickly!',

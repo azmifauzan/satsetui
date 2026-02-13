@@ -17,6 +17,19 @@ if (token) {
     console.error('CSRF token not found');
 }
 
+// Handle 419 (CSRF token mismatch) by refreshing the page to get a new token
+axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 419) {
+            // CSRF token expired - reload page to get fresh token
+            window.location.reload();
+            return new Promise(() => {}); // prevent further error handling
+        }
+        return Promise.reject(error);
+    }
+);
+
 // Make axios globally available
 window.axios = axios;
 
