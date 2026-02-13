@@ -54,6 +54,7 @@ class McpPromptBuilder
         return implode("\n\n", [
             $this->buildRoleSection($blueprint),
             $this->buildProjectContextSection($blueprint, $pageName, $pageIndex),
+            $this->buildProjectInfoSection($blueprint),
             $this->buildConstraintsSection($blueprint),
             $this->buildCurrentPageSection($blueprint, $pageName, $isCustomPage, $customPageInfo),
             $this->buildLayoutSection($blueprint),
@@ -204,6 +205,62 @@ class McpPromptBuilder
     }
 
     /**
+     * PROJECT INFO: Company/project information for consistent branding across all pages
+     * 
+     * This section is CRITICAL for consistency. It ensures that company name, descriptions,
+     * and other project-specific information are included in EVERY page generation.
+     */
+    private function buildProjectInfoSection(array $blueprint): string
+    {
+        $projectInfo = $blueprint['projectInfo'] ?? [];
+        
+        // Skip if no project info provided
+        if (empty($projectInfo)) {
+            return '';
+        }
+
+        $section = ["PROJECT INFORMATION (USE CONSISTENTLY ACROSS ALL PAGES):"];
+        
+        // Company/Organization Info
+        if (!empty($projectInfo['companyName'])) {
+            $section[] = "- Company/Organization Name: {$projectInfo['companyName']}";
+            $section[] = "  → Use this exact name in headers, footers, page titles, and branding";
+        }
+        
+        if (!empty($projectInfo['companyDescription'])) {
+            $section[] = "- Company Description: {$projectInfo['companyDescription']}";
+            $section[] = "  → Use this for meta descriptions, about sections, and taglines";
+        }
+
+        // Application Info
+        if (!empty($projectInfo['appName'])) {
+            $section[] = "- Application Name: {$projectInfo['appName']}";
+            $section[] = "  → Use this in dashboard headers, page titles, and navigation";
+        }
+
+        // Store Info (E-commerce)
+        if (!empty($projectInfo['storeName'])) {
+            $section[] = "- Store Name: {$projectInfo['storeName']}";
+            $section[] = "  → Use this in store branding, headers, and footer";
+        }
+        
+        if (!empty($projectInfo['storeDescription'])) {
+            $section[] = "- Store Description: {$projectInfo['storeDescription']}";
+            $section[] = "  → Use this for store tagline and about content";
+        }
+
+        $section[] = "";
+        $section[] = "IMPORTANT CONSISTENCY RULES:";
+        $section[] = "1. Use the EXACT names provided above - do NOT make up different names";
+        $section[] = "2. Apply these consistently across ALL pages (navigation, headers, footers, titles)";
+        $section[] = "3. Every page must use the same company/project name in its branding";
+        $section[] = "4. Footer content must be identical across all pages";
+        $section[] = "5. Navigation menu must be identical across all pages (same items, same order)";
+
+        return implode("\n", $section);
+    }
+
+    /**
      * CONTEXT: Project overview (legacy, all-pages version)
      */
     private function buildContextSection(array $blueprint): string
@@ -342,12 +399,17 @@ class McpPromptBuilder
 
         $section = ["LAYOUT REQUIREMENTS:"];
         $section[] = "- Navigation Pattern: " . $this->formatNavigationName($navigation);
+        $section[] = "";
+        $section[] = "CRITICAL: You MUST use the '{$navigation}' navigation pattern for ALL pages.";
+        $section[] = "DO NOT use a different navigation pattern for different pages.";
+        $section[] = "";
 
         if ($navigation === 'sidebar' || $navigation === 'hybrid') {
             $sidebarState = $layout['sidebarDefaultState'] ?? 'expanded';
             $section[] = "- Sidebar Default State: " . ucfirst($sidebarState);
             $section[] = "- Sidebar Behavior: Collapsible with toggle button";
             $section[] = "- Sidebar Width: 256px expanded, 64px collapsed";
+            $section[] = "- IMPORTANT: Use sidebar navigation on ALL pages, not top navigation";
 
             if ($navigation === 'hybrid') {
                 $section[] = "- Top Bar: Fixed position, contains user menu and notifications";
@@ -358,10 +420,16 @@ class McpPromptBuilder
         if ($navigation === 'topbar') {
             $section[] = "- Top Bar: Fixed position, full width, contains all navigation";
             $section[] = "- Top Bar Height: 64px";
+            $section[] = "- IMPORTANT: Use top bar navigation on ALL pages, not sidebar";
         }
 
         $section[] = "- Breadcrumbs: {$breadcrumbs}";
         $section[] = "- Footer: {$footer} style";
+        $section[] = "";
+        $section[] = "Footer Consistency:";
+        $section[] = "- Footer content MUST be IDENTICAL across all pages";
+        $section[] = "- Use the same copyright text, links, and layout on every page";
+        $section[] = "- Do NOT create different footers for different pages";
 
         // Include navigation menu structure
         $allPages = $this->getPageList($blueprint);
@@ -377,28 +445,33 @@ class McpPromptBuilder
         }
         
         if (!empty($regularPages) || !empty($componentPages)) {
-            $section[] = "\nNavigation Menu Structure:";
-            $section[] = "Organize menu items into logical groups:";
+            $section[] = "";
+            $section[] = "Navigation Menu Structure (MUST BE IDENTICAL ON ALL PAGES):";
+            $section[] = "The following menu items MUST appear in the same order on every page:";
+            $section[] = "";
             
             if (!empty($regularPages)) {
-                $section[] = "\nMain Pages Group:";
+                $section[] = "Main Pages Group:";
                 foreach ($regularPages as $pageName) {
                     $displayName = $this->formatPageName($pageName);
-                    $section[] = "- {$displayName}";
+                    $section[] = "  • {$displayName}";
                 }
             }
             
             if (!empty($componentPages)) {
-                $section[] = "\nUI Components Group (or 'UI Elements'):";
+                $section[] = "";
+                $section[] = "UI Components Group (or 'UI Elements'):";
                 foreach ($componentPages as $pageName) {
                     $cleanName = str_replace('component:', '', $pageName);
                     $cleanName = str_replace('custom:', '', $cleanName);
                     $displayName = ucwords(str_replace('-', ' ', $cleanName));
-                    $section[] = "- {$displayName}";
+                    $section[] = "  • {$displayName}";
                 }
             }
             
-            $section[] = "\nNOTE: Component pages should be grouped under 'UI Components' or 'UI Elements' menu section.";
+            $section[] = "";
+            $section[] = "⚠️ CRITICAL: Every page MUST have the EXACT SAME menu items in the SAME ORDER.";
+            $section[] = "Do NOT add, remove, or reorder menu items between pages.";
         }
 
         // Include custom navigation items

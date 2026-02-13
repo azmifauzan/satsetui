@@ -162,3 +162,148 @@ test('buildFromBlueprint reflects different page counts including component show
     expect($resultMultiple)->toContain('Dashboard');
     expect($resultMultiple)->toContain('Settings');
 });
+
+test('buildForPage includes project info section when company name is provided', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'projectInfo' => [
+            'companyName' => 'PT Mencari Cinta',
+            'companyDescription' => 'Perusahaan Teknologi Terkemuka',
+        ],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+    
+    expect($result)->toContain('PROJECT INFORMATION');
+    expect($result)->toContain('PT Mencari Cinta');
+    expect($result)->toContain('Perusahaan Teknologi Terkemuka');
+    expect($result)->toContain('CONSISTENCY RULES');
+    expect($result)->toContain('Use the EXACT names provided above');
+});
+
+test('buildForPage includes app name for dashboard category', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'category' => 'dashboard',
+        'projectInfo' => [
+            'appName' => 'AdminPro Dashboard',
+        ],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+    
+    expect($result)->toContain('PROJECT INFORMATION');
+    expect($result)->toContain('Application Name: AdminPro Dashboard');
+    expect($result)->toContain('dashboard headers');
+});
+
+test('buildForPage includes store info for e-commerce category', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'category' => 'e-commerce',
+        'projectInfo' => [
+            'storeName' => 'TechStore Indonesia',
+            'storeDescription' => 'Your trusted technology partner',
+        ],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'home', 0);
+    
+    expect($result)->toContain('PROJECT INFORMATION');
+    expect($result)->toContain('Store Name: TechStore Indonesia');
+    expect($result)->toContain('Your trusted technology partner');
+    expect($result)->toContain('store branding');
+});
+
+test('buildForPage skips project info section when empty', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'projectInfo' => [],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+    
+    // Should not contain the section header if no info provided
+    expect($result)->not->toContain('PROJECT INFORMATION (USE CONSISTENTLY');
+});
+
+test('buildForPage emphasizes navigation consistency', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'layout' => [
+            'navigation' => 'topbar',
+            'breadcrumbs' => true,
+            'footer' => 'minimal',
+        ],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+    
+    expect($result)->toContain('CRITICAL: You MUST use the \'topbar\' navigation pattern');
+    expect($result)->toContain('DO NOT use a different navigation pattern');
+    expect($result)->toContain('Use top bar navigation on ALL pages, not sidebar');
+});
+
+test('buildForPage emphasizes sidebar consistency when sidebar is selected', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'layout' => [
+            'navigation' => 'sidebar',
+            'breadcrumbs' => true,
+            'footer' => 'minimal',
+            'sidebarDefaultState' => 'expanded',
+        ],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+    
+    expect($result)->toContain('CRITICAL: You MUST use the \'sidebar\' navigation pattern');
+    expect($result)->toContain('Use sidebar navigation on ALL pages, not top navigation');
+});
+
+test('buildForPage includes footer consistency requirements', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint();
+    
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+    
+    expect($result)->toContain('Footer Consistency');
+    expect($result)->toContain('Footer content MUST be IDENTICAL across all pages');
+    expect($result)->toContain('Do NOT create different footers for different pages');
+});
+
+test('buildForPage includes menu consistency requirements', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'pages' => ['home', 'about', 'contact'],
+    ]);
+    
+    $result = $builder->buildForPage($blueprint, 'home', 0);
+    
+    expect($result)->toContain('MUST BE IDENTICAL ON ALL PAGES');
+    expect($result)->toContain('CRITICAL: Every page MUST have the EXACT SAME menu items');
+    expect($result)->toContain('Do NOT add, remove, or reorder menu items between pages');
+});
+
+test('projectInfo is deterministic across multiple page generations', function () {
+    $builder = new McpPromptBuilder();
+    $blueprint = createValidBlueprint([
+        'projectInfo' => [
+            'companyName' => 'Consistent Corp',
+            'companyDescription' => 'Always the same',
+        ],
+    ]);
+    
+    $resultPage1 = $builder->buildForPage($blueprint, 'home', 0);
+    $resultPage2 = $builder->buildForPage($blueprint, 'about', 1);
+    $resultPage3 = $builder->buildForPage($blueprint, 'contact', 2);
+    
+    // All pages should contain the same company info
+    expect($resultPage1)->toContain('Consistent Corp');
+    expect($resultPage2)->toContain('Consistent Corp');
+    expect($resultPage3)->toContain('Consistent Corp');
+    
+    expect($resultPage1)->toContain('Always the same');
+    expect($resultPage2)->toContain('Always the same');
+    expect($resultPage3)->toContain('Always the same');
+});

@@ -68,6 +68,40 @@
       "$comment": "Provides context for MCP prompt when using custom output format.",
       "type": "string"
     },
+    "projectInfo": {
+      "title": "Project Information",
+      "description": "Information about the project/company for consistent branding across all generated pages.",
+      "$comment": "MCP mapping: included in every page generation to ensure consistency in company names, descriptions, and branding.",
+      "type": "object",
+      "properties": {
+        "companyName": {
+          "title": "Company/Project Name",
+          "description": "Name of the company, project, or application. Used consistently across all pages.",
+          "type": "string"
+        },
+        "companyDescription": {
+          "title": "Company/Project Description",
+          "description": "Brief description of the company, project, or application purpose.",
+          "type": "string"
+        },
+        "appName": {
+          "title": "Application Name",
+          "description": "Name of the application or system (for dashboard/app templates).",
+          "type": "string"
+        },
+        "storeName": {
+          "title": "Store Name",
+          "description": "Name of the online store (for e-commerce templates).",
+          "type": "string"
+        },
+        "storeDescription": {
+          "title": "Store Description",
+          "description": "Description of the online store and products (for e-commerce templates).",
+          "type": "string"
+        }
+      },
+      "default": {}
+    },
     "pages": {
       "title": "Step 2: Page Selection",
       "description": "Array of specific pages to include in the template. This list drives MCP page requirements and output file list. Must contain at least one page.",

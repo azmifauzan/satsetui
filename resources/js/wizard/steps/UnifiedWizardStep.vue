@@ -212,8 +212,22 @@ const selectFont = (fontId: string) => {
   wizardState.fontFamily = fontId;
 };
 
-// Watch category-specific inputs + custom style/font to store in customInstructions
+// Watch category-specific inputs + custom style/font to store in customInstructions AND projectInfo
 watch([companyName, companyDescription, appName, storeName, storeDescription, useCustomStyle, customStyleName, useCustomFont, customFontName], () => {
+  // Save to structured projectInfo for consistent usage across all pages
+  if (wizardState.category === 'company-profile') {
+    wizardState.projectInfo.companyName = companyName.value.trim();
+    wizardState.projectInfo.companyDescription = companyDescription.value.trim();
+  } else if (wizardState.category === 'e-commerce') {
+    wizardState.projectInfo.storeName = storeName.value.trim();
+    wizardState.projectInfo.storeDescription = storeDescription.value.trim();
+  } else if (wizardState.category === 'mobile-apps') {
+    wizardState.projectInfo.appName = appName.value.trim();
+  } else if (wizardState.category === 'dashboard') {
+    wizardState.projectInfo.appName = appName.value.trim();
+  }
+
+  // Also keep in customInstructions for backward compatibility
   let contextInfo = '';
   if (wizardState.category === 'company-profile') {
     if (companyName.value) contextInfo += `Company Name: ${companyName.value}. `;
@@ -244,6 +258,20 @@ const navStyles = [
   { id: 'sidebar', labelEn: 'Sidebar Navigation', labelId: 'Navigasi Samping', icon: '▮' },
   { id: 'both', labelEn: 'Top + Sidebar', labelId: 'Atas + Samping', icon: '▣' },
 ];
+
+// Sync navStyle with layout.navigation
+watch(() => wizardState.navStyle, (newNavStyle) => {
+  // Map navStyle to layout.navigation
+  const navMapping: Record<string, 'topbar' | 'sidebar' | 'hybrid'> = {
+    'top': 'topbar',
+    'sidebar': 'sidebar',
+    'both': 'hybrid',
+  };
+  
+  if (newNavStyle && navMapping[newNavStyle]) {
+    wizardState.layout.navigation = navMapping[newNavStyle];
+  }
+}, { immediate: true });
 
 const themeMode = computed({
   get: () => wizardState.themeMode || 'dark',

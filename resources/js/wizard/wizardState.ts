@@ -145,6 +145,17 @@ export interface CustomNavItem {
 }
 
 /**
+ * Project information for consistent branding
+ */
+export interface ProjectInfo {
+  companyName?: string;
+  companyDescription?: string;
+  appName?: string;
+  storeName?: string;
+  storeDescription?: string;
+}
+
+/**
  * Step 2: Layout & Navigation Configuration
  */
 export type NavigationType = 'sidebar' | 'topbar' | 'hybrid';
@@ -254,6 +265,9 @@ export interface WizardState {
   outputFormat: OutputFormat;
   customOutputFormat: string; // Custom output format description when outputFormat = 'custom'
 
+  // Project Information (for consistent branding)
+  projectInfo: ProjectInfo;
+
   // Step 2: Visual Design & Content
   pages: Page[];
   customPages: CustomPage[]; // User-added custom pages
@@ -311,6 +325,15 @@ export const wizardState = reactive<WizardState>({
   customCategoryDescription: '',
   outputFormat: 'html-css',
   customOutputFormat: '',
+
+  // Project Information (for consistent branding)
+  projectInfo: {
+    companyName: '',
+    companyDescription: '',
+    appName: '',
+    storeName: '',
+    storeDescription: '',
+  },
 
   // Step 2: Visual Design & Content
   pages: ['login', 'dashboard'],
@@ -986,6 +1009,15 @@ export function generateBlueprintJson(): Record<string, unknown> {
     ...(wizardState.outputFormat === 'custom' && {
       customOutputFormat: wizardState.customOutputFormat,
     }),
+
+    // Project Information (for consistent branding across all pages)
+    projectInfo: {
+      ...(wizardState.projectInfo.companyName && { companyName: wizardState.projectInfo.companyName }),
+      ...(wizardState.projectInfo.companyDescription && { companyDescription: wizardState.projectInfo.companyDescription }),
+      ...(wizardState.projectInfo.appName && { appName: wizardState.projectInfo.appName }),
+      ...(wizardState.projectInfo.storeName && { storeName: wizardState.projectInfo.storeName }),
+      ...(wizardState.projectInfo.storeDescription && { storeDescription: wizardState.projectInfo.storeDescription }),
+    },
 
     // Step 2: Visual Design & Content
     pages: wizardState.pages,
