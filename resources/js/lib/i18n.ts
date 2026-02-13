@@ -2,7 +2,7 @@
  * Internationalization (i18n) System
  * 
  * Bilingual support for Indonesian (id) and English (en).
- * DEFAULT LANGUAGE: Indonesian (id)
+ * DEFAULT LANGUAGE: English (en)
  * All user-facing strings must be translated.
  * 
  * Usage:
@@ -1668,19 +1668,57 @@ export function setLanguage(lang: Language): void {
   // Persist to localStorage
   if (typeof window !== 'undefined') {
     localStorage.setItem('app-language', lang);
+    
+    // Also send to backend if user is authenticated
+    const pageProps = (window as any).__INERTIA__?.props?.['initialPage']?.props;
+    if (pageProps?.auth?.user) {
+      // Async call to update user language in database
+      // Using fetch to avoid circular dependencies with vue router
+      fetch('/language', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': ((document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || ''),
+        },
+        body: JSON.stringify({ language: lang }),
+      }).catch(err => console.error('Failed to save language preference:', err));
+    }
   }
 }
 
 /**
- * Initialize language from localStorage or default
+ * Toggle between Indonesian and English
+ */
+export function toggleLanguage(): void {
+  const newLang = currentLanguage.value === 'id' ? 'en' : 'id';
+  setLanguage(newLang);
+}
+
+/**
+ * Initialize language from localStorage, page props, or default
  */
 export function initLanguage(): void {
   if (typeof window !== 'undefined') {
+    // First check localStorage
     const saved = localStorage.getItem('app-language') as Language;
     if (saved && (saved === 'id' || saved === 'en')) {
       currentLanguage.value = saved;
+      return;
+    }
+
+    // Then check page props (from authenticated user)
+    const pageProps = (window as any).__INERTIA__?.props?.['initialPage']?.props;
+    if (pageProps?.userLanguage) {
+      const userLang = pageProps.userLanguage as Language;
+      if (userLang === 'id' || userLang === 'en') {
+        currentLanguage.value = userLang;
+        return;
+      }
     }
   }
+  
+  // Default to English if nothing else found
+  currentLanguage.value = 'en';
 }
 
 /**
@@ -1693,6 +1731,7 @@ export function useI18n() {
     t,
     currentLang: computed(() => currentLanguage.value),
     setLang: setLanguage,
+    toggleLanguage: toggleLanguage,
     getCurrentLang: getCurrentLanguage,
   };
 }
