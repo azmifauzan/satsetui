@@ -2,6 +2,54 @@
 
 All notable changes to SatsetUI will be documented in this file.
 
+## [2.2.0] - 2026-02-16
+
+### Changed
+- **LLM Model Simplification**: Reduced from 6 models to **2 model types**
+  - **Satset** (default: `gemini-2.0-flash-exp`) — 6 credits, cepat untuk prototyping
+  - **Expert** (default: `gemini-2.5-pro-preview`) — 15 credits, kualitas premium
+  - Model provider, name, API key, dan base URL admin-configurable (encrypted)
+  - Removed free tier concept — semua user punya kredit
+- **Registration Credits**: Increased from 25 to **100 credits** for new users
+- **LLM Model Structure**: `model_type` field replaces `name`-based identification
+  - Migration: `2026_02_11_160454` restructures for 3 types
+  - Migration: `2026_02_13_100000` finalizes to 2 types (satset + expert)
+
+### Added
+- **Refinement Chat**: Post-generation editing via conversational refinement
+  - `RefinementMessage` model with role (user/assistant), type, page context
+  - `POST /generation/{id}/refine` endpoint
+  - Full chat UI in `Generation/Show.vue`
+  - Migration: `2026_02_13_143434` creates `refinement_messages` table
+- **SSE Streaming**: Real-time `GET /generation/{id}/stream` (Server-Sent Events)
+  - Live progress updates during generation
+  - No polling required on client
+- **Background Queue Generation**: `POST /generation/{id}/background` to continue in queue
+  - `ProcessTemplateGeneration` job (30min timeout, 1 try)
+  - `TemplateGenerationCompleted` database notification on finish
+- **Generation Policy**: `GenerationPolicy` ensures users can only view their own generations
+- **Telegram Notifications**: Admin notified via Telegram when new users register
+  - `TelegramChannel` custom notification channel
+  - `TelegramService` for bot messaging
+  - `UserRegistered` notification
+- **Email Verification**: Mandatory email verification before accessing features
+  - Uses Laravel's `MustVerifyEmail` trait
+  - Registration redirects to login (no auto-login)
+  - Rate limited: 6 verification resends per minute
+- **Project Info in Wizard**: Company/app/store branding fields for consistent output
+  - `companyName`, `companyDescription`, `appName`, `storeName`, `storeDescription`
+- **Chart Library Selection**: Chart.js or Apache ECharts in Step 2
+- **Generation Naming**: Users can name templates in Step 3
+  - `PATCH /generation/{id}/name` endpoint
+- **Language Persistence**: `POST /language` saves user language preference to database
+
+### Documentation
+- Updated README.md with current feature set and accurate information
+- Updated all docs/ files to reflect current 2-model system
+- Corrected credit amounts, model names, and feature status
+
+---
+
 ## [2.1.0] - 2026-01-25
 
 ### Changed

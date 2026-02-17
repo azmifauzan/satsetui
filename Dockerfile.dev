@@ -1,0 +1,87 @@
+# ============================================================================
+# SatsetUI Development Dockerfile — php:8.4-apache + Node.js 22 LTS
+# ============================================================================
+# Development variant: does NOT copy code (mounted via volume), does NOT
+# run production optimizations. Keeps composer/npm install cached in layers.
+# ============================================================================
+
+FROM php:8.4-apache
+
+LABEL maintainer="SatsetUI"
+
+# ---------- System dependencies ----------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        unzip \
+        zip \
+        libpng-dev \
+        libjpeg62-turbo-dev \
+        libfreetype6-dev \
+        libonig-dev \
+        libxml2-dev \
+        libzip-dev \
+        libpq-dev \
+        libsqlite3-dev \
+        supervisor \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ---------- Node.js 22 LTS ----------
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ---------- PHP extensions ----------
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        pdo \
+        pdo_pgsql \
+        pdo_mysql \
+        pdo_sqlite \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        zip
+
+# ---------- Composer ----------
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# ---------- Apache ----------
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+RUN a2enmod rewrite headers
+
+RUN echo '<VirtualHost *:80>\n\
+    ServerAdmin webmaster@localhost\n\
+    DocumentRoot ${APACHE_DOCUMENT_ROOT}\n\
+    \n\
+    <Directory ${APACHE_DOCUMENT_ROOT}>\n\
+        AllowOverride All\n\
+        Require all granted\n\
+        FallbackResource /index.php\n\
+    </Directory>\n\
+    \n\
+    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
+</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf 2>/dev/null || true
+
+# ---------- PHP dev settings ----------
+RUN cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+RUN echo '\n\
+upload_max_filesize = 64M\n\
+post_max_size = 64M\n\
+memory_limit = 512M\n\
+max_execution_time = 300\n\
+' >> "$PHP_INI_DIR/php.ini"
+
+WORKDIR /var/www/html
+
+# ---------- Supervisor (Apache + Queue Worker) ----------
+COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+EXPOSE 80
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

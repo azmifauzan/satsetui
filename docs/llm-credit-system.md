@@ -2,8 +2,8 @@
 
 Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kredit di SatsetUI.
 
-**Tanggal Update:** 25 Januari 2026  
-**Versi:** 2.1 (Updated untuk SatsetUI)
+**Tanggal Update:** 16 Februari 2026  
+**Versi:** 2.2 (Updated untuk 2-model system)
 
 ---
 
@@ -23,73 +23,54 @@ Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kred
 
 ## Ringkasan Sistem
 
-SatsetUI menggunakan OpenAI-compatible API untuk mendukung multiple model providers dalam satu interface yang konsisten. Setiap model memiliki pricing yang berbeda berdasarkan token input/output, dan users dikenakan biaya dalam bentuk kredit.
+SatsetUI menggunakan OpenAI-compatible API sebagai gateway utama untuk mendukung multiple LLM providers dalam satu interface yang konsisten. Sistem menggunakan **2 tipe model** yang admin-configurable: Satset (cepat) dan Expert (premium).
 
 ### Fitur Utama
 
-- ✅ **6 Model LLM** - Dari model gratis hingga premium
+- ✅ **2 Tipe Model LLM** - Satset (cepat, 6 kredit) dan Expert (premium, 15 kredit)
+- ✅ **Admin-Configurable Models** - Provider, model name, API key, base URL (encrypted)
 - ✅ **Per-Page Generation** - Setiap halaman di-generate secara terpisah
+- ✅ **SSE Streaming** - Real-time progress via Server-Sent Events
+- ✅ **Refinement Chat** - Edit hasil via conversational refinement
 - ✅ **History Recording** - Semua prompt dan response dicatat
-- ✅ **Credit Learning** - Estimasi kredit semakin akurat dari data historis
+- ✅ **Credit Learning** - Estimasi kredit semakin akurat dari data historis (min 5 samples)
 - ✅ **Dynamic Pricing** - Harga dihitung berdasarkan token usage aktual
 - ✅ **Error Margin** - Default 10%, configurable di admin
 - ✅ **Profit Margin** - Default 5%, configurable di admin
-- ✅ **Credit System** - 1 kredit = Rp 1,000
-- ✅ **Free Tier** - Gemini 2.5 Flash tersedia gratis
-- ✅ **25 Kredit Awal** - Diberikan saat registrasi
+- ✅ **Auto-Refund** - Kredit dikembalikan otomatis jika generasi gagal setelah 3x retry
+- ✅ **Cost Tracking** - Biaya aktual LLM (USD + IDR) per halaman
+- ✅ **100 Kredit Awal** - Diberikan saat registrasi
 
 ---
 
 ## Model LLM yang Tersedia
 
-### Tabel Model
+### 2-Model System
 
-| No | Model Name | Display Name | Input Price | Output Price | Kredit/Gen | Tier |
-|----|------------|--------------|-------------|--------------|------------|------|
-| 1 | `gemini-2.5-flash` | Gemini 2.5 Flash | $0.30/1M | $2.50/1M | **3** | FREE ✅ |
-| 2 | `gpt-5.1-codex-mini` | GPT-5.1 Codex Mini | $0.25/1M | $2.00/1M | **2** | Premium |
-| 3 | `claude-haiku-4-5` | Claude Haiku 4.5 | $1.00/1M | $5.00/1M | **6** | Premium |
-| 4 | `gpt-5.1-codex` | GPT-5.1 Codex | $1.25/1M | $10.00/1M | **10** | Premium |
-| 5 | `gemini-3-pro-preview` | Gemini 3 Pro Preview | $2.00/1M | $12.00/1M | **12** | Premium |
-| 6 | `claude-sonnet-4-5` | Claude Sonnet 4.5 | $3.00/1M | $15.00/1M | **15** | Premium |
+SatsetUI menggunakan sistem 2 tipe model yang disederhanakan:
+
+| Tipe | Default Model | Default Provider | Base Credits | Deskripsi |
+|------|---------------|------------------|-------------|-----------|
+| **Satset** | `gemini-2.0-flash-exp` | Gemini | **6** | Cepat, cocok untuk prototyping |
+| **Expert** | `gemini-2.5-pro-preview` | Gemini | **15** | Kualitas premium |
+
+> **Note:** Admin dapat mengubah model name, provider (gemini/openai), API key, dan base URL melalui Admin Panel > LLM Models. API keys dan base URLs disimpan terenkripsi di database.
 
 ### Deskripsi Model
 
-#### 1. Gemini 2.5 Flash (FREE)
-- **Use Case:** Template sederhana, prototyping cepat
+#### 1. Satset (Default: Gemini 2.0 Flash Exp)
+- **Use Case:** Template standar, prototyping cepat, iterasi desain
 - **Speed:** Sangat cepat
-- **Quality:** Good
-- **Cocok untuk:** User baru, testing, template basic
+- **Quality:** Good — cukup untuk kebanyakan template
+- **Credits:** 6 per generasi
+- **Cocok untuk:** Landing pages, admin dashboards sederhana, blog templates
 
-#### 2. GPT-5.1 Codex Mini
-- **Use Case:** Generasi kode ringan dengan kualitas baik
-- **Speed:** Cepat
-- **Quality:** Very Good
-- **Cocok untuk:** Template standar, landing pages
-
-#### 3. Claude Haiku 4.5
-- **Use Case:** Balance antara speed dan quality
-- **Speed:** Cepat
-- **Quality:** Excellent
-- **Cocok untuk:** Dashboard sederhana, admin panels
-
-#### 4. GPT-5.1 Codex
-- **Use Case:** Generasi kode berkualitas tinggi
+#### 2. Expert (Default: Gemini 2.5 Pro Preview)
+- **Use Case:** Template kompleks, kualitas production-ready
 - **Speed:** Moderate
-- **Quality:** Excellent
-- **Cocok untuk:** Complex templates, multi-page apps
-
-#### 5. Gemini 3 Pro Preview
-- **Use Case:** Model premium Google dengan fitur advanced
-- **Speed:** Moderate
-- **Quality:** Outstanding
-- **Cocok untuk:** Enterprise templates, complex business logic
-
-#### 6. Claude Sonnet 4.5
-- **Use Case:** Model terbaik untuk output premium
-- **Speed:** Moderate to Slow
-- **Quality:** Outstanding
-- **Cocok untuk:** Production-ready apps, critical projects
+- **Quality:** Outstanding — output premium dengan detail tinggi
+- **Credits:** 15 per generasi
+- **Cocok untuk:** E-commerce, SaaS apps, complex dashboards, enterprise templates
 
 ---
 
@@ -122,40 +103,36 @@ totalCredits = CEIL(withErrorMargin × (1 + profitMarginPercent))
 
 ### Contoh Perhitungan Lengkap
 
-#### Skenario 1: Template Standar dengan Margin
+#### Skenario 1: Template Standar dengan Satset
 ```
-Model: Gemini 2.5 Flash (3 kredit)
-Halaman: 4 halaman (predefined)
-Komponen: 5 komponen (predefined)
+Model: Satset (6 kredit)
+Halaman: 4 halaman (predefined, di bawah kuota 5)
 
 Kalkulasi:
-- Model Cost: 3 kredit
+- Model Cost: 6 kredit
 - Extra Pages: MAX(0, 4-5) × 1 = 0 kredit
-- Extra Components: MAX(0, 5-6) × 0.5 = 0 kredit
-- Subtotal: 3 + 0 + 0 = 3 kredit
+- Subtotal: 6 + 0 = 6 kredit
 
 Dengan Margin:
-- After Error Margin (10%): 3 × 1.10 = 3.3 kredit
-- After Profit Margin (5%): 3.3 × 1.05 = 3.465 kredit
-- Final (rounded up): 4 kredit
+- After Error Margin (10%): 6 × 1.10 = 6.6 kredit
+- After Profit Margin (5%): 6.6 × 1.05 = 6.93 kredit
+- Final (rounded up): 7 kredit
 ```
 
-#### Skenario 2: Template Kompleks dengan Custom
+#### Skenario 2: Template Kompleks dengan Expert
 ```
-Model: Claude Sonnet 4.5 (15 kredit)
+Model: Expert (15 kredit)
 Halaman: 6 predefined + 3 custom = 9 halaman total
-Komponen: 6 predefined + 4 custom = 10 komponen total
 
 Kalkulasi:
 - Model Cost: 15 kredit
 - Extra Pages: MAX(0, 9-5) × 1 = 4 kredit
-- Extra Components: MAX(0, 10-6) × 0.5 = 2 kredit
-- Subtotal: 15 + 4 + 2 = 21 kredit
+- Subtotal: 15 + 4 = 19 kredit
 
 Dengan Margin:
-- After Error Margin (10%): 21 × 1.10 = 23.1 kredit
-- After Profit Margin (5%): 23.1 × 1.05 = 24.255 kredit
-- Final (rounded up): 25 kredit
+- After Error Margin (10%): 19 × 1.10 = 20.9 kredit
+- After Profit Margin (5%): 20.9 × 1.05 = 21.945 kredit
+- Final (rounded up): 22 kredit
 ```
 
 ### Credit Breakdown Display (Step 3)

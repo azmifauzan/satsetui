@@ -5,6 +5,8 @@ import axios from 'axios';
 import JSZip from 'jszip';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import LivePreview from '@/components/generation/LivePreview.vue';
+import FileTree from '@/components/generation/FileTree.vue';
 
 interface PageProgress {
   status: 'pending' | 'generating' | 'completed' | 'failed';
@@ -84,6 +86,15 @@ const titleInput = ref<HTMLInputElement | null>(null);
 const selectedRefineModel = ref('satset');
 const userCredits = ref(props.userCredits);
 let msgId = 0;
+
+// Framework output state
+const outputFormat = computed(() => blueprint.value?.outputFormat || 'html-css');
+const isFrameworkOutput = computed(() => ['react', 'vue', 'angular', 'svelte'].includes(outputFormat.value));
+const showFileTree = ref(false);
+const selectedFileContent = ref<string | null>(null);
+const selectedFileName = ref<string | null>(null);
+const fileTreeRef = ref<InstanceType<typeof FileTree> | null>(null);
+const livePreviewRef = ref<InstanceType<typeof LivePreview> | null>(null);
 
 // Blueprint info for wizard summary
 const blueprint = computed(() => generationData.value.blueprint_json || generationData.value.project?.blueprint || {});
@@ -367,18 +378,61 @@ function downloadPage() {
   URL.revokeObjectURL(url);
 }
 
-function downloadAll() {
+function selectPage(pageName: string) {
+  selectedPage.value = pageName;
+  // Clear file selection when switching pages
+  selectedFileContent.value = null;
+  selectedFileName.value = null;
+}
+
+// Handle file selection from FileTree
+async function handleFileSelect(file: { id: number; file_path: string; file_type: string }) {
+  selectedFileName.value = file.file_path;
+  try {
+    const response = await axios.get(`/generation/${generationData.value.id}/files/${file.id}`);
+    selectedFileContent.value = response.data.content || '';
+    // Switch to code view when selecting a file
+    activeView.value = 'code';
+  } catch {
+    selectedFileContent.value = '// Error loading file content';
+  }
+}
+
+function toggleFileTree() {
+  showFileTree.value = !showFileTree.value;
+}
+
+// Enhanced download for framework multi-file output
+async function downloadAll() {
   const zip = new JSZip();
   const projectName = generationData.value.project.name.replace(/[^a-zA-Z0-9-_]/g, '_');
-  
-  // Add all completed pages to ZIP
-  for (const [pageName, pageData] of pagesList.value) {
-    if (pageData.status === 'completed' && pageData.content) {
-      zip.file(`${pageName}.html`, pageData.content);
+
+  if (isFrameworkOutput.value) {
+    // Download all files from GenerationFile records
+    try {
+      const response = await axios.get(`/generation/${generationData.value.id}/files`);
+      const files = response.data.files || [];
+      for (const file of files) {
+        const contentResp = await axios.get(`/generation/${generationData.value.id}/files/${file.id}`);
+        zip.file(file.file_path, contentResp.data.content || '');
+      }
+    } catch {
+      // Fallback to progress_data
+      for (const [pageName, pageData] of pagesList.value) {
+        if (pageData.status === 'completed' && pageData.content) {
+          zip.file(`${pageName}.html`, pageData.content);
+        }
+      }
+    }
+  } else {
+    // HTML+CSS mode: add all completed pages to ZIP
+    for (const [pageName, pageData] of pagesList.value) {
+      if (pageData.status === 'completed' && pageData.content) {
+        zip.file(`${pageName}.html`, pageData.content);
+      }
     }
   }
-  
-  // Generate and download ZIP
+
   zip.generateAsync({ type: 'blob' }).then((blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -391,12 +445,15 @@ function downloadAll() {
   });
 }
 
-function selectPage(pageName: string) {
-  selectedPage.value = pageName;
-}
+// Code content for display — uses file selection or page content
+const displayedCode = computed(() => {
+  if (selectedFileContent.value !== null) {
+    return selectedFileContent.value;
+  }
+  return currentPageContent.value;
+});
 
-onMounted(() => {
-  // Load stored refinement messages first
+onMounted(() => {  // Load stored refinement messages first
   if (generationData.value.refinement_messages && generationData.value.refinement_messages.length > 0) {
     generationData.value.refinement_messages.forEach((msg) => {
       chatMessages.value.push({
@@ -529,6 +586,10 @@ onMounted(() => {
               <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">Nav</span>
                 <span class="text-slate-700 dark:text-slate-300 font-medium">{{ navStyleLabel }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Output' : 'Output' }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium capitalize">{{ outputFormat }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Pages' : 'Halaman' }}</span>
@@ -706,55 +767,72 @@ onMounted(() => {
             </button>
           </div>
           <div class="flex items-center gap-2">
-            <span v-if="selectedPage" class="text-xs text-slate-600 dark:text-slate-500">{{ selectedPage }}</span>
-            <button v-if="currentPageContent" @click="copyPageCode"
+            <!-- File tree toggle (framework output only) -->
+            <button
+              v-if="isFrameworkOutput && isCompleted"
+              @click="toggleFileTree"
+              :class="[
+                'p-1.5 rounded transition-colors',
+                showFileTree
+                  ? 'bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400'
+                  : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              ]"
+              :title="currentLang === 'en' ? 'Toggle file tree' : 'Tampilkan file'"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </button>
+            <span v-if="selectedFileName" class="text-xs text-slate-600 dark:text-slate-500 truncate max-w-48">{{ selectedFileName }}</span>
+            <span v-else-if="selectedPage" class="text-xs text-slate-600 dark:text-slate-500">{{ selectedPage }}</span>
+            <button v-if="displayedCode" @click="copyPageCode"
               class="p-1.5 text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white rounded transition-colors" title="Copy">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
             </button>
-            <button v-if="currentPageContent" @click="downloadPage"
+            <button v-if="displayedCode" @click="downloadPage"
               class="p-1.5 text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white rounded transition-colors" title="Download">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             </button>
           </div>
         </div>
 
-        <!-- Content Area -->
-        <div class="flex-1 overflow-hidden relative">
-          <!-- Preview Tab -->
-          <div v-show="activeView === 'preview'" class="h-full">
-            <div v-if="currentPageContent || allPagesContent" class="h-full bg-white">
-              <iframe
-                v-if="iframeSrc"
-                :src="iframeSrc"
-                class="w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin"
-              ></iframe>
-            </div>
-            <div v-else class="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-              <div class="text-center">
-                <div v-if="isGenerating" class="mb-4">
-                  <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                </div>
-                <svg v-else class="w-12 h-12 text-slate-400 dark:text-slate-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                <p class="text-slate-500 dark:text-slate-500 text-sm">
-                  {{ isGenerating
-                    ? (currentLang === 'en' ? 'Generating preview...' : 'Membuat preview...')
-                    : (currentLang === 'en' ? 'Preview will appear here' : 'Preview akan muncul di sini') }}
-                </p>
-              </div>
-            </div>
+        <!-- Content Area with optional FileTree sidebar -->
+        <div class="flex-1 overflow-hidden relative flex">
+          <!-- File Tree Sidebar (framework output) -->
+          <div
+            v-if="isFrameworkOutput && showFileTree && isCompleted"
+            class="w-56 border-r border-slate-200 dark:border-slate-800 flex-shrink-0"
+          >
+            <FileTree
+              ref="fileTreeRef"
+              :generation-id="generationData.id"
+              :is-completed="isCompleted"
+              @select-file="handleFileSelect"
+            />
           </div>
 
-          <!-- Code Tab -->
-          <div v-show="activeView === 'code'" class="h-full overflow-auto bg-slate-50 dark:bg-slate-900">
-            <pre v-if="currentPageContent" class="p-4 text-xs"><code class="text-green-600 dark:text-green-400 font-mono whitespace-pre-wrap">{{ currentPageContent }}</code></pre>
-            <div v-else class="h-full flex items-center justify-center">
-              <p class="text-slate-500 dark:text-slate-500 text-sm">
-                {{ currentLang === 'en' ? 'No code generated yet' : 'Belum ada kode' }}
-              </p>
+          <!-- Preview / Code panels -->
+          <div class="flex-1 overflow-hidden">
+            <!-- Preview Tab -->
+            <div v-show="activeView === 'preview'" class="h-full">
+              <LivePreview
+                ref="livePreviewRef"
+                :generation-id="generationData.id"
+                :output-format="outputFormat"
+                :page-content="currentPageContent"
+                :is-completed="isCompleted"
+                :is-generating="isGenerating"
+              />
+            </div>
+
+            <!-- Code Tab -->
+            <div v-show="activeView === 'code'" class="h-full overflow-auto bg-slate-50 dark:bg-slate-900">
+              <pre v-if="displayedCode" class="p-4 text-xs"><code class="text-green-600 dark:text-green-400 font-mono whitespace-pre-wrap">{{ displayedCode }}</code></pre>
+              <div v-else class="h-full flex items-center justify-center">
+                <p class="text-slate-500 dark:text-slate-500 text-sm">
+                  {{ currentLang === 'en' ? 'No code generated yet' : 'Belum ada kode' }}
+                </p>
+              </div>
             </div>
           </div>
         </div>

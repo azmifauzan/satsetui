@@ -68,6 +68,55 @@
       "$comment": "Provides context for MCP prompt when using custom output format.",
       "type": "string"
     },
+    "frameworkConfig": {
+      "title": "Framework Configuration",
+      "description": "Framework-specific configuration when outputFormat is a JS framework (react, vue, angular, svelte). Controls language, state management, routing, and build tool options.",
+      "$comment": "MCP mapping: adds framework-specific constraints and instructions to the prompt. Only relevant when outputFormat is not 'html-css'.",
+      "type": "object",
+      "properties": {
+        "language": {
+          "title": "Language",
+          "description": "Programming language for the framework output.",
+          "type": "string",
+          "enum": ["javascript", "typescript"],
+          "default": "typescript"
+        },
+        "styling": {
+          "title": "Styling Approach",
+          "description": "CSS styling approach to use. Inherits from the CSS framework selection in Step 1.",
+          "type": "string",
+          "enum": ["tailwind", "bootstrap", "css-modules", "styled-components"],
+          "default": "tailwind"
+        },
+        "router": {
+          "title": "Include Router",
+          "description": "Whether to include routing between pages.",
+          "type": "boolean",
+          "default": true
+        },
+        "stateManagement": {
+          "title": "State Management",
+          "description": "State management library to use, specific to each framework.",
+          "type": "string",
+          "enum": ["none", "zustand", "pinia", "redux", "ngrx", "svelte-store"],
+          "default": "none"
+        },
+        "buildTool": {
+          "title": "Build Tool",
+          "description": "Build tool for the generated project.",
+          "type": "string",
+          "enum": ["vite", "webpack", "turbopack"],
+          "default": "vite"
+        }
+      },
+      "default": {
+        "language": "typescript",
+        "styling": "tailwind",
+        "router": true,
+        "stateManagement": "none",
+        "buildTool": "vite"
+      }
+    },
     "projectInfo": {
       "title": "Project Information",
       "description": "Information about the project/company for consistent branding across all generated pages.",

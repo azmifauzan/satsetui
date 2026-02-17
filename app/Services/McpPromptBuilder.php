@@ -32,9 +32,9 @@ class McpPromptBuilder
      *
      * This is the primary method for per-page generation.
      *
-     * @param array $blueprint Validated blueprint data matching schema
-     * @param string $pageName Name of the page to generate (e.g., 'dashboard', 'custom:inventory')
-     * @param int $pageIndex 0-based index of current page in generation order
+     * @param  array  $blueprint  Validated blueprint data matching schema
+     * @param  string  $pageName  Name of the page to generate (e.g., 'dashboard', 'custom:inventory')
+     * @param  int  $pageIndex  0-based index of current page in generation order
      * @return string Complete MCP prompt ready for LLM API
      */
     public function buildForPage(array $blueprint, string $pageName, int $pageIndex = 0): string
@@ -50,11 +50,22 @@ class McpPromptBuilder
         $cleanPageName = $isCustomPage ? substr($pageName, 7) : $pageName;
         $customPageInfo = $this->getCustomPageInfo($blueprint, $cleanPageName);
 
+        // Check if output is a JS framework (multi-file project)
+        $isFrameworkOutput = $this->isFrameworkOutput($blueprint['outputFormat'] ?? 'vue');
+
         // Assemble MCP sections in strict order for single page
-        return implode("\n\n", [
+        $sections = [
             $this->buildRoleSection($blueprint),
             $this->buildProjectContextSection($blueprint, $pageName, $pageIndex),
             $this->buildProjectInfoSection($blueprint),
+        ];
+
+        // Add framework config section for JS framework outputs
+        if ($isFrameworkOutput) {
+            $sections[] = $this->buildFrameworkConfigSection($blueprint);
+        }
+
+        $sections = array_merge($sections, [
             $this->buildConstraintsSection($blueprint),
             $this->buildCurrentPageSection($blueprint, $pageName, $isCustomPage, $customPageInfo),
             $this->buildLayoutSection($blueprint),
@@ -67,13 +78,17 @@ class McpPromptBuilder
             $this->buildSinglePageOutputFormat($blueprint, $pageName),
             $this->buildSinglePageImplementation($blueprint, $pageName, $isCustomPage, $customPageInfo),
         ]);
+
+        // Filter out empty sections
+        return implode("\n\n", array_filter($sections, fn ($s) => ! empty(trim($s))));
     }
 
     /**
      * Build MCP prompt for all pages (legacy method for compatibility)
      *
      * @deprecated Use buildForPage() for per-page generation
-     * @param array $blueprint Validated blueprint data
+     *
+     * @param  array  $blueprint  Validated blueprint data
      * @return string Complete MCP prompt for all pages
      */
     public function buildFromBlueprint(array $blueprint): string
@@ -103,7 +118,7 @@ class McpPromptBuilder
     /**
      * Get list of all pages to generate from blueprint
      *
-     * @param array $blueprint Blueprint data
+     * @param  array  $blueprint  Blueprint data
      * @return array List of page names (including custom: and component: prefixes)
      */
     public function getPageList(array $blueprint): array
@@ -115,17 +130,17 @@ class McpPromptBuilder
 
         // Add custom pages with prefix
         foreach ($customPages as $customPage) {
-            $pages[] = 'custom:' . $customPage['name'];
+            $pages[] = 'custom:'.$customPage['name'];
         }
 
         // Add component showcase pages with prefix
         foreach ($components as $component) {
-            $pages[] = 'component:' . $component;
+            $pages[] = 'component:'.$component;
         }
 
         // Add custom component showcase pages
         foreach ($customComponents as $customComponent) {
-            $pages[] = 'component:custom:' . $customComponent['name'];
+            $pages[] = 'component:custom:'.$customComponent['name'];
         }
 
         return $pages;
@@ -142,6 +157,7 @@ class McpPromptBuilder
                 return $page;
             }
         }
+
         return null;
     }
 
@@ -160,21 +176,34 @@ class McpPromptBuilder
         $framework = $blueprint['framework'];
         $outputFormat = $blueprint['outputFormat'] ?? 'vue';
         $frameworkName = $this->getFrameworkName($framework);
+        $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
+        $lang = ($frameworkConfig['language'] ?? 'typescript') === 'typescript' ? 'TypeScript' : 'JavaScript';
 
         // Get output format expertise
-        $outputExpertise = match($outputFormat) {
-            'react' => "React 18 with TypeScript and functional components",
-            'angular' => "Angular 17 with TypeScript and standalone components",
-            'svelte' => "Svelte 4 with TypeScript",
-            'html-css' => "modern HTML5 and CSS3",
+        $outputExpertise = match ($outputFormat) {
+            'react' => "React 19 with {$lang} and functional components",
+            'angular' => "Angular 19 with {$lang} and standalone components",
+            'svelte' => "Svelte 5 with {$lang} and runes",
+            'html-css' => 'modern HTML5 and CSS3',
             'custom' => $blueprint['customOutputFormat'] ?? 'modern frontend frameworks',
-            default => "Vue.js 3 with TypeScript and Composition API",
+            default => "Vue.js 3 with {$lang} and Composition API",
         };
 
-        return "You are an expert frontend developer specializing in {$frameworkName} and {$outputExpertise}.\n\n" .
-               "You build responsive, accessible interfaces with clean, maintainable code.\n" .
-               "You follow best practices: semantic HTML, WCAG accessibility, performance optimization.\n" .
-               "You write complete, working code without placeholders or TODOs.";
+        $roleText = "You are an expert frontend developer specializing in {$frameworkName} and {$outputExpertise}.\n\n".
+               "You build responsive, accessible interfaces with clean, maintainable code.\n".
+               "You follow best practices: semantic HTML, WCAG accessibility, performance optimization.\n".
+               'You write complete, working code without placeholders or TODOs.';
+
+        // Add framework-specific expertise context
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $stateManagement = $frameworkConfig['stateManagement'] ?? 'none';
+            if ($stateManagement !== 'none') {
+                $smName = $this->getStateManagementName($stateManagement);
+                $roleText .= "\nYou are proficient with {$smName} for state management.";
+            }
+        }
+
+        return $roleText;
     }
 
     /**
@@ -190,72 +219,88 @@ class McpPromptBuilder
         $pageCount = count($allPages);
         $currentPageFormatted = $this->formatPageName($currentPage);
 
-        $section = ["PROJECT CONTEXT:"];
+        $section = ['PROJECT CONTEXT:'];
         $section[] = "- Template Category: {$category}";
-        $section[] = "- Framework: " . $this->getFrameworkName($blueprint['framework']);
-        $section[] = "- Output Format: " . $this->getOutputFormatName($blueprint['outputFormat'] ?? 'vue');
+        $section[] = '- Framework: '.$this->getFrameworkName($blueprint['framework']);
+        $section[] = '- Output Format: '.$this->getOutputFormatName($blueprint['outputFormat'] ?? 'vue');
+
+        // Add framework config summary for JS framework outputs
+        $outputFormat = $blueprint['outputFormat'] ?? 'vue';
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
+            $lang = ($frameworkConfig['language'] ?? 'typescript') === 'typescript' ? 'TypeScript' : 'JavaScript';
+            $section[] = "- Language: {$lang}";
+            $section[] = "- Project Type: Multi-file {$this->getOutputFormatName($outputFormat)} project";
+        }
+
         $section[] = "- All Pages in Project: {$pagesList}";
         $section[] = "- Total Pages: {$pageCount}";
-        $section[] = "";
-        $section[] = "CURRENT GENERATION:";
+        $section[] = '';
+        $section[] = 'CURRENT GENERATION:';
         $section[] = "- Generating Page: {$currentPageFormatted}";
-        $section[] = "- Page Index: " . ($pageIndex + 1) . " of {$pageCount}";
+        $section[] = '- Page Index: '.($pageIndex + 1)." of {$pageCount}";
+
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $section[] = '';
+            $section[] = 'NOTE: This is a multi-file project. Scaffold files (package.json, config, router,';
+            $section[] = 'layout) are already generated. You are generating ONLY the page component file.';
+        }
 
         return implode("\n", $section);
     }
 
     /**
      * PROJECT INFO: Company/project information for consistent branding across all pages
-     * 
+     *
      * This section is CRITICAL for consistency. It ensures that company name, descriptions,
      * and other project-specific information are included in EVERY page generation.
      */
     private function buildProjectInfoSection(array $blueprint): string
     {
         $projectInfo = $blueprint['projectInfo'] ?? [];
-        
+
         // Skip if no project info provided
         if (empty($projectInfo)) {
             return '';
         }
 
-        $section = ["PROJECT INFORMATION (USE CONSISTENTLY ACROSS ALL PAGES):"];
-        
+        $section = ['PROJECT INFORMATION (USE CONSISTENTLY ACROSS ALL PAGES):'];
+
         // Company/Organization Info
-        if (!empty($projectInfo['companyName'])) {
+        if (! empty($projectInfo['companyName'])) {
             $section[] = "- Company/Organization Name: {$projectInfo['companyName']}";
-            $section[] = "  → Use this exact name in headers, footers, page titles, and branding";
+            $section[] = '  → Use this exact name in headers, footers, page titles, and branding';
         }
-        
-        if (!empty($projectInfo['companyDescription'])) {
+
+        if (! empty($projectInfo['companyDescription'])) {
             $section[] = "- Company Description: {$projectInfo['companyDescription']}";
-            $section[] = "  → Use this for meta descriptions, about sections, and taglines";
+            $section[] = '  → Use this for meta descriptions, about sections, and taglines';
         }
 
         // Application Info
-        if (!empty($projectInfo['appName'])) {
+        if (! empty($projectInfo['appName'])) {
             $section[] = "- Application Name: {$projectInfo['appName']}";
-            $section[] = "  → Use this in dashboard headers, page titles, and navigation";
+            $section[] = '  → Use this in dashboard headers, page titles, and navigation';
         }
 
         // Store Info (E-commerce)
-        if (!empty($projectInfo['storeName'])) {
+        if (! empty($projectInfo['storeName'])) {
             $section[] = "- Store Name: {$projectInfo['storeName']}";
-            $section[] = "  → Use this in store branding, headers, and footer";
-        }
-        
-        if (!empty($projectInfo['storeDescription'])) {
-            $section[] = "- Store Description: {$projectInfo['storeDescription']}";
-            $section[] = "  → Use this for store tagline and about content";
+            $section[] = '  → Use this in store branding, headers, and footer';
         }
 
-        $section[] = "";
-        $section[] = "IMPORTANT CONSISTENCY RULES:";
-        $section[] = "1. Use the EXACT names provided above - do NOT make up different names";
-        $section[] = "2. Apply these consistently across ALL pages (navigation, headers, footers, titles)";
-        $section[] = "3. Every page must use the same company/project name in its branding";
-        $section[] = "4. Footer content must be identical across all pages";
-        $section[] = "5. Navigation menu must be identical across all pages (same items, same order)";
+        if (! empty($projectInfo['storeDescription'])) {
+            $section[] = "- Store Description: {$projectInfo['storeDescription']}";
+            $section[] = '  → Use this for store tagline and about content';
+        }
+
+        $section[] = '';
+        $section[] = 'IMPORTANT CONSISTENCY RULES:';
+        $section[] = '1. Use the EXACT names provided above - do NOT make up different names';
+        $section[] = '2. Apply these consistently across ALL pages (navigation, headers, footers, titles)';
+        $section[] = '3. Every page must use the same company/project name in its branding';
+        $section[] = '4. Footer content must be identical across all pages';
+        $section[] = '5. Navigation menu must be identical across all pages (same items, same order)';
 
         return implode("\n", $section);
     }
@@ -270,12 +315,12 @@ class McpPromptBuilder
         $pagesList = implode(', ', array_map([$this, 'formatPageName'], $allPages));
         $pageCount = count($allPages);
 
-        return "PROJECT CONTEXT:\n" .
-               "- Template Category: {$category}\n" .
-               "- Target Pages: {$pagesList}\n" .
-               "- Total Pages: {$pageCount}\n" .
-               "- Framework: " . $this->getFrameworkName($blueprint['framework']) . "\n" .
-               "- Output Format: " . $this->getOutputFormatName($blueprint['outputFormat'] ?? 'vue');
+        return "PROJECT CONTEXT:\n".
+               "- Template Category: {$category}\n".
+               "- Target Pages: {$pagesList}\n".
+               "- Total Pages: {$pageCount}\n".
+               '- Framework: '.$this->getFrameworkName($blueprint['framework'])."\n".
+               '- Output Format: '.$this->getOutputFormatName($blueprint['outputFormat'] ?? 'vue');
     }
 
     /**
@@ -285,22 +330,41 @@ class McpPromptBuilder
     {
         $framework = $blueprint['framework'];
         $outputFormat = $blueprint['outputFormat'] ?? 'vue';
-        $constraints = ["CONSTRAINTS (MUST FOLLOW):"];
+        $constraints = ['CONSTRAINTS (MUST FOLLOW):'];
 
-        // Framework constraints
-        if ($framework === 'tailwind') {
-            $constraints[] = "- Use ONLY Tailwind CSS utility classes (no custom CSS files)";
-            $constraints[] = "- No inline styles (style attribute)";
-            $constraints[] = "- Responsive breakpoints: sm:640px, md:768px, lg:1024px, xl:1280px, 2xl:1536px";
-        } elseif ($framework === 'bootstrap') {
-            $constraints[] = "- Use ONLY Bootstrap classes (no custom CSS files)";
-            $constraints[] = "- No inline styles (style attribute)";
-            $constraints[] = "- Responsive breakpoints: xs:<576px, sm:≥576px, md:≥768px, lg:≥992px, xl:≥1200px";
+        // Determine effective CSS approach
+        // For JS framework outputs, use frameworkConfig.styling (which may differ from the base CSS framework)
+        // For HTML+CSS output, use the base CSS framework directly
+        $effectiveStyling = $framework;
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $effectiveStyling = $blueprint['frameworkConfig']['styling'] ?? $framework;
+        }
+
+        // CSS/Styling constraints
+        if ($effectiveStyling === 'tailwind') {
+            $constraints[] = '- Use ONLY Tailwind CSS utility classes for styling';
+            $constraints[] = '- No inline styles (style attribute)';
+            $constraints[] = '- Responsive breakpoints: sm:640px, md:768px, lg:1024px, xl:1280px, 2xl:1536px';
+        } elseif ($effectiveStyling === 'bootstrap') {
+            $constraints[] = '- Use ONLY Bootstrap classes for styling';
+            $constraints[] = '- No inline styles (style attribute)';
+            $constraints[] = '- Responsive breakpoints: xs:<576px, sm:≥576px, md:≥768px, lg:≥992px, xl:≥1200px';
+        } elseif ($effectiveStyling === 'css-modules') {
+            $constraints[] = '- Use CSS Modules for component-scoped styling';
+            $constraints[] = "- Import styles as: import styles from './ComponentName.module.css'";
+            $constraints[] = '- Use className={styles.selector} pattern for applying styles';
+            $constraints[] = '- Standard responsive breakpoints: mobile (<768px), tablet (768-1024px), desktop (>1024px)';
+        } elseif ($effectiveStyling === 'styled-components') {
+            $constraints[] = '- Use styled-components for all styling';
+            $constraints[] = "- Import: import styled from 'styled-components'";
+            $constraints[] = '- Create styled components for each UI element';
+            $constraints[] = '- Use theme props and CSS variables for theming';
+            $constraints[] = '- Standard responsive breakpoints: mobile (<768px), tablet (768-1024px), desktop (>1024px)';
         } else {
             // pure-css
-            $constraints[] = "- Use semantic CSS with BEM naming convention";
-            $constraints[] = "- Create CSS variables for theme customization";
-            $constraints[] = "- Standard responsive breakpoints: mobile (<768px), tablet (768-1024px), desktop (>1024px)";
+            $constraints[] = '- Use semantic CSS with BEM naming convention';
+            $constraints[] = '- Create CSS variables for theme customization';
+            $constraints[] = '- Standard responsive breakpoints: mobile (<768px), tablet (768-1024px), desktop (>1024px)';
         }
 
         // Charts constraint
@@ -308,13 +372,13 @@ class McpPromptBuilder
             $chartLib = $blueprint['chartLibrary'] ?? 'chartjs';
             $chartName = $chartLib === 'echarts' ? 'Apache ECharts' : 'Chart.js';
             $constraints[] = "- Use ONLY {$chartName} for data visualizations";
-            $constraints[] = "- No other chart libraries (including D3.js, Recharts, etc.)";
+            $constraints[] = '- No other chart libraries (including D3.js, Recharts, etc.)';
         }
 
         // Output format constraints
-        $constraints[] = "- No backend logic (frontend templates only)";
-        $constraints[] = "- All imports must be valid (no placeholders)";
-        $constraints[] = "- Generate complete, working code without TODO comments";
+        $constraints[] = '- No backend logic (frontend templates only)';
+        $constraints[] = '- All imports must be valid (no placeholders)';
+        $constraints[] = '- Generate complete, working code without TODO comments';
 
         return implode("\n", $constraints);
     }
@@ -324,12 +388,12 @@ class McpPromptBuilder
      */
     private function buildCurrentPageSection(array $blueprint, string $pageName, bool $isCustom, ?array $customPageInfo): string
     {
-        $section = ["CURRENT PAGE FOCUS:"];
-        
+        $section = ['CURRENT PAGE FOCUS:'];
+
         // Check if this is a component showcase page
         if (str_starts_with($pageName, 'component:')) {
             $isCustomComponent = str_starts_with($pageName, 'component:custom:');
-            
+
             if ($isCustomComponent) {
                 $componentName = substr($pageName, 17); // Remove 'component:custom:'
                 $customComponents = $blueprint['customComponents'] ?? [];
@@ -340,48 +404,48 @@ class McpPromptBuilder
                         break;
                     }
                 }
-                
+
                 $section[] = "- Page Name: {$componentName} (Custom Component Showcase)";
-                $section[] = "- Page Type: Component Demo Page";
+                $section[] = '- Page Type: Component Demo Page';
                 $section[] = "- Purpose: Showcase page demonstrating the '{$componentName}' component with various examples and use cases";
                 if ($componentInfo) {
                     $section[] = "- Component Description: {$componentInfo['description']}";
                 }
-                $section[] = "";
-                $section[] = "Requirements for this component showcase page:";
-                $section[] = "- Create a dedicated page that showcases this custom component";
-                $section[] = "- Include multiple examples/variations of the component";
-                $section[] = "- Show different states (default, hover, active, disabled if applicable)";
-                $section[] = "- Provide visual examples with descriptions";
-                $section[] = "- Use realistic data and scenarios";
+                $section[] = '';
+                $section[] = 'Requirements for this component showcase page:';
+                $section[] = '- Create a dedicated page that showcases this custom component';
+                $section[] = '- Include multiple examples/variations of the component';
+                $section[] = '- Show different states (default, hover, active, disabled if applicable)';
+                $section[] = '- Provide visual examples with descriptions';
+                $section[] = '- Use realistic data and scenarios';
             } else {
                 $componentName = substr($pageName, 10); // Remove 'component:'
                 $displayName = ucwords(str_replace('-', ' ', $componentName));
-                
+
                 $section[] = "- Page Name: {$displayName}";
-                $section[] = "- Page Type: Component Showcase Page";
+                $section[] = '- Page Type: Component Showcase Page';
                 $section[] = "- Purpose: Demonstrate all variations and states of {$displayName} components (like AdminLTE UI Elements pages)";
-                $section[] = "";
+                $section[] = '';
                 $section[] = $this->getComponentShowcaseRequirements($componentName, $blueprint);
             }
         } elseif ($isCustom) {
             $cleanName = substr($pageName, 7); // Remove 'custom:'
             $formattedName = $this->formatPageName($cleanName);
-            
+
             $section[] = "- Page Name: {$formattedName}";
-            $section[] = "- Page Type: Custom (user-defined)";
-            
+            $section[] = '- Page Type: Custom (user-defined)';
+
             if ($customPageInfo) {
                 $section[] = "- Custom Description: {$customPageInfo['description']}";
-                $section[] = "";
-                $section[] = "IMPORTANT: This is a custom page defined by the user.";
+                $section[] = '';
+                $section[] = 'IMPORTANT: This is a custom page defined by the user.';
                 $section[] = "Use the description above to determine the page's purpose and content.";
-                $section[] = "Implement appropriate functionality based on the description.";
+                $section[] = 'Implement appropriate functionality based on the description.';
             }
         } else {
             $formattedName = $this->formatPageName($pageName);
             $section[] = "- Page Name: {$formattedName}";
-            $section[] = "- Page Type: Predefined";
+            $section[] = '- Page Type: Predefined';
         }
 
         return implode("\n", $section);
@@ -397,69 +461,69 @@ class McpPromptBuilder
         $breadcrumbs = $layout['breadcrumbs'] ? 'Enabled' : 'Disabled';
         $footer = ucfirst($layout['footer']);
 
-        $section = ["LAYOUT REQUIREMENTS:"];
-        $section[] = "- Navigation Pattern: " . $this->formatNavigationName($navigation);
-        $section[] = "";
+        $section = ['LAYOUT REQUIREMENTS:'];
+        $section[] = '- Navigation Pattern: '.$this->formatNavigationName($navigation);
+        $section[] = '';
         $section[] = "CRITICAL: You MUST use the '{$navigation}' navigation pattern for ALL pages.";
-        $section[] = "DO NOT use a different navigation pattern for different pages.";
-        $section[] = "";
+        $section[] = 'DO NOT use a different navigation pattern for different pages.';
+        $section[] = '';
 
         if ($navigation === 'sidebar' || $navigation === 'hybrid') {
             $sidebarState = $layout['sidebarDefaultState'] ?? 'expanded';
-            $section[] = "- Sidebar Default State: " . ucfirst($sidebarState);
-            $section[] = "- Sidebar Behavior: Collapsible with toggle button";
-            $section[] = "- Sidebar Width: 256px expanded, 64px collapsed";
-            $section[] = "- IMPORTANT: Use sidebar navigation on ALL pages, not top navigation";
+            $section[] = '- Sidebar Default State: '.ucfirst($sidebarState);
+            $section[] = '- Sidebar Behavior: Collapsible with toggle button';
+            $section[] = '- Sidebar Width: 256px expanded, 64px collapsed';
+            $section[] = '- IMPORTANT: Use sidebar navigation on ALL pages, not top navigation';
 
             if ($navigation === 'hybrid') {
-                $section[] = "- Top Bar: Fixed position, contains user menu and notifications";
-                $section[] = "- Sidebar: Contains primary navigation menu";
+                $section[] = '- Top Bar: Fixed position, contains user menu and notifications';
+                $section[] = '- Sidebar: Contains primary navigation menu';
             }
         }
 
         if ($navigation === 'topbar') {
-            $section[] = "- Top Bar: Fixed position, full width, contains all navigation";
-            $section[] = "- Top Bar Height: 64px";
-            $section[] = "- IMPORTANT: Use top bar navigation on ALL pages, not sidebar";
+            $section[] = '- Top Bar: Fixed position, full width, contains all navigation';
+            $section[] = '- Top Bar Height: 64px';
+            $section[] = '- IMPORTANT: Use top bar navigation on ALL pages, not sidebar';
         }
 
         $section[] = "- Breadcrumbs: {$breadcrumbs}";
         $section[] = "- Footer: {$footer} style";
-        $section[] = "";
-        $section[] = "Footer Consistency:";
-        $section[] = "- Footer content MUST be IDENTICAL across all pages";
-        $section[] = "- Use the same copyright text, links, and layout on every page";
-        $section[] = "- Do NOT create different footers for different pages";
+        $section[] = '';
+        $section[] = 'Footer Consistency:';
+        $section[] = '- Footer content MUST be IDENTICAL across all pages';
+        $section[] = '- Use the same copyright text, links, and layout on every page';
+        $section[] = '- Do NOT create different footers for different pages';
 
         // Include navigation menu structure
         $allPages = $this->getPageList($blueprint);
         $regularPages = [];
         $componentPages = [];
-        
+
         foreach ($allPages as $pageName) {
             if (str_starts_with($pageName, 'component:')) {
                 $componentPages[] = $pageName;
-            } elseif (!str_starts_with($pageName, 'custom:')) {
+            } elseif (! str_starts_with($pageName, 'custom:')) {
                 $regularPages[] = $pageName;
             }
         }
-        
-        if (!empty($regularPages) || !empty($componentPages)) {
-            $section[] = "";
-            $section[] = "Navigation Menu Structure (MUST BE IDENTICAL ON ALL PAGES):";
-            $section[] = "The following menu items MUST appear in the same order on every page:";
-            $section[] = "";
-            
-            if (!empty($regularPages)) {
-                $section[] = "Main Pages Group:";
+
+        if (! empty($regularPages) || ! empty($componentPages)) {
+            $section[] = '';
+            $section[] = 'Navigation Menu Structure (MUST BE IDENTICAL ON ALL PAGES):';
+            $section[] = 'The following menu items MUST appear in the same order on every page:';
+            $section[] = '';
+
+            if (! empty($regularPages)) {
+                $section[] = 'Main Pages Group:';
                 foreach ($regularPages as $pageName) {
                     $displayName = $this->formatPageName($pageName);
                     $section[] = "  • {$displayName}";
                 }
             }
-            
-            if (!empty($componentPages)) {
-                $section[] = "";
+
+            if (! empty($componentPages)) {
+                $section[] = '';
                 $section[] = "UI Components Group (or 'UI Elements'):";
                 foreach ($componentPages as $pageName) {
                     $cleanName = str_replace('component:', '', $pageName);
@@ -468,15 +532,15 @@ class McpPromptBuilder
                     $section[] = "  • {$displayName}";
                 }
             }
-            
-            $section[] = "";
-            $section[] = "⚠️ CRITICAL: Every page MUST have the EXACT SAME menu items in the SAME ORDER.";
-            $section[] = "Do NOT add, remove, or reorder menu items between pages.";
+
+            $section[] = '';
+            $section[] = '⚠️ CRITICAL: Every page MUST have the EXACT SAME menu items in the SAME ORDER.';
+            $section[] = 'Do NOT add, remove, or reorder menu items between pages.';
         }
 
         // Include custom navigation items
         $customNavItems = $layout['customNavItems'] ?? [];
-        if (!empty($customNavItems)) {
+        if (! empty($customNavItems)) {
             $section[] = "\nCustom Navigation Items:";
             foreach ($customNavItems as $item) {
                 $icon = isset($item['icon']) ? " (icon: {$item['icon']})" : '';
@@ -494,27 +558,38 @@ class McpPromptBuilder
     {
         $theme = $blueprint['theme'];
         $framework = $blueprint['framework'];
+        $outputFormat = $blueprint['outputFormat'] ?? 'vue';
 
-        $section = ["THEME SPECIFICATION:"];
+        // For JS framework outputs, use frameworkConfig.styling for CSS-specific instructions
+        $effectiveStyling = $framework;
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $effectiveStyling = $blueprint['frameworkConfig']['styling'] ?? $framework;
+        }
+
+        $section = ['THEME SPECIFICATION:'];
         $section[] = "- Primary Color: {$theme['primary']}";
         $section[] = "- Secondary Color: {$theme['secondary']}";
-        $section[] = "- Color Mode: " . ucfirst($theme['mode']);
-        $section[] = "- Background Style: " . ucfirst($theme['background']);
+        $section[] = '- Color Mode: '.ucfirst($theme['mode']);
+        $section[] = '- Background Style: '.ucfirst($theme['background']);
 
-        if ($framework === 'tailwind') {
+        if ($effectiveStyling === 'tailwind') {
             $section[] = "\nTailwind Implementation:";
-            $section[] = "- Define CSS variables in :root and .dark classes";
-            $section[] = "- Use custom color classes: bg-primary, text-primary, border-primary";
-            $section[] = "- Dark mode: Add dark: prefix for dark mode styles";
+            $section[] = '- Define CSS variables in :root and .dark classes';
+            $section[] = '- Use custom color classes: bg-primary, text-primary, border-primary';
+            $section[] = '- Dark mode: Add dark: prefix for dark mode styles';
 
             if ($theme['mode'] === 'dark') {
-                $section[] = "- Default Mode: Apply .dark class to <html> element";
+                $section[] = '- Default Mode: Apply .dark class to <html> element';
             }
-        } elseif ($framework === 'bootstrap') {
+        } elseif ($effectiveStyling === 'bootstrap') {
             $section[] = "\nBootstrap Implementation:";
-            $section[] = "- Override Bootstrap variables: \$primary, \$secondary";
-            $section[] = "- Use Bootstrap color utilities: bg-primary, text-secondary";
-            $section[] = "- Dark mode: Use data-bs-theme=\"dark\" attribute";
+            $section[] = '- Override Bootstrap variables: $primary, $secondary';
+            $section[] = '- Use Bootstrap color utilities: bg-primary, text-secondary';
+            $section[] = '- Dark mode: Use data-bs-theme="dark" attribute';
+        } elseif ($effectiveStyling === 'css-modules' || $effectiveStyling === 'styled-components') {
+            $section[] = "\nCSS Implementation:";
+            $section[] = '- Use CSS custom properties (variables) for theming: var(--color-primary)';
+            $section[] = '- Dark mode: Use prefers-color-scheme media query or class-based toggle';
         }
 
         return implode("\n", $section);
@@ -529,42 +604,99 @@ class McpPromptBuilder
         $density = $ui['density'];
         $borderRadius = $ui['borderRadius'];
         $framework = $blueprint['framework'];
+        $outputFormat = $blueprint['outputFormat'] ?? 'vue';
 
-        $section = ["UI DENSITY & STYLE:"];
-        $section[] = "- Density Level: " . ucfirst($density);
-        $section[] = "- Border Radius: " . ucfirst($borderRadius);
+        // For JS framework outputs, use frameworkConfig.styling for CSS-specific instructions
+        $effectiveStyling = $framework;
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $effectiveStyling = $blueprint['frameworkConfig']['styling'] ?? $framework;
+        }
 
-        if ($framework === 'tailwind') {
+        $section = ['UI DENSITY & STYLE:'];
+        $section[] = '- Density Level: '.ucfirst($density);
+        $section[] = '- Border Radius: '.ucfirst($borderRadius);
+
+        if ($effectiveStyling === 'tailwind') {
             $section[] = "\nTailwind Spacing:";
-            $spacing = match($density) {
+            $spacing = match ($density) {
                 'compact' => [
-                    "- Container Padding: p-4",
-                    "- Card Padding: p-3",
-                    "- Element Spacing: space-y-2, gap-2",
-                    "- Font Size: text-sm (body), text-xs (secondary)",
+                    '- Container Padding: p-4',
+                    '- Card Padding: p-3',
+                    '- Element Spacing: space-y-2, gap-2',
+                    '- Font Size: text-sm (body), text-xs (secondary)',
                 ],
                 'spacious' => [
-                    "- Container Padding: p-8",
-                    "- Card Padding: p-6",
-                    "- Element Spacing: space-y-6, gap-6",
-                    "- Font Size: text-lg (body), text-base (secondary)",
+                    '- Container Padding: p-8',
+                    '- Card Padding: p-6',
+                    '- Element Spacing: space-y-6, gap-6',
+                    '- Font Size: text-lg (body), text-base (secondary)',
                 ],
                 default => [
-                    "- Container Padding: p-6",
-                    "- Card Padding: p-4",
-                    "- Element Spacing: space-y-4, gap-4",
-                    "- Font Size: text-base (body), text-sm (secondary)",
+                    '- Container Padding: p-6',
+                    '- Card Padding: p-4',
+                    '- Element Spacing: space-y-4, gap-4',
+                    '- Font Size: text-base (body), text-sm (secondary)',
                 ],
             };
             $section = array_merge($section, $spacing);
 
             $section[] = "\nBorder Radius:";
             if ($borderRadius === 'sharp') {
-                $section[] = "- Cards: rounded-sm (2px)";
-                $section[] = "- Buttons: rounded (4px)";
+                $section[] = '- Cards: rounded-sm (2px)';
+                $section[] = '- Buttons: rounded (4px)';
             } else {
-                $section[] = "- Cards: rounded-lg (8px)";
-                $section[] = "- Buttons: rounded-md (6px)";
+                $section[] = '- Cards: rounded-lg (8px)';
+                $section[] = '- Buttons: rounded-md (6px)';
+            }
+        } elseif ($effectiveStyling === 'bootstrap') {
+            $section[] = "\nBootstrap Spacing:";
+            $spacing = match ($density) {
+                'compact' => [
+                    '- Container: .container with p-2',
+                    '- Cards: .card with p-2',
+                    '- Element Spacing: .mb-1, .gap-1',
+                    '- Font Size: .fs-6 (body), .small (secondary)',
+                ],
+                'spacious' => [
+                    '- Container: .container with p-5',
+                    '- Cards: .card with p-4',
+                    '- Element Spacing: .mb-4, .gap-4',
+                    '- Font Size: .fs-5 (body), .fs-6 (secondary)',
+                ],
+                default => [
+                    '- Container: .container with p-3',
+                    '- Cards: .card with p-3',
+                    '- Element Spacing: .mb-3, .gap-3',
+                    '- Font Size: default Bootstrap sizing',
+                ],
+            };
+            $section = array_merge($section, $spacing);
+
+            $section[] = "\nBorder Radius:";
+            if ($borderRadius === 'sharp') {
+                $section[] = '- Cards: .rounded-1';
+                $section[] = '- Buttons: .rounded-1';
+            } else {
+                $section[] = '- Cards: .rounded-3';
+                $section[] = '- Buttons: .rounded-2';
+            }
+        } elseif ($effectiveStyling === 'css-modules' || $effectiveStyling === 'styled-components') {
+            $spacingScale = match ($density) {
+                'compact' => '4px base unit',
+                'spacious' => '12px base unit',
+                default => '8px base unit',
+            };
+            $section[] = "\nCSS Spacing Scale: {$spacingScale}";
+            $section[] = '- Use consistent spacing multipliers (1x, 2x, 3x, 4x)';
+            $section[] = '- Define spacing variables: --spacing-sm, --spacing-md, --spacing-lg';
+
+            $section[] = "\nBorder Radius:";
+            if ($borderRadius === 'sharp') {
+                $section[] = '- Cards: 2px';
+                $section[] = '- Buttons: 4px';
+            } else {
+                $section[] = '- Cards: 8px';
+                $section[] = '- Buttons: 6px';
             }
         }
 
@@ -573,14 +705,14 @@ class McpPromptBuilder
 
     /**
      * COMPONENTS: Required UI components
-     * 
+     *
      * NOTE: Each selected component will generate a dedicated SHOWCASE PAGE.
      * Similar to AdminLTE, these are demonstration pages showing:
      * - All variations of the component
      * - Different states (hover, active, disabled, etc.)
      * - Code examples and usage patterns
      * - Multiple examples with different configurations
-     * 
+     *
      * Example component pages:
      * - "Buttons" page: Shows all button types, sizes, states
      * - "Forms" page: Shows all form inputs with examples
@@ -591,12 +723,12 @@ class McpPromptBuilder
         $components = $blueprint['components'] ?? [];
         $customComponents = $blueprint['customComponents'] ?? [];
 
-        $section = ["COMPONENT PAGES:"];
+        $section = ['COMPONENT PAGES:'];
         $section[] = "Each component below will have its own dedicated showcase page (like AdminLTE UI Elements pages).\n";
 
         // Predefined components
         if (count($components) > 0) {
-            $section[] = "Standard Component Pages:";
+            $section[] = 'Standard Component Pages:';
             foreach ($components as $component) {
                 $displayName = ucwords(str_replace('-', ' ', $component));
                 $section[] = "- {$displayName}: Showcase page for {$component}";
@@ -619,122 +751,122 @@ class McpPromptBuilder
      */
     private function getComponentShowcaseRequirements(string $component, array $blueprint): string
     {
-        $requirements = ["Component Showcase Requirements:"];
+        $requirements = ['Component Showcase Requirements:'];
 
-        switch($component) {
+        switch ($component) {
             case 'buttons':
-                $requirements[] = "- Show all button variants: Primary, Secondary, Success, Danger, Warning, Info";
-                $requirements[] = "- Demonstrate all sizes: Small, Default, Large";
-                $requirements[] = "- Show all states: Default, Hover (describe hover effect), Active, Disabled";
-                $requirements[] = "- Include icon buttons, button groups, outline buttons";
-                $requirements[] = "- Add block buttons (full width)";
-                $requirements[] = "- Include loading state buttons";
-                $requirements[] = "- Organize in sections with clear labels";
+                $requirements[] = '- Show all button variants: Primary, Secondary, Success, Danger, Warning, Info';
+                $requirements[] = '- Demonstrate all sizes: Small, Default, Large';
+                $requirements[] = '- Show all states: Default, Hover (describe hover effect), Active, Disabled';
+                $requirements[] = '- Include icon buttons, button groups, outline buttons';
+                $requirements[] = '- Add block buttons (full width)';
+                $requirements[] = '- Include loading state buttons';
+                $requirements[] = '- Organize in sections with clear labels';
                 break;
 
             case 'forms':
-                $requirements[] = "- Text inputs: Default, with placeholder, with label, with helper text";
-                $requirements[] = "- Input validation states: Success, Error, Warning";
-                $requirements[] = "- Input sizes: Small, Default, Large";
-                $requirements[] = "- Input types: Text, Email, Password, Number, Tel, URL";
-                $requirements[] = "- Textarea: Default, with character counter";
-                $requirements[] = "- Select dropdown: Single select, multiple select";
-                $requirements[] = "- Checkboxes: Single, multiple, with labels";
-                $requirements[] = "- Radio buttons: Group with multiple options";
-                $requirements[] = "- File upload input";
-                $requirements[] = "- Form layouts: Vertical, horizontal, inline";
-                $requirements[] = "- Complete form example with validation";
+                $requirements[] = '- Text inputs: Default, with placeholder, with label, with helper text';
+                $requirements[] = '- Input validation states: Success, Error, Warning';
+                $requirements[] = '- Input sizes: Small, Default, Large';
+                $requirements[] = '- Input types: Text, Email, Password, Number, Tel, URL';
+                $requirements[] = '- Textarea: Default, with character counter';
+                $requirements[] = '- Select dropdown: Single select, multiple select';
+                $requirements[] = '- Checkboxes: Single, multiple, with labels';
+                $requirements[] = '- Radio buttons: Group with multiple options';
+                $requirements[] = '- File upload input';
+                $requirements[] = '- Form layouts: Vertical, horizontal, inline';
+                $requirements[] = '- Complete form example with validation';
                 break;
 
             case 'modals':
-                $requirements[] = "- Basic modal with header, body, footer";
-                $requirements[] = "- Modal sizes: Small, Default, Large, Extra Large";
-                $requirements[] = "- Modal variations: Centered, scrollable content";
-                $requirements[] = "- Confirm dialog modal";
-                $requirements[] = "- Form inside modal example";
-                $requirements[] = "- Include buttons to trigger each modal type";
+                $requirements[] = '- Basic modal with header, body, footer';
+                $requirements[] = '- Modal sizes: Small, Default, Large, Extra Large';
+                $requirements[] = '- Modal variations: Centered, scrollable content';
+                $requirements[] = '- Confirm dialog modal';
+                $requirements[] = '- Form inside modal example';
+                $requirements[] = '- Include buttons to trigger each modal type';
                 break;
 
             case 'dropdowns':
-                $requirements[] = "- Basic dropdown menu";
-                $requirements[] = "- Dropdown with icons";
-                $requirements[] = "- Dropdown with dividers";
-                $requirements[] = "- Dropdown alignments: Left, Right";
-                $requirements[] = "- Dropdown directions: Down, Up";
-                $requirements[] = "- Split button dropdown";
-                $requirements[] = "- Dropdown in button group";
+                $requirements[] = '- Basic dropdown menu';
+                $requirements[] = '- Dropdown with icons';
+                $requirements[] = '- Dropdown with dividers';
+                $requirements[] = '- Dropdown alignments: Left, Right';
+                $requirements[] = '- Dropdown directions: Down, Up';
+                $requirements[] = '- Split button dropdown';
+                $requirements[] = '- Dropdown in button group';
                 break;
 
             case 'alerts':
-                $requirements[] = "- Alert types: Success, Info, Warning, Error/Danger";
-                $requirements[] = "- Dismissible alerts (with close button)";
-                $requirements[] = "- Alerts with icons";
-                $requirements[] = "- Alerts with action buttons";
-                $requirements[] = "- Alert with title and description";
-                $requirements[] = "- Toast notifications (if applicable to framework)";
+                $requirements[] = '- Alert types: Success, Info, Warning, Error/Danger';
+                $requirements[] = '- Dismissible alerts (with close button)';
+                $requirements[] = '- Alerts with icons';
+                $requirements[] = '- Alerts with action buttons';
+                $requirements[] = '- Alert with title and description';
+                $requirements[] = '- Toast notifications (if applicable to framework)';
                 break;
 
             case 'cards':
-                $requirements[] = "- Basic card with header, body, footer";
-                $requirements[] = "- Card with image (top, overlay)";
-                $requirements[] = "- Card with list group";
-                $requirements[] = "- Card with tabs";
-                $requirements[] = "- Horizontal card layout";
-                $requirements[] = "- Card with actions (buttons in header/footer)";
-                $requirements[] = "- Card colors/variants";
-                $requirements[] = "- Card grid layout example (3 cards in row)";
+                $requirements[] = '- Basic card with header, body, footer';
+                $requirements[] = '- Card with image (top, overlay)';
+                $requirements[] = '- Card with list group';
+                $requirements[] = '- Card with tabs';
+                $requirements[] = '- Horizontal card layout';
+                $requirements[] = '- Card with actions (buttons in header/footer)';
+                $requirements[] = '- Card colors/variants';
+                $requirements[] = '- Card grid layout example (3 cards in row)';
                 break;
 
             case 'tabs':
-                $requirements[] = "- Horizontal tabs (default)";
-                $requirements[] = "- Tabs with icons";
-                $requirements[] = "- Tabs justified (full width)";
-                $requirements[] = "- Vertical tabs";
-                $requirements[] = "- Pills style tabs";
-                $requirements[] = "- Example with real content in each tab panel";
+                $requirements[] = '- Horizontal tabs (default)';
+                $requirements[] = '- Tabs with icons';
+                $requirements[] = '- Tabs justified (full width)';
+                $requirements[] = '- Vertical tabs';
+                $requirements[] = '- Pills style tabs';
+                $requirements[] = '- Example with real content in each tab panel';
                 break;
 
             case 'charts':
                 $chartLib = $blueprint['chartLibrary'] ?? 'chartjs';
                 $chartName = $chartLib === 'echarts' ? 'Apache ECharts' : 'Chart.js';
                 $requirements[] = "- Use {$chartName} library exclusively";
-                $requirements[] = "- Line Chart: Monthly revenue for 12 months with 2 data series";
-                $requirements[] = "- Bar Chart: Sales by category (6-8 categories)";
-                $requirements[] = "- Pie/Doughnut Chart: Market share (4-5 segments)";
-                $requirements[] = "- Area Chart: Website traffic over time";
-                $requirements[] = "- Mixed Chart: Combination of line and bar";
-                $requirements[] = "- Each chart in its own card with title";
-                $requirements[] = "- Use theme colors in charts";
-                $requirements[] = "- Responsive charts that adapt to container";
+                $requirements[] = '- Line Chart: Monthly revenue for 12 months with 2 data series';
+                $requirements[] = '- Bar Chart: Sales by category (6-8 categories)';
+                $requirements[] = '- Pie/Doughnut Chart: Market share (4-5 segments)';
+                $requirements[] = '- Area Chart: Website traffic over time';
+                $requirements[] = '- Mixed Chart: Combination of line and bar';
+                $requirements[] = '- Each chart in its own card with title';
+                $requirements[] = '- Use theme colors in charts';
+                $requirements[] = '- Responsive charts that adapt to container';
                 break;
 
             case 'tables':
-                $requirements[] = "- Basic table with striped rows";
-                $requirements[] = "- Table with hover effect";
-                $requirements[] = "- Bordered table";
-                $requirements[] = "- Compact table (small padding)";
-                $requirements[] = "- Table with action buttons in last column";
-                $requirements[] = "- Responsive table (horizontal scroll on mobile)";
-                $requirements[] = "- Table with search/filter input";
-                $requirements[] = "- Sortable table headers (indicate sort direction)";
-                $requirements[] = "- Table with pagination (sample data: 20+ rows)";
-                $requirements[] = "- Table with row selection (checkboxes)";
+                $requirements[] = '- Basic table with striped rows';
+                $requirements[] = '- Table with hover effect';
+                $requirements[] = '- Bordered table';
+                $requirements[] = '- Compact table (small padding)';
+                $requirements[] = '- Table with action buttons in last column';
+                $requirements[] = '- Responsive table (horizontal scroll on mobile)';
+                $requirements[] = '- Table with search/filter input';
+                $requirements[] = '- Sortable table headers (indicate sort direction)';
+                $requirements[] = '- Table with pagination (sample data: 20+ rows)';
+                $requirements[] = '- Table with row selection (checkboxes)';
                 break;
 
             default:
                 $requirements[] = "- Show multiple examples of {$component}";
-                $requirements[] = "- Demonstrate different variations and use cases";
-                $requirements[] = "- Include different states where applicable";
-                $requirements[] = "- Use realistic sample data";
+                $requirements[] = '- Demonstrate different variations and use cases';
+                $requirements[] = '- Include different states where applicable';
+                $requirements[] = '- Use realistic sample data';
                 break;
         }
 
         $requirements[] = "\nGeneral Showcase Guidelines:";
-        $requirements[] = "- Organize examples in sections with descriptive headings";
-        $requirements[] = "- Each example should be in its own card or section";
-        $requirements[] = "- Add brief descriptions/labels for each variant";
-        $requirements[] = "- Use consistent spacing between examples";
-        $requirements[] = "- Make it easy to understand and copy-paste patterns";
+        $requirements[] = '- Organize examples in sections with descriptive headings';
+        $requirements[] = '- Each example should be in its own card or section';
+        $requirements[] = '- Add brief descriptions/labels for each variant';
+        $requirements[] = '- Use consistent spacing between examples';
+        $requirements[] = '- Make it easy to understand and copy-paste patterns';
 
         return implode("\n", $requirements);
     }
@@ -744,29 +876,29 @@ class McpPromptBuilder
      */
     private function getComponentRequirements(string $component, array $blueprint): string
     {
-        $requirements = match($component) {
-            'buttons' => "- Buttons: Primary (filled), Secondary (outline), Destructive (red)\n" .
-                        "  Sizes: Small, Default, Large\n" .
-                        "  States: Default, Hover, Active, Disabled",
-            'forms' => "- Forms: Text Input, Email Input, Password Input, Select, Checkbox, Radio, Textarea\n" .
-                      "  Include labels, placeholders, validation states\n" .
-                      "  Accessible: proper for/id associations, aria-labels",
-            'modals' => "- Modals: Center-screen overlay with backdrop\n" .
-                       "  Header with title and close button\n" .
-                       "  Body content area, Footer with action buttons\n" .
-                       "  Close on backdrop click and ESC key",
-            'dropdowns' => "- Dropdowns: Button-triggered menu\n" .
-                          "  Support menu items, dividers, icons\n" .
-                          "  Click outside to close",
-            'alerts' => "- Alerts/Toasts: Success, Error, Warning, Info variants\n" .
-                       "  Dismissible with close button\n" .
-                       "  Auto-dismiss option (5 seconds)",
-            'cards' => "- Cards: Header, Body, Footer sections\n" .
-                      "  Optional image support\n" .
-                      "  Flexible content layout",
-            'tabs' => "- Tabs: Horizontal tab navigation\n" .
-                     "  Active state indication\n" .
-                     "  Content panels switch on click",
+        $requirements = match ($component) {
+            'buttons' => "- Buttons: Primary (filled), Secondary (outline), Destructive (red)\n".
+                        "  Sizes: Small, Default, Large\n".
+                        '  States: Default, Hover, Active, Disabled',
+            'forms' => "- Forms: Text Input, Email Input, Password Input, Select, Checkbox, Radio, Textarea\n".
+                      "  Include labels, placeholders, validation states\n".
+                      '  Accessible: proper for/id associations, aria-labels',
+            'modals' => "- Modals: Center-screen overlay with backdrop\n".
+                       "  Header with title and close button\n".
+                       "  Body content area, Footer with action buttons\n".
+                       '  Close on backdrop click and ESC key',
+            'dropdowns' => "- Dropdowns: Button-triggered menu\n".
+                          "  Support menu items, dividers, icons\n".
+                          '  Click outside to close',
+            'alerts' => "- Alerts/Toasts: Success, Error, Warning, Info variants\n".
+                       "  Dismissible with close button\n".
+                       '  Auto-dismiss option (5 seconds)',
+            'cards' => "- Cards: Header, Body, Footer sections\n".
+                      "  Optional image support\n".
+                      '  Flexible content layout',
+            'tabs' => "- Tabs: Horizontal tab navigation\n".
+                     "  Active state indication\n".
+                     '  Content panels switch on click',
             'charts' => $this->getChartRequirements($blueprint),
             default => "- {$component}: Standard implementation",
         };
@@ -782,11 +914,11 @@ class McpPromptBuilder
         $chartLib = $blueprint['chartLibrary'] ?? 'chartjs';
         $chartName = $chartLib === 'echarts' ? 'Apache ECharts' : 'Chart.js';
 
-        return "- Charts: Data visualizations using {$chartName}\n" .
-               "  Line Chart: Time series data\n" .
-               "  Bar Chart: Categorical comparisons\n" .
-               "  Doughnut/Pie Chart: Proportional data\n" .
-               "  Responsive and theme-aware";
+        return "- Charts: Data visualizations using {$chartName}\n".
+               "  Line Chart: Time series data\n".
+               "  Bar Chart: Categorical comparisons\n".
+               "  Doughnut/Pie Chart: Proportional data\n".
+               '  Responsive and theme-aware';
     }
 
     /**
@@ -796,25 +928,25 @@ class McpPromptBuilder
     {
         $interaction = $blueprint['interaction'] ?? 'moderate';
 
-        $section = ["INTERACTION LEVEL: " . ucfirst($interaction) . " (auto-selected)"];
+        $section = ['INTERACTION LEVEL: '.ucfirst($interaction).' (auto-selected)'];
 
-        $details = match($interaction) {
+        $details = match ($interaction) {
             'static' => [
-                "- No animations or transitions",
-                "- Instant state changes",
-                "- Minimal hover effects (color change only)",
+                '- No animations or transitions',
+                '- Instant state changes',
+                '- Minimal hover effects (color change only)',
             ],
             'rich' => [
-                "- Rich animations: Fade in, slide, scale transforms",
-                "- Micro-interactions: Button press feedback, ripple effects",
-                "- Loading skeletons: Pulse animations for loading states",
-                "- Page transitions: Smooth navigation between views",
+                '- Rich animations: Fade in, slide, scale transforms',
+                '- Micro-interactions: Button press feedback, ripple effects',
+                '- Loading skeletons: Pulse animations for loading states',
+                '- Page transitions: Smooth navigation between views',
             ],
             default => [
-                "- Smooth transitions: 150ms ease-in-out for interactive elements",
-                "- Hover effects: Background/text color shifts, opacity changes",
-                "- Focus states: Outline/ring on keyboard navigation",
-                "- No complex animations or parallax",
+                '- Smooth transitions: 150ms ease-in-out for interactive elements',
+                '- Hover effects: Background/text color shifts, opacity changes',
+                '- Focus states: Outline/ring on keyboard navigation',
+                '- No complex animations or parallax',
             ],
         };
 
@@ -828,25 +960,25 @@ class McpPromptBuilder
     {
         $responsiveness = $blueprint['responsiveness'] ?? 'fully-responsive';
 
-        $section = ["RESPONSIVENESS: " . $this->formatResponsivenessName($responsiveness) . " (auto-selected)"];
+        $section = ['RESPONSIVENESS: '.$this->formatResponsivenessName($responsiveness).' (auto-selected)'];
 
-        $details = match($responsiveness) {
+        $details = match ($responsiveness) {
             'desktop-first' => [
-                "- Design optimized for desktop (≥1024px)",
-                "- Scale down to tablet and mobile",
-                "- Mobile (<640px): Hamburger menu, stacked layout",
+                '- Design optimized for desktop (≥1024px)',
+                '- Scale down to tablet and mobile',
+                '- Mobile (<640px): Hamburger menu, stacked layout',
             ],
             'mobile-first' => [
-                "- Design optimized for mobile (<640px)",
-                "- Scale up to tablet and desktop",
-                "- Mobile: Bottom navigation or hamburger menu",
+                '- Design optimized for mobile (<640px)',
+                '- Scale up to tablet and desktop',
+                '- Mobile: Bottom navigation or hamburger menu',
             ],
             default => [
-                "- Equal optimization for all screen sizes",
-                "- Mobile (<640px): Hamburger menu, stacked single column",
-                "- Tablet (640-1024px): Collapsible sidebar, 2-column grid",
-                "- Desktop (>1024px): Expanded sidebar, 3+ column grid",
-                "- Touch-friendly: Minimum 44px tap targets on mobile",
+                '- Equal optimization for all screen sizes',
+                '- Mobile (<640px): Hamburger menu, stacked single column',
+                '- Tablet (640-1024px): Collapsible sidebar, 2-column grid',
+                '- Desktop (>1024px): Expanded sidebar, 3+ column grid',
+                '- Touch-friendly: Minimum 44px tap targets on mobile',
             ],
         };
 
@@ -860,25 +992,25 @@ class McpPromptBuilder
     {
         $codeStyle = $blueprint['codeStyle'] ?? 'documented';
 
-        $section = ["CODE STYLE: " . ucfirst($codeStyle) . " (auto-selected)"];
+        $section = ['CODE STYLE: '.ucfirst($codeStyle).' (auto-selected)'];
 
-        $details = match($codeStyle) {
+        $details = match ($codeStyle) {
             'minimal' => [
-                "- Concise variable names (e.g., user, isOpen)",
-                "- No comments unless complex logic",
-                "- Inline simple logic, extract only when reused",
+                '- Concise variable names (e.g., user, isOpen)',
+                '- No comments unless complex logic',
+                '- Inline simple logic, extract only when reused',
             ],
             'verbose' => [
-                "- Explicit variable names (e.g., currentUser, isModalOpen)",
-                "- Moderate comments for non-obvious logic",
-                "- Extract helper functions for clarity",
+                '- Explicit variable names (e.g., currentUser, isModalOpen)',
+                '- Moderate comments for non-obvious logic',
+                '- Extract helper functions for clarity',
             ],
             default => [
-                "- Highly descriptive variable names",
-                "- Comments on all functions, complex logic, and component purposes",
-                "- Extract and document all helper functions",
-                "- Full JSDoc with property descriptions",
-                "- Include usage examples in component comments",
+                '- Highly descriptive variable names',
+                '- Comments on all functions, complex logic, and component purposes',
+                '- Extract and document all helper functions',
+                '- Full JSDoc with property descriptions',
+                '- Include usage examples in component comments',
             ],
         };
 
@@ -887,6 +1019,9 @@ class McpPromptBuilder
 
     /**
      * OUTPUT FORMAT: Single page file structure
+     *
+     * For framework outputs, generates component-specific instructions.
+     * Scaffold files (package.json, config, layout) are generated separately by ScaffoldGeneratorService.
      */
     private function buildSinglePageOutputFormat(array $blueprint, string $pageName): string
     {
@@ -894,39 +1029,59 @@ class McpPromptBuilder
         $cleanName = $isCustom ? substr($pageName, 7) : $pageName;
         $componentName = $this->getPageComponentName($cleanName);
         $outputFormat = $blueprint['outputFormat'] ?? 'vue';
+        $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
+        $isTs = ($frameworkConfig['language'] ?? 'typescript') === 'typescript';
 
-        $extension = match($outputFormat) {
-            'react' => 'tsx',
+        $extension = match ($outputFormat) {
+            'react' => $isTs ? 'tsx' : 'jsx',
             'angular' => 'component.ts',
             'svelte' => 'svelte',
             'html-css' => 'html',
             default => 'vue',
         };
 
-        $section = ["OUTPUT FORMAT:"];
-        $section[] = "Generate a SINGLE file for this page:";
-        $section[] = "";
-        $section[] = "File: src/pages/{$componentName}.{$extension}";
-        $section[] = "";
-        $section[] = "Requirements:";
-        $section[] = "- Start with comment: // src/pages/{$componentName}.{$extension}";
-        $section[] = "- Include all necessary imports";
-        $section[] = "- Export component as default";
-        $section[] = "- Include any page-specific types/interfaces";
-        $section[] = "- Generate complete, working code";
-        $section[] = "";
-        $section[] = "CRITICAL OUTPUT RULES:";
-        $section[] = "- Return ONLY the code, nothing else";
-        $section[] = "- DO NOT include explanations or markdown";
-        $section[] = "- DO NOT wrap in ```typescript, ```vue, or any code blocks";
+        // Determine correct file path based on output format
+        $filePath = match ($outputFormat) {
+            'react' => "src/pages/{$componentName}.{$extension}",
+            'vue' => "src/pages/{$componentName}.{$extension}",
+            'svelte' => 'src/routes/'.$this->toKebabCase($cleanName).'/+page.svelte',
+            'angular' => 'src/app/pages/'.$this->toKebabCase($cleanName).'/'.$this->toKebabCase($cleanName).'.component.ts',
+            default => "src/pages/{$componentName}.{$extension}",
+        };
+
+        $section = ['OUTPUT FORMAT:'];
+        $section[] = 'Generate a SINGLE file for this page:';
+        $section[] = '';
+        $section[] = "File: {$filePath}";
+        $section[] = '';
+        $section[] = 'Requirements:';
+        $section[] = "- Start with comment: // {$filePath}";
+        $section[] = '- Include all necessary imports';
+        $section[] = '- Export component as default';
+        $section[] = '- Include any page-specific types/interfaces';
+        $section[] = '- Generate complete, working code';
+
+        // Add framework-specific output instructions
+        if ($this->isFrameworkOutput($outputFormat)) {
+            $section[] = '';
+            $section[] = 'FRAMEWORK-SPECIFIC RULES:';
+            $section = array_merge($section, $this->getFrameworkOutputRules($outputFormat, $frameworkConfig));
+        }
+
+        $section[] = '';
+        $section[] = 'CRITICAL OUTPUT RULES:';
+        $section[] = '- Return ONLY the code, nothing else';
+        $section[] = '- DO NOT include explanations or markdown';
+        $section[] = '- DO NOT wrap in ```typescript, ```vue, or any code blocks';
         $section[] = "- DO NOT add 'Here is...' or any introductory text";
-        $section[] = "- Start directly with the file comment";
-        $section[] = "";
-        $section[] = "DO NOT generate:";
-        $section[] = "- Layout/wrapper components (assume they exist)";
-        $section[] = "- Shared components (assume they exist: Button, Card, Modal, etc.)";
-        $section[] = "- Router configuration";
-        $section[] = "- Type files (only page-specific inline types)";
+        $section[] = '- Start directly with the file comment';
+        $section[] = '';
+        $section[] = 'DO NOT generate:';
+        $section[] = '- Layout/wrapper components (they already exist in the project scaffold)';
+        $section[] = '- Shared components (assume they exist: Button, Card, Modal, etc.)';
+        $section[] = '- Router configuration (already generated in scaffold)';
+        $section[] = '- Type files (only page-specific inline types)';
+        $section[] = '- package.json, vite.config, or any config files';
 
         return implode("\n", $section);
     }
@@ -939,41 +1094,41 @@ class McpPromptBuilder
         $allPages = $this->getPageList($blueprint);
         $components = $blueprint['components'] ?? [];
 
-        $section = ["OUTPUT FORMAT:"];
-        $section[] = "Generate the following file structure:";
-        $section[] = "";
-        $section[] = "src/";
-        $section[] = "├── pages/";
+        $section = ['OUTPUT FORMAT:'];
+        $section[] = 'Generate the following file structure:';
+        $section[] = '';
+        $section[] = 'src/';
+        $section[] = '├── pages/';
 
         foreach ($allPages as $page) {
             $pageName = $this->getPageComponentName($page);
             $section[] = "│   ├── {$pageName}.vue";
         }
 
-        $section[] = "├── components/";
-        $section[] = "│   ├── Layout.vue";
+        $section[] = '├── components/';
+        $section[] = '│   ├── Layout.vue';
 
         $navigation = $blueprint['layout']['navigation'] ?? 'sidebar';
         if (in_array($navigation, ['sidebar', 'hybrid'])) {
-            $section[] = "│   ├── Sidebar.vue";
+            $section[] = '│   ├── Sidebar.vue';
         }
         if (in_array($navigation, ['topbar', 'hybrid'])) {
-            $section[] = "│   ├── Topbar.vue";
+            $section[] = '│   ├── Topbar.vue';
         }
 
         foreach ($components as $component) {
             $componentName = ucfirst($component);
             if ($component === 'charts') {
-                $section[] = "│   ├── Chart.vue";
+                $section[] = '│   ├── Chart.vue';
             } else {
                 $section[] = "│   ├── {$componentName}.vue";
             }
         }
 
-        $section[] = "├── composables/";
-        $section[] = "│   └── useTheme.ts";
-        $section[] = "└── types/";
-        $section[] = "    └── index.ts";
+        $section[] = '├── composables/';
+        $section[] = '│   └── useTheme.ts';
+        $section[] = '└── types/';
+        $section[] = '    └── index.ts';
 
         return implode("\n", $section);
     }
@@ -983,30 +1138,50 @@ class McpPromptBuilder
      */
     private function buildSinglePageImplementation(array $blueprint, string $pageName, bool $isCustom, ?array $customPageInfo): string
     {
-        $section = ["IMPLEMENTATION REQUIREMENTS:"];
+        $outputFormat = $blueprint['outputFormat'] ?? 'vue';
+        $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
+        $section = ['IMPLEMENTATION REQUIREMENTS:'];
 
         if ($isCustom && $customPageInfo) {
             $cleanName = substr($pageName, 7);
             $section[] = "\nCustom Page: {$cleanName}";
             $section[] = "User Description: {$customPageInfo['description']}";
-            $section[] = "";
-            $section[] = "Based on the description, implement:";
-            $section[] = "- Appropriate page structure and layout";
-            $section[] = "- Relevant content and functionality";
-            $section[] = "- Forms if data input is implied";
-            $section[] = "- Tables/lists if data display is implied";
-            $section[] = "- Charts if analytics are implied";
-            $section[] = "- Actions if CRUD operations are implied";
+            $section[] = '';
+            $section[] = 'Based on the description, implement:';
+            $section[] = '- Appropriate page structure and layout';
+            $section[] = '- Relevant content and functionality';
+            $section[] = '- Forms if data input is implied';
+            $section[] = '- Tables/lists if data display is implied';
+            $section[] = '- Charts if analytics are implied';
+            $section[] = '- Actions if CRUD operations are implied';
         } else {
             $section[] = $this->getPageImplementationRequirements($pageName, $blueprint);
         }
 
         $section[] = "\nGeneral Requirements:";
-        $section[] = "- Use the Layout component wrapper";
-        $section[] = "- Apply theme colors consistently";
-        $section[] = "- Implement responsive design";
-        $section[] = "- Include loading and error states where appropriate";
-        $section[] = "- Use realistic sample data (not Lorem ipsum)";
+
+        if ($this->isFrameworkOutput($outputFormat)) {
+            // Framework-specific implementation requirements
+            $section[] = '- DO NOT wrap content in a layout — the router/layout already handles this';
+            $section[] = '- Apply theme colors consistently using the CSS framework';
+            $section[] = '- Implement responsive design';
+            $section[] = '- Include loading and error states where appropriate';
+            $section[] = '- Use realistic sample data (not Lorem ipsum)';
+
+            $stateManagement = $frameworkConfig['stateManagement'] ?? 'none';
+            if ($stateManagement !== 'none') {
+                $smName = $this->getStateManagementName($stateManagement);
+                $section[] = "- Use {$smName} for any shared state";
+            }
+
+            $section = array_merge($section, $this->getFrameworkImplementationGuidance($outputFormat, $frameworkConfig));
+        } else {
+            $section[] = '- Use the Layout component wrapper';
+            $section[] = '- Apply theme colors consistently';
+            $section[] = '- Implement responsive design';
+            $section[] = '- Include loading and error states where appropriate';
+            $section[] = '- Use realistic sample data (not Lorem ipsum)';
+        }
 
         return implode("\n", $section);
     }
@@ -1018,12 +1193,12 @@ class McpPromptBuilder
     {
         $allPages = $this->getPageList($blueprint);
 
-        $section = ["IMPLEMENTATION INSTRUCTIONS:"];
-        $section[] = "Output Intent: Production-Ready Base";
-        $section[] = "- Realistic sample content";
-        $section[] = "- Proper error handling";
-        $section[] = "- Accessibility: WCAG AA";
-        $section[] = "- Form validation with user feedback";
+        $section = ['IMPLEMENTATION INSTRUCTIONS:'];
+        $section[] = 'Output Intent: Production-Ready Base';
+        $section[] = '- Realistic sample content';
+        $section[] = '- Proper error handling';
+        $section[] = '- Accessibility: WCAG AA';
+        $section[] = '- Form validation with user feedback';
 
         $section[] = "\nPage-Specific Requirements:";
 
@@ -1032,19 +1207,19 @@ class McpPromptBuilder
             if ($isCustom) {
                 $cleanName = substr($page, 7);
                 $customPageInfo = $this->getCustomPageInfo($blueprint, $cleanName);
-                $section[] = "\n" . ucfirst($cleanName) . " (Custom):";
-                $section[] = "- " . ($customPageInfo['description'] ?? 'User-defined page');
+                $section[] = "\n".ucfirst($cleanName).' (Custom):';
+                $section[] = '- '.($customPageInfo['description'] ?? 'User-defined page');
             } else {
-                $section[] = "\n" . $this->getPageImplementationRequirements($page, $blueprint);
+                $section[] = "\n".$this->getPageImplementationRequirements($page, $blueprint);
             }
         }
 
         $section[] = "\nGeneral Requirements:";
-        $section[] = "- All pages use the Layout component";
-        $section[] = "- Navigation menu items correspond to included pages";
-        $section[] = "- Active route indication in navigation";
-        $section[] = "- Theme colors applied consistently";
-        $section[] = "- Responsive breakpoints applied";
+        $section[] = '- All pages use the Layout component';
+        $section[] = '- Navigation menu items correspond to included pages';
+        $section[] = '- Active route indication in navigation';
+        $section[] = '- Theme colors applied consistently';
+        $section[] = '- Responsive breakpoints applied';
 
         return implode("\n", $section);
     }
@@ -1054,99 +1229,99 @@ class McpPromptBuilder
      */
     private function getPageImplementationRequirements(string $page, array $blueprint): string
     {
-        $requirements = [ucfirst($this->formatPageName($page)) . ":"];
+        $requirements = [ucfirst($this->formatPageName($page)).':'];
 
         switch ($page) {
             case 'dashboard':
-                $requirements[] = "- 4 metric cards (e.g., Total Users, Revenue, Orders, Growth %)";
-                $requirements[] = "- Line chart showing trend (last 7 days)";
-                $requirements[] = "- Recent activity table (5 rows)";
-                $requirements[] = "- Quick actions section";
+                $requirements[] = '- 4 metric cards (e.g., Total Users, Revenue, Orders, Growth %)';
+                $requirements[] = '- Line chart showing trend (last 7 days)';
+                $requirements[] = '- Recent activity table (5 rows)';
+                $requirements[] = '- Quick actions section';
                 break;
 
             case 'login':
-                $requirements[] = "- Email and password inputs";
-                $requirements[] = "- Remember me checkbox";
-                $requirements[] = "- Submit button (disabled when invalid)";
-                $requirements[] = "- Links to forgot password and register";
-                $requirements[] = "- Client-side validation";
+                $requirements[] = '- Email and password inputs';
+                $requirements[] = '- Remember me checkbox';
+                $requirements[] = '- Submit button (disabled when invalid)';
+                $requirements[] = '- Links to forgot password and register';
+                $requirements[] = '- Client-side validation';
                 break;
 
             case 'register':
-                $requirements[] = "- Name, email, password, confirm password inputs";
-                $requirements[] = "- Terms acceptance checkbox";
-                $requirements[] = "- Submit button";
-                $requirements[] = "- Link to login";
-                $requirements[] = "- Password strength indicator";
+                $requirements[] = '- Name, email, password, confirm password inputs';
+                $requirements[] = '- Terms acceptance checkbox';
+                $requirements[] = '- Submit button';
+                $requirements[] = '- Link to login';
+                $requirements[] = '- Password strength indicator';
                 break;
 
             case 'forgot-password':
-                $requirements[] = "- Email input field";
-                $requirements[] = "- Submit button";
-                $requirements[] = "- Success message on submission";
-                $requirements[] = "- Link back to login";
+                $requirements[] = '- Email input field';
+                $requirements[] = '- Submit button';
+                $requirements[] = '- Success message on submission';
+                $requirements[] = '- Link back to login';
                 break;
 
             case 'user-management':
-                $requirements[] = "- Data table with columns: Avatar, Name, Email, Role, Status, Actions";
-                $requirements[] = "- Search/filter input";
-                $requirements[] = "- Add user button";
-                $requirements[] = "- Edit and delete actions per row";
-                $requirements[] = "- Pagination (10 rows per page)";
-                $requirements[] = "- Sample data: 15 users";
+                $requirements[] = '- Data table with columns: Avatar, Name, Email, Role, Status, Actions';
+                $requirements[] = '- Search/filter input';
+                $requirements[] = '- Add user button';
+                $requirements[] = '- Edit and delete actions per row';
+                $requirements[] = '- Pagination (10 rows per page)';
+                $requirements[] = '- Sample data: 15 users';
                 break;
 
             case 'settings':
-                $requirements[] = "- Tabs: Profile, Account, Notifications, Security";
-                $requirements[] = "- Profile tab: Name, email, avatar upload";
-                $requirements[] = "- Account tab: Language, timezone, theme";
-                $requirements[] = "- Notifications tab: Email/push toggles";
-                $requirements[] = "- Security tab: Change password, 2FA toggle";
+                $requirements[] = '- Tabs: Profile, Account, Notifications, Security';
+                $requirements[] = '- Profile tab: Name, email, avatar upload';
+                $requirements[] = '- Account tab: Language, timezone, theme';
+                $requirements[] = '- Notifications tab: Email/push toggles';
+                $requirements[] = '- Security tab: Change password, 2FA toggle';
                 break;
 
             case 'charts':
                 $chartLib = $blueprint['chartLibrary'] ?? 'chartjs';
                 $chartName = $chartLib === 'echarts' ? 'Apache ECharts' : 'Chart.js';
-                $requirements[] = "- Line chart: Revenue over time (12 months)";
-                $requirements[] = "- Bar chart: Sales by category (6 categories)";
-                $requirements[] = "- Doughnut chart: Traffic sources (4 sources)";
+                $requirements[] = '- Line chart: Revenue over time (12 months)';
+                $requirements[] = '- Bar chart: Sales by category (6 categories)';
+                $requirements[] = '- Doughnut chart: Traffic sources (4 sources)';
                 $requirements[] = "- Use {$chartName} library";
                 break;
 
             case 'tables':
-                $requirements[] = "- Sortable columns (click header to sort)";
-                $requirements[] = "- Filterable rows (search input)";
-                $requirements[] = "- Selectable rows (checkbox column)";
-                $requirements[] = "- Bulk actions (delete selected)";
-                $requirements[] = "- Export button (CSV)";
-                $requirements[] = "- Sample data: 25 rows";
+                $requirements[] = '- Sortable columns (click header to sort)';
+                $requirements[] = '- Filterable rows (search input)';
+                $requirements[] = '- Selectable rows (checkbox column)';
+                $requirements[] = '- Bulk actions (delete selected)';
+                $requirements[] = '- Export button (CSV)';
+                $requirements[] = '- Sample data: 25 rows';
                 break;
 
             case 'profile':
-                $requirements[] = "- User avatar (large, centered)";
-                $requirements[] = "- User info: Name, email, role, joined date";
-                $requirements[] = "- Edit profile button";
-                $requirements[] = "- Activity timeline (last 10 actions)";
-                $requirements[] = "- Stats cards: Posts, Followers, Following";
+                $requirements[] = '- User avatar (large, centered)';
+                $requirements[] = '- User info: Name, email, role, joined date';
+                $requirements[] = '- Edit profile button';
+                $requirements[] = '- Activity timeline (last 10 actions)';
+                $requirements[] = '- Stats cards: Posts, Followers, Following';
                 break;
 
             case 'about':
-                $requirements[] = "- Hero section with company mission";
-                $requirements[] = "- Team section (4 team members)";
-                $requirements[] = "- Values section (3 core values)";
-                $requirements[] = "- Call-to-action section";
+                $requirements[] = '- Hero section with company mission';
+                $requirements[] = '- Team section (4 team members)';
+                $requirements[] = '- Values section (3 core values)';
+                $requirements[] = '- Call-to-action section';
                 break;
 
             case 'contact':
-                $requirements[] = "- Contact form: Name, email, subject, message";
-                $requirements[] = "- Contact info: Address, phone, email";
-                $requirements[] = "- Map placeholder";
-                $requirements[] = "- Social media links";
+                $requirements[] = '- Contact form: Name, email, subject, message';
+                $requirements[] = '- Contact info: Address, phone, email';
+                $requirements[] = '- Map placeholder';
+                $requirements[] = '- Social media links';
                 break;
 
             default:
-                $requirements[] = "- Basic page structure with title";
-                $requirements[] = "- Content relevant to page name";
+                $requirements[] = '- Basic page structure with title';
+                $requirements[] = '- Content relevant to page name';
                 break;
         }
 
@@ -1159,7 +1334,7 @@ class McpPromptBuilder
 
     private function getFrameworkName(string $framework): string
     {
-        return match($framework) {
+        return match ($framework) {
             'tailwind' => 'Tailwind CSS',
             'bootstrap' => 'Bootstrap',
             'pure-css' => 'Pure CSS',
@@ -1169,7 +1344,7 @@ class McpPromptBuilder
 
     private function getOutputFormatName(string $format): string
     {
-        return match($format) {
+        return match ($format) {
             'html-css' => 'HTML + CSS',
             'react' => 'React',
             'vue' => 'Vue.js',
@@ -1185,29 +1360,30 @@ class McpPromptBuilder
         if ($category === 'custom') {
             return 'Custom Category';
         }
+
         return ucwords(str_replace('-', ' ', $category));
     }
 
     private function formatPageName(string $page): string
     {
         if (str_starts_with($page, 'component:custom:')) {
-            return ucwords(str_replace('-', ' ', substr($page, 17))) . ' (Component Showcase)';
+            return ucwords(str_replace('-', ' ', substr($page, 17))).' (Component Showcase)';
         }
-        
+
         if (str_starts_with($page, 'component:')) {
-            return ucwords(str_replace('-', ' ', substr($page, 10))) . ' (Component Showcase)';
+            return ucwords(str_replace('-', ' ', substr($page, 10))).' (Component Showcase)';
         }
-        
+
         if (str_starts_with($page, 'custom:')) {
-            return ucwords(str_replace('-', ' ', substr($page, 7))) . ' (Custom)';
+            return ucwords(str_replace('-', ' ', substr($page, 7))).' (Custom)';
         }
-        
+
         return ucwords(str_replace('-', ' ', $page));
     }
 
     private function formatNavigationName(string $navigation): string
     {
-        return match($navigation) {
+        return match ($navigation) {
             'sidebar' => 'Collapsible Sidebar',
             'topbar' => 'Top Navigation Bar',
             'hybrid' => 'Hybrid (Sidebar + Top Bar)',
@@ -1217,7 +1393,7 @@ class McpPromptBuilder
 
     private function formatResponsivenessName(string $responsiveness): string
     {
-        return match($responsiveness) {
+        return match ($responsiveness) {
             'desktop-first' => 'Desktop-First',
             'mobile-first' => 'Mobile-First',
             'fully-responsive' => 'Fully Responsive',
@@ -1230,6 +1406,197 @@ class McpPromptBuilder
         if (str_starts_with($page, 'custom:')) {
             $page = substr($page, 7);
         }
+
         return str_replace(' ', '', ucwords(str_replace('-', ' ', $page)));
+    }
+
+    /**
+     * Check if the output format is a JS framework requiring multi-file scaffold.
+     */
+    private function isFrameworkOutput(string $outputFormat): bool
+    {
+        return in_array($outputFormat, ['react', 'vue', 'svelte', 'angular']);
+    }
+
+    /**
+     * Convert string to kebab-case for file paths.
+     */
+    private function toKebabCase(string $str): string
+    {
+        return strtolower(
+            preg_replace('/[A-Z]/', '-$0', lcfirst(
+                str_replace([' ', '_'], '-', $str)
+            ))
+        );
+    }
+
+    /**
+     * Get human-readable state management name.
+     */
+    private function getStateManagementName(string $stateManagement): string
+    {
+        return match ($stateManagement) {
+            'zustand' => 'Zustand',
+            'redux' => 'Redux Toolkit',
+            'pinia' => 'Pinia',
+            'ngrx' => 'NgRx',
+            'svelte-store' => 'Svelte stores',
+            default => ucfirst($stateManagement),
+        };
+    }
+
+    /**
+     * FRAMEWORK CONFIG: Framework-specific configuration context
+     *
+     * Provides the LLM with full context about the framework setup,
+     * so it generates code compatible with the scaffold.
+     */
+    private function buildFrameworkConfigSection(array $blueprint): string
+    {
+        $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
+        $outputFormat = $blueprint['outputFormat'] ?? 'vue';
+        $language = ($frameworkConfig['language'] ?? 'typescript') === 'typescript' ? 'TypeScript' : 'JavaScript';
+        $styling = $frameworkConfig['styling'] ?? 'tailwind';
+        $hasRouter = $frameworkConfig['router'] ?? true;
+        $stateManagement = $frameworkConfig['stateManagement'] ?? 'none';
+        $buildTool = $frameworkConfig['buildTool'] ?? 'vite';
+
+        $section = ['FRAMEWORK PROJECT CONFIGURATION:'];
+        $section[] = "This is a multi-file {$this->getOutputFormatName($outputFormat)} project with the following setup:";
+        $section[] = "- Language: {$language}";
+        $section[] = '- CSS/Styling: '.$this->getStylingDisplayName($styling);
+        $section[] = '- Router: '.($hasRouter ? 'Enabled' : 'Disabled');
+        $section[] = '- State Management: '.($stateManagement === 'none' ? 'None (local state only)' : $this->getStateManagementName($stateManagement));
+        $section[] = '- Build Tool: '.ucfirst($buildTool);
+        $section[] = '';
+        $section[] = 'SCAFFOLD FILES (ALREADY GENERATED - DO NOT RECREATE):';
+        $section[] = '- package.json with all dependencies';
+        $section[] = "- Build tool configuration ({$buildTool}.config)";
+        $section[] = '- Main entry point (src/main)';
+        $section[] = '- App root component';
+
+        if ($hasRouter) {
+            $section[] = '- Router configuration with all page routes';
+        }
+
+        $section[] = '- MainLayout component (sidebar/topbar navigation)';
+        $section[] = '- Global CSS with theme variables';
+        $section[] = '';
+        $section[] = 'You ONLY need to generate the page component content.';
+
+        return implode("\n", $section);
+    }
+
+    /**
+     * Get display name for styling option.
+     */
+    private function getStylingDisplayName(string $styling): string
+    {
+        return match ($styling) {
+            'tailwind' => 'Tailwind CSS',
+            'bootstrap' => 'Bootstrap',
+            'css-modules' => 'CSS Modules',
+            'styled-components' => 'Styled Components',
+            default => ucfirst($styling),
+        };
+    }
+
+    /**
+     * Get framework-specific output rules for the LLM.
+     *
+     * @return string[]
+     */
+    private function getFrameworkOutputRules(string $outputFormat, array $frameworkConfig): array
+    {
+        $isTs = ($frameworkConfig['language'] ?? 'typescript') === 'typescript';
+        $styling = $frameworkConfig['styling'] ?? 'tailwind';
+        $rules = [];
+
+        switch ($outputFormat) {
+            case 'react':
+                $rules[] = '- Use React functional components with hooks';
+                $rules[] = $isTs
+                    ? '- Use TypeScript interfaces for all props and data types'
+                    : '- Use PropTypes or JSDoc for component props';
+                $rules[] = "- Use 'export default function ComponentName()' pattern";
+                $rules[] = '- Import React hooks as needed: useState, useEffect, useMemo, useCallback';
+                if ($styling === 'tailwind') {
+                    $rules[] = '- Use Tailwind CSS utility classes for all styling';
+                } elseif ($styling === 'css-modules') {
+                    $rules[] = "- Use CSS Modules for styling (import styles from './ComponentName.module.css')";
+                } elseif ($styling === 'styled-components') {
+                    $rules[] = '- Use styled-components for styling';
+                }
+                break;
+
+            case 'vue':
+                $rules[] = '- Use Vue 3 Composition API with <script setup'.($isTs ? ' lang="ts"' : '').'>';
+                $rules[] = '- Use ref(), computed(), and watch() for reactivity';
+                $rules[] = $isTs
+                    ? '- Define TypeScript interfaces for props using defineProps<T>()'
+                    : '- Define props using defineProps()';
+                $rules[] = '- Use single-file component (.vue) format';
+                if ($styling === 'tailwind') {
+                    $rules[] = '- Use Tailwind CSS utility classes in template';
+                }
+                break;
+
+            case 'svelte':
+                $rules[] = '- Use Svelte 5 runes ($state, $derived, $effect)';
+                $rules[] = '- DO NOT use legacy Svelte 4 syntax (no export let, no $: reactive)';
+                $rules[] = '- Use {@render children()} for slot rendering, not <slot>';
+                $rules[] = '- Use $props() for component props';
+                if ($isTs) {
+                    $rules[] = '- Use <script lang="ts"> for TypeScript';
+                }
+                if ($styling === 'tailwind') {
+                    $rules[] = '- Use Tailwind CSS utility classes';
+                }
+                break;
+
+            case 'angular':
+                $rules[] = '- Use Angular standalone components (standalone: true)';
+                $rules[] = '- Import CommonModule and other Angular modules as needed';
+                $rules[] = '- Use Angular signals for reactive state where appropriate';
+                $rules[] = '- Use inline template (template: `...`) for single-file components';
+                $rules[] = '- Import RouterLink for navigation links';
+                break;
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Get framework-specific implementation guidance.
+     *
+     * @return string[]
+     */
+    private function getFrameworkImplementationGuidance(string $outputFormat, array $frameworkConfig): array
+    {
+        $guidance = [];
+
+        switch ($outputFormat) {
+            case 'react':
+                $guidance[] = "- Use React Router's useNavigate() for programmatic navigation";
+                $guidance[] = "- Use React Router's useParams() for route parameters";
+                break;
+
+            case 'vue':
+                $guidance[] = '- Use useRoute() and useRouter() from vue-router for navigation';
+                $guidance[] = '- Emit events for parent communication';
+                break;
+
+            case 'svelte':
+                $guidance[] = '- Use goto() from $app/navigation for programmatic navigation';
+                $guidance[] = '- Use page from $app/state for current route info';
+                break;
+
+            case 'angular':
+                $guidance[] = '- Use Router and ActivatedRoute for navigation';
+                $guidance[] = "- Use Angular's HttpClient pattern for data fetching (mock data ok)";
+                break;
+        }
+
+        return $guidance;
     }
 }

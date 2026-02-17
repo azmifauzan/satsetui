@@ -51,10 +51,11 @@ No AI decision-making. No prompt interpretation. Pure translation.
 ### External Services
 
 - **LLM API**: OpenAI-compatible API via Sumopod (https://ai.sumopod.com/v1)
-- **Models**: 6 LLM models from Gemini, Claude, and GPT families
-  - Free tier: Gemini 2.5 Flash (3 credits/generation)
-  - Premium tier: 5 additional models (2-15 credits/generation)
-- **Credits**: 1 credit = Rp 1,000
+- **Models**: 2 model types (admin-configurable)
+  - Satset (default: `gemini-2.0-flash-exp`) — 6 credits/generation
+  - Expert (default: `gemini-2.5-pro-preview`) — 15 credits/generation
+- **Telegram**: Admin notifications (new user registration)
+- **SMTP**: Email verification
 - **Storage**: Local filesystem for generated templates
 
 ---

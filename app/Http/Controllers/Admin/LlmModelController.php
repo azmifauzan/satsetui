@@ -81,9 +81,9 @@ class LlmModelController extends Controller
             unset($validated['api_key']);
         }
 
-        // Only update base URL if provided
+        // Only update base URL if provided (same behavior as API key)
         if (empty($validated['base_url'])) {
-            $validated['base_url'] = null;
+            unset($validated['base_url']);
         }
 
         $model->update($validated);

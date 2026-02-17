@@ -345,6 +345,40 @@ export interface Translations {
         customInputTitle: string;
         customPlaceholder: string;
         customHint: string;
+        // Framework config
+        frameworkConfig: {
+          title: string;
+          description: string;
+          language: string;
+          languageDesc: string;
+          typescript: string;
+          typescriptDesc: string;
+          javascript: string;
+          javascriptDesc: string;
+          styling: string;
+          stylingDesc: string;
+          tailwind: string;
+          bootstrap: string;
+          cssModules: string;
+          styledComponents: string;
+          stylingHint: string;
+          router: string;
+          routerDesc: string;
+          routerEnabled: string;
+          routerDisabled: string;
+          stateManagement: string;
+          stateManagementDesc: string;
+          none: string;
+          buildTool: string;
+          buildToolDesc: string;
+          vite: string;
+          viteDesc: string;
+          webpack: string;
+          webpackDesc: string;
+          turbopack: string;
+          turbopackDesc: string;
+          creditMultiplier: string;
+        };
       };
       llmModel: {
         title: string;
@@ -844,6 +878,40 @@ const id: Translations = {
         customInputTitle: 'Deskripsi Format Kustom',
         customPlaceholder: 'Contoh: PHP dengan Laravel Blade templates dan Alpine.js untuk interaktivitas. Gunakan Tailwind CSS untuk styling. Sertakan helper functions dan Eloquent models.',
         customHint: 'Jelaskan teknologi, framework, atau format spesifik yang Anda inginkan.',
+        // Framework config
+        frameworkConfig: {
+          title: 'Konfigurasi Framework',
+          description: 'Sesuaikan pengaturan proyek framework Anda.',
+          language: 'Bahasa',
+          languageDesc: 'Pilih bahasa pemrograman untuk proyek.',
+          typescript: 'TypeScript',
+          typescriptDesc: 'Keamanan tipe, pelengkapan otomatis yang lebih baik',
+          javascript: 'JavaScript',
+          javascriptDesc: 'Vanilla JS, tanpa langkah kompilasi tipe',
+          styling: 'Styling',
+          stylingDesc: 'Pilih solusi styling untuk komponen.',
+          tailwind: 'Tailwind CSS',
+          bootstrap: 'Bootstrap',
+          cssModules: 'CSS Modules',
+          styledComponents: 'Styled Components',
+          stylingHint: 'Opsi styling difilter berdasarkan framework CSS yang dipilih di atas.',
+          router: 'Router',
+          routerDesc: 'Sertakan routing sisi klien untuk navigasi halaman.',
+          routerEnabled: 'Aktif - Navigasi antar halaman',
+          routerDisabled: 'Nonaktif - Halaman tunggal saja',
+          stateManagement: 'State Management',
+          stateManagementDesc: 'Pilih library state management.',
+          none: 'Tidak Ada',
+          buildTool: 'Build Tool',
+          buildToolDesc: 'Pilih build tool untuk proyek.',
+          vite: 'Vite',
+          viteDesc: 'Cepat, modern, HMR instan',
+          webpack: 'Webpack',
+          webpackDesc: 'Matang, konfigurasi fleksibel',
+          turbopack: 'Turbopack',
+          turbopackDesc: 'Incremental bundler oleh Vercel',
+          creditMultiplier: 'Pengali kredit framework',
+        },
       },
       llmModel: {
         title: 'Pilih Model AI',
@@ -1402,6 +1470,40 @@ const en: Translations = {
         customInputTitle: 'Custom Format Description',
         customPlaceholder: 'Example: PHP with Laravel Blade templates and Alpine.js for interactivity. Use Tailwind CSS for styling. Include helper functions and Eloquent models.',
         customHint: 'Describe the specific technology, framework, or format you want.',
+        // Framework config
+        frameworkConfig: {
+          title: 'Framework Configuration',
+          description: 'Customize your framework project settings.',
+          language: 'Language',
+          languageDesc: 'Choose the programming language for the project.',
+          typescript: 'TypeScript',
+          typescriptDesc: 'Type safety, better autocompletion',
+          javascript: 'JavaScript',
+          javascriptDesc: 'Vanilla JS, no type compilation step',
+          styling: 'Styling',
+          stylingDesc: 'Choose the styling solution for components.',
+          tailwind: 'Tailwind CSS',
+          bootstrap: 'Bootstrap',
+          cssModules: 'CSS Modules',
+          styledComponents: 'Styled Components',
+          stylingHint: 'Styling options are filtered based on the CSS framework selected above.',
+          router: 'Router',
+          routerDesc: 'Include client-side routing for page navigation.',
+          routerEnabled: 'Enabled - Navigate between pages',
+          routerDisabled: 'Disabled - Single page only',
+          stateManagement: 'State Management',
+          stateManagementDesc: 'Choose a state management library.',
+          none: 'None',
+          buildTool: 'Build Tool',
+          buildToolDesc: 'Choose the build tool for the project.',
+          vite: 'Vite',
+          viteDesc: 'Fast, modern, instant HMR',
+          webpack: 'Webpack',
+          webpackDesc: 'Mature, flexible configuration',
+          turbopack: 'Turbopack',
+          turbopackDesc: 'Incremental bundler by Vercel',
+          creditMultiplier: 'Framework credit multiplier',
+        },
       },
       llmModel: {
         title: 'Select AI Model',

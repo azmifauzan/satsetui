@@ -2,28 +2,32 @@
 
 Panduan singkat untuk developer yang bekerja dengan sistem LLM dan kredit di SatsetUI.
 
-## 🎯 Model LLM
+**Last Updated:** 16 Februari 2026
 
-| Model | Kredit | Tier |
-|-------|--------|------|
-| `gemini-2.5-flash` | 3 | FREE ✅ |
-| `gpt-5.1-codex-mini` | 2 | Premium |
-| `claude-haiku-4-5` | 6 | Premium |
-| `gpt-5.1-codex` | 10 | Premium |
-| `gemini-3-pro-preview` | 12 | Premium |
-| `claude-sonnet-4-5` | 15 | Premium |
+## 🎯 Model LLM (2-Model System)
+
+| Tipe | Default Model | Provider | Kredit |
+|------|---------------|----------|--------|
+| **Satset** | `gemini-2.0-flash-exp` | Gemini | 6 |
+| **Expert** | `gemini-2.5-pro-preview` | Gemini | 15 |
+
+> Admin dapat mengubah model name, provider, API key, dan base URL via Admin Panel.
 
 ## 💰 Kredit System
 
 ```php
 // Default credits saat registrasi
-25 kredit (gratis)
+100 kredit (gratis)
 
 // Nilai kredit
-1 kredit = Rp 1,000
+1 kredit = Rp 100 (configurable via AdminSetting)
 
 // Pembulatan
 SELALU dibulatkan ke atas (CEIL)
+
+// Formula
+subtotal = base_credits + extra_page_credits
+total = CEIL(subtotal × (1 + error_margin) × (1 + profit_margin))
 ```
 
 ## 🔧 Usage Examples
@@ -31,15 +35,17 @@ SELALU dibulatkan ke atas (CEIL)
 ### Get Available Models
 
 ```php
-// Untuk user yang sedang login
-$models = auth()->user()->getAvailableModels();
+use App\Models\LlmModel;
 
-// Atau via service
-$llmService = app(\App\Services\OpenAICompatibleService::class);
-$models = $llmService->getAvailableModels($user->hasPremiumAccess());
+// Get all active models
+$models = LlmModel::active()->ordered()->get();
+
+// Get by type
+$satset = LlmModel::where('model_type', 'satset')->active()->first();
+$expert = LlmModel::where('model_type', 'expert')->active()->first();
 ```
 
-### Start Generation dengan Model
+### Start Generation
 
 ```php
 use App\Services\GenerationService;
@@ -49,195 +55,197 @@ $service = app(GenerationService::class);
 $result = $service->startGeneration(
     blueprint: $blueprint,
     user: $user,
-    modelName: 'claude-haiku-4-5', // Optional, auto-select jika null
-    projectName: 'Project Name'
+    modelName: 'satset', // or 'expert'
+    projectName: 'My Template'
 );
 
 // Response
 [
     'success' => true,
     'generation_id' => 123,
-    'model' => 'claude-haiku-4-5',
-    'credits_charged' => 6
+    'model' => 'gemini-2.0-flash-exp',
+    'credits_charged' => 7
 ]
 ```
 
-### Check Credits
+### Generate Next Page (with retry & context)
 
 ```php
-$user = auth()->user();
-
-// Apakah user punya akses premium?
-$isPremium = $user->hasPremiumAccess(); // credits > 0
-
-// Cek cukup kredit untuk model tertentu
-$model = \App\Models\LlmModel::where('name', 'claude-sonnet-4-5')->first();
-
-if ($user->credits < $model->estimated_credits_per_generation) {
-    return response()->json([
-        'error' => 'Insufficient credits',
-        'required' => $model->estimated_credits_per_generation,
-        'available' => $user->credits
-    ], 402);
-}
+$result = $service->generateNextPage($generation, retryCount: 0);
+// Includes context from last 2 pages for consistency
+// Auto-retries up to 3x with exponential backoff
 ```
 
-### Calculate Actual Credits
+### Refine Generation
 
 ```php
-use App\Services\OpenAICompatibleService;
+$result = $service->refineGeneration($generation, 'Make the sidebar darker');
+// Stores RefinementMessage records for conversation history
+```
 
-$llmService = app(OpenAICompatibleService::class);
+### Credit Operations
 
-// Setelah generation selesai, calculate actual cost
-$actualCredits = $llmService->calculateActualCredits(
-    modelName: 'claude-haiku-4-5',
-    inputTokens: 12500,
-    outputTokens: 52300
-);
+```php
+use App\Services\CreditService;
 
-// Bandingkan dengan estimasi
-$difference = $actualCredits - $generation->credits_used;
+$creditService = app(CreditService::class);
+
+// Charge credits
+$creditService->charge($user, $amount, $generation, 'Template generation');
+
+// Refund credits
+$creditService->refund($user, $amount, $generation, 'Generation failed');
+
+// Admin adjustment
+$creditService->adminAdjustment($user, $amount, $admin, 'Bonus credits');
+
+// Get statistics
+$stats = $creditService->getStatistics($user);
+```
+
+### Cost Tracking
+
+```php
+use App\Services\CostTrackingService;
+
+$costService = app(CostTrackingService::class);
+
+// Record actual LLM costs
+$costService->recordCost($generation, $pageGeneration, [
+    'input_tokens' => 12500,
+    'output_tokens' => 52300,
+    'model_name' => 'gemini-2.0-flash-exp',
+    'provider' => 'gemini',
+]);
 ```
 
 ## 📊 Database Queries
 
-### Get All Active Models
-
 ```php
 use App\Models\LlmModel;
 
+// Active models
 $models = LlmModel::active()->ordered()->get();
-```
 
-### Get Free Models Only
+// By type
+$model = LlmModel::where('model_type', 'satset')->first();
+$model = LlmModel::where('model_type', 'expert')->first();
 
-```php
-$freeModels = LlmModel::active()->free()->get();
-```
-
-### Get Premium Models Only
-
-```php
-$premiumModels = LlmModel::active()->premium()->get();
-```
-
-### Get Model by Name
-
-```php
-$model = LlmModel::where('name', 'claude-haiku-4-5')->first();
+// Display name (computed)
+$model->display_name; // "Satset — Cepat & Efisien"
+$model->description;  // auto-generated from model_type
 ```
 
 ## 🔐 API Configuration
 
 ```env
-# .env file
+# .env - Primary LLM gateway
 LLM_API_KEY=your-api-key-here
 LLM_BASE_URL=https://ai.sumopod.com/v1
+
+# Alternative: per-model config via Admin Panel > LLM Models
+# API keys stored encrypted in database
 ```
 
 ## 🧪 Testing
 
 ```bash
-# Run semua tests
-php artisan test
+# Run all tests
+php artisan test --compact
 
-# Run OpenAICompatibleService tests only
-php artisan test --filter=OpenAICompatibleServiceTest
-
-# Run dengan coverage
-php artisan test --coverage
+# Specific test files
+php artisan test --compact --filter=OpenAICompatibleService
+php artisan test --compact --filter=McpPromptBuilder
+php artisan test --compact --filter=GenerationController
+php artisan test --compact --filter=CreditEstimationService
 ```
 
 ## 🗄️ Seeders
 
 ```bash
-# Seed LLM models
-php artisan db:seed --class=LlmModelSeeder
-
-# Seed semua (includes LlmModelSeeder)
+# Seed everything (admin user, models, settings)
 php artisan db:seed
-```
 
-## 🚨 Common Issues
-
-### "Insufficient Credits"
-
-```php
-// Solution: Check user credits first
-if (!$model->is_free && $user->credits < $model->estimated_credits_per_generation) {
-    // Show error or redirect to purchase page
-}
-```
-
-### "Model not found or inactive"
-
-```php
-// Solution: Validate model exists and is active
-$model = LlmModel::where('name', $modelName)
-    ->active()
-    ->first();
-
-if (!$model) {
-    throw new \Exception('Model not available');
-}
-```
-
-### API Error 401
-
-```php
-// Check API key in config
-config('services.llm.api_key'); // Should return the key
-
-// If null, check .env file
-```
-
-## 📝 Important Constants
-
-```php
-// In OpenAICompatibleService
-USD_TO_IDR = 18000
-MARGIN = 0.05 (5%)
-CREDIT_VALUE = 1000 (Rp)
-
-// In LlmModelSeeder
-ESTIMATED_INPUT_TOKENS = 10000
-ESTIMATED_OUTPUT_TOKENS = 50000
+# Individual seeders
+php artisan db:seed --class=AdminUserSeeder     # admin@templategen.com / admin123
+php artisan db:seed --class=LlmModelSeeder      # 2 model types
+php artisan db:seed --class=AdminSettingSeeder   # platform settings
 ```
 
 ## 🔄 Credit Flow
 
 ```
 1. User registers
-   → Auto +25 credits
+   → Auto +100 credits
 
-2. Start generation
+2. Start generation (POST /generation/generate)
+   → Validate blueprint
+   → Calculate credits with margins
    → Check sufficient credits
-   → Deduct estimated credits upfront
-   → Start LLM generation
+   → Charge credits upfront
+   → Create Generation + first PageGeneration
 
-3. Generation success
-   → Credits already deducted
-   → Save result
+3. Per-page generation loop
+   → Build MCP prompt (with context from last 2 pages)
+   → Call LLM API via OpenAICompatibleService
+   → Record cost in generation_costs
+   → Record history in page_generations
+   → On error: retry up to 3x with backoff
 
-4. Generation failure
-   → Refund credits to user
-   → Log error
+4. Generation complete
+   → Update Generation status
+   → Send database notification
+
+5. Generation failure (after 3 retries)
+   → Refund credits via CreditService
+   → Record in generation_failures
+   → Record refund in credit_transactions
 ```
 
-## 📚 Documentation
+## 🚨 Common Issues
 
-Dokumentasi lengkap: [docs/llm-credit-system.md](./llm-credit-system.md)
+### "Insufficient Credits"
+```php
+// Check user credits vs model base_credits
+$model = LlmModel::where('model_type', $type)->active()->first();
+if ($user->credits < $model->base_credits) {
+    // Show error or redirect to topup
+}
+```
 
-## 🎯 Next Steps (TODO)
+### API Timeout (524)
+```
+// Handled automatically by retry mechanism
+// 3 retries with exponential backoff: 1s, 2s, 4s
+// Credits only refunded after all retries fail
+```
 
-- [ ] Frontend: Add model selector in wizard
-- [ ] Controller: Add `/api/models` endpoint
-- [ ] Admin Panel: Model management UI
-- [ ] Payment: Credit purchase system
-- [ ] Analytics: Track model usage & costs
-- [ ] Notification: Low credit warnings
+### SSE Stream Connection
+```javascript
+// Frontend: use EventSource for real-time progress
+const es = new EventSource(`/generation/${id}/stream`);
+es.onmessage = (e) => { /* update progress UI */ };
+```
 
----
+## ✅ Feature Status
 
-**Last Updated:** 25 Januari 2026
+| Feature | Status |
+|---------|--------|
+| 2-model system (satset/expert) | ✅ Done |
+| Per-page generation | ✅ Done |
+| SSE streaming | ✅ Done |
+| Refinement chat | ✅ Done |
+| Credit system with margins | ✅ Done |
+| Credit learning (5+ samples) | ✅ Done |
+| Auto-refund on failure | ✅ Done |
+| Cost tracking (USD + IDR) | ✅ Done |
+| Retry mechanism (3x + backoff) | ✅ Done |
+| Background queue generation | ✅ Done |
+| Admin model management | ✅ Done |
+| Payment/topup flow | ❌ Not implemented |
+| Rate limiting for generation | ❌ Not implemented |
+
+## 📚 Full Documentation
+
+- [docs/llm-credit-system.md](./llm-credit-system.md) — Complete credit system documentation
+- [docs/credit-refund-and-cost-tracking.md](./credit-refund-and-cost-tracking.md) — Refund & cost tracking details

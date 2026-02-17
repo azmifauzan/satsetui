@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * PageGeneration Model
@@ -24,6 +25,8 @@ class PageGeneration extends Model
         'mcp_prompt',
         'llm_response',
         'generated_content',
+        'file_path',
+        'file_type',
         'status',
         'error_message',
         'input_tokens',
@@ -50,14 +53,18 @@ class PageGeneration extends Model
      * Page type constants
      */
     public const TYPE_PREDEFINED = 'predefined';
+
     public const TYPE_CUSTOM = 'custom';
 
     /**
      * Status constants
      */
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_GENERATING = 'generating';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_FAILED = 'failed';
 
     /**
@@ -66,6 +73,14 @@ class PageGeneration extends Model
     public function generation(): BelongsTo
     {
         return $this->belongsTo(Generation::class);
+    }
+
+    /**
+     * Get the generated files associated with this page generation.
+     */
+    public function generationFiles(): HasMany
+    {
+        return $this->hasMany(GenerationFile::class);
     }
 
     /**
@@ -108,6 +123,7 @@ class PageGeneration extends Model
         if (str_starts_with($this->page_name, 'custom:')) {
             return substr($this->page_name, 7);
         }
+
         return $this->page_name;
     }
 

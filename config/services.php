@@ -48,4 +48,8 @@ return [
         'base_url' => 'https://generativelanguage.googleapis.com/v1beta',
     ],
 
+    'node' => [
+        'npm_path' => env('NPM_BINARY_PATH'),
+    ],
+
 ];

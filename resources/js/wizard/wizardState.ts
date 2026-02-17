@@ -221,6 +221,91 @@ export interface CustomComponent {
 export type ChartLibrary = 'chartjs' | 'echarts';
 
 /**
+ * Framework Configuration (for JS framework outputs)
+ *
+ * Only relevant when outputFormat is react, vue, angular, or svelte.
+ * Controls language, state management, routing, and build tool options.
+ */
+export type FrameworkLanguage = 'javascript' | 'typescript';
+export type FrameworkStyling = 'tailwind' | 'bootstrap' | 'css-modules' | 'styled-components';
+export type StateManagement = 'none' | 'zustand' | 'pinia' | 'redux' | 'ngrx' | 'svelte-store';
+export type BuildTool = 'vite' | 'webpack' | 'turbopack';
+
+export interface FrameworkConfig {
+  language: FrameworkLanguage;
+  styling: FrameworkStyling;
+  router: boolean;
+  stateManagement: StateManagement;
+  buildTool: BuildTool;
+}
+
+/**
+ * Credit multiplier per output format.
+ * Framework outputs are more complex and use more LLM tokens.
+ */
+export const FRAMEWORK_CREDIT_MULTIPLIER: Record<string, number> = {
+  'html-css': 1.0,
+  'react': 1.3,
+  'vue': 1.3,
+  'svelte': 1.2,
+  'angular': 1.5,
+  'custom': 1.0,
+};
+
+/**
+ * State management options per framework
+ */
+export const STATE_MANAGEMENT_OPTIONS: Record<string, { value: StateManagement; label: string }[]> = {
+  'react': [
+    { value: 'none', label: 'None' },
+    { value: 'zustand', label: 'Zustand' },
+    { value: 'redux', label: 'Redux Toolkit' },
+  ],
+  'vue': [
+    { value: 'none', label: 'None' },
+    { value: 'pinia', label: 'Pinia' },
+  ],
+  'svelte': [
+    { value: 'none', label: 'None' },
+    { value: 'svelte-store', label: 'Svelte Stores' },
+  ],
+  'angular': [
+    { value: 'none', label: 'None' },
+    { value: 'ngrx', label: 'NgRx' },
+  ],
+};
+
+/**
+ * Compatible styling options per CSS framework.
+ *
+ * - Tailwind: All styling options available
+ * - Bootstrap: All styling options available (via CDN or package)
+ * - Pure CSS: Only CSS Modules and Styled Components (no CSS framework)
+ */
+export const COMPATIBLE_STYLING_OPTIONS: Record<Framework, FrameworkStyling[]> = {
+  'tailwind': ['tailwind', 'bootstrap', 'css-modules', 'styled-components'],
+  'bootstrap': ['bootstrap', 'tailwind', 'css-modules', 'styled-components'],
+  'pure-css': ['css-modules', 'styled-components'],
+};
+
+/**
+ * Default frameworkConfig.styling for each CSS framework selection.
+ * Auto-applied when the user changes the CSS framework.
+ */
+export const DEFAULT_STYLING_FOR_FRAMEWORK: Record<Framework, FrameworkStyling> = {
+  'tailwind': 'tailwind',
+  'bootstrap': 'bootstrap',
+  'pure-css': 'css-modules',
+};
+
+/**
+ * Check if a styling option is compatible with the selected CSS framework.
+ */
+export function isStylingCompatible(framework: Framework, styling: FrameworkStyling): boolean {
+  return (COMPATIBLE_STYLING_OPTIONS[framework] ?? []).includes(styling);
+}
+
+/**
  * Auto-Selected: Interaction Level (not shown in wizard)
  */
 export type InteractionLevel = 'static' | 'moderate' | 'rich';
@@ -264,6 +349,7 @@ export interface WizardState {
   customCategoryDescription: string; // Custom category description
   outputFormat: OutputFormat;
   customOutputFormat: string; // Custom output format description when outputFormat = 'custom'
+  frameworkConfig: FrameworkConfig; // JS framework configuration (react/vue/svelte/angular)
 
   // Project Information (for consistent branding)
   projectInfo: ProjectInfo;
@@ -325,6 +411,13 @@ export const wizardState = reactive<WizardState>({
   customCategoryDescription: '',
   outputFormat: 'html-css',
   customOutputFormat: '',
+  frameworkConfig: {
+    language: 'typescript',
+    styling: 'tailwind',
+    router: true,
+    stateManagement: 'none',
+    buildTool: 'vite',
+  },
 
   // Project Information (for consistent branding)
   projectInfo: {
@@ -442,12 +535,28 @@ export const extraComponentCredits: ComputedRef<number> = computed(() => {
 });
 
 /**
+ * Check if the current output format is a JS framework (not HTML+CSS)
+ */
+export const isFrameworkOutput: ComputedRef<boolean> = computed(() => {
+  return ['react', 'vue', 'angular', 'svelte'].includes(wizardState.outputFormat);
+});
+
+/**
+ * Get the credit multiplier for the current output format
+ */
+export const frameworkCreditMultiplier: ComputedRef<number> = computed(() => {
+  return FRAMEWORK_CREDIT_MULTIPLIER[wizardState.outputFormat] ?? 1.0;
+});
+
+/**
  * Calculate subtotal (base + extras, before margins)
  * 
  * Since components are now pages, we only use extraPageCredits.
+ * Framework output formats apply a credit multiplier.
  */
 export const creditSubtotal: ComputedRef<number> = computed(() => {
-  return wizardState.modelCredits + extraPageCredits.value;
+  const base = wizardState.modelCredits + extraPageCredits.value;
+  return base * frameworkCreditMultiplier.value;
 });
 
 /**
@@ -471,7 +580,8 @@ export function updateCreditBreakdown(): void {
   const baseCredits = wizardState.modelCredits;
   const extraPages = extraPageCredits.value;
   const extraComponents = 0; // Components are now pages
-  const subtotal = baseCredits + extraPages;
+  const multiplier = frameworkCreditMultiplier.value;
+  const subtotal = (baseCredits + extraPages) * multiplier;
   
   const errorMargin = wizardState.creditBreakdown.errorMargin;
   const profitMargin = wizardState.creditBreakdown.profitMargin;

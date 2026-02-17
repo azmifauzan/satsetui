@@ -120,6 +120,46 @@ class Generation extends Model
     }
 
     /**
+     * Get all generated files for this generation.
+     */
+    public function generationFiles(): HasMany
+    {
+        return $this->hasMany(GenerationFile::class);
+    }
+
+    /**
+     * Get scaffold files only.
+     */
+    public function scaffoldFiles(): HasMany
+    {
+        return $this->hasMany(GenerationFile::class)->where('is_scaffold', true);
+    }
+
+    /**
+     * Get page component files only.
+     */
+    public function componentFiles(): HasMany
+    {
+        return $this->hasMany(GenerationFile::class)->where('is_scaffold', false);
+    }
+
+    /**
+     * Get all preview sessions for this generation.
+     */
+    public function previewSessions(): HasMany
+    {
+        return $this->hasMany(PreviewSession::class);
+    }
+
+    /**
+     * Get the active preview session (if any).
+     */
+    public function activePreviewSession(): HasMany
+    {
+        return $this->hasMany(PreviewSession::class)->where('status', 'running');
+    }
+
+    /**
      * Get all refinement/chat messages for this generation.
      */
     public function refinementMessages(): HasMany

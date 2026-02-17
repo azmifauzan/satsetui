@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { wizardState, type Category } from '../wizardState';
+import { wizardState, type Category, type Framework, type OutputFormat, isFrameworkOutput, frameworkCreditMultiplier, COMPATIBLE_STYLING_OPTIONS, DEFAULT_STYLING_FOR_FRAMEWORK, isStylingCompatible, STATE_MANAGEMENT_OPTIONS, type FrameworkStyling, type BuildTool } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
 
 const { currentLang } = useI18n();
@@ -322,6 +322,61 @@ const toggleComponent = (id: string) => {
 };
 
 const isComponentSelected = (id: string) => wizardState.components.includes(id);
+
+// ========== SECTION: Technology Stack ==========
+const cssFrameworks = [
+  { id: 'tailwind' as Framework, labelEn: 'Tailwind CSS', labelId: 'Tailwind CSS', descEn: 'Utility-first, highly customizable', descId: 'Utility-first, sangat fleksibel', icon: '🎨' },
+  { id: 'bootstrap' as Framework, labelEn: 'Bootstrap', labelId: 'Bootstrap', descEn: 'Component-based, rapid prototyping', descId: 'Berbasis komponen, prototyping cepat', icon: '📐' },
+  { id: 'pure-css' as Framework, labelEn: 'Pure CSS', labelId: 'Pure CSS', descEn: 'No framework, full control', descId: 'Tanpa framework, kontrol penuh', icon: '✏️' },
+];
+
+const outputFormats = [
+  { id: 'html-css' as OutputFormat, labelEn: 'HTML + CSS', labelId: 'HTML + CSS', descEn: 'Static pages, no JS framework', descId: 'Halaman statis, tanpa framework JS', icon: '📄', multiplier: 1.0 },
+  { id: 'react' as OutputFormat, labelEn: 'React', labelId: 'React', descEn: 'Component-based SPA', descId: 'SPA berbasis komponen', icon: '⚛️', multiplier: 1.5 },
+  { id: 'vue' as OutputFormat, labelEn: 'Vue.js', labelId: 'Vue.js', descEn: 'Progressive framework', descId: 'Framework progresif', icon: '💚', multiplier: 1.5 },
+  { id: 'angular' as OutputFormat, labelEn: 'Angular', labelId: 'Angular', descEn: 'Enterprise framework', descId: 'Framework enterprise', icon: '🔺', multiplier: 1.8 },
+  { id: 'svelte' as OutputFormat, labelEn: 'Svelte', labelId: 'Svelte', descEn: 'Compile-time framework', descId: 'Framework compile-time', icon: '🔥', multiplier: 1.5 },
+];
+
+const selectCssFramework = (id: Framework) => {
+  wizardState.framework = id;
+  // Auto-sync frameworkConfig.styling if incompatible
+  if (isFrameworkOutput.value && !isStylingCompatible(id, wizardState.frameworkConfig.styling)) {
+    wizardState.frameworkConfig.styling = DEFAULT_STYLING_FOR_FRAMEWORK[id];
+  }
+};
+
+const selectOutputFormat = (id: OutputFormat) => {
+  wizardState.outputFormat = id;
+  // Auto-sync frameworkConfig.styling compatibility
+  if (['react', 'vue', 'angular', 'svelte'].includes(id)) {
+    if (!isStylingCompatible(wizardState.framework, wizardState.frameworkConfig.styling)) {
+      wizardState.frameworkConfig.styling = DEFAULT_STYLING_FOR_FRAMEWORK[wizardState.framework];
+    }
+  }
+};
+
+// Framework config options
+const stylingOptions = computed(() => {
+  const compatible = COMPATIBLE_STYLING_OPTIONS[wizardState.framework] || [];
+  const allOptions: { value: FrameworkStyling; labelEn: string; labelId: string }[] = [
+    { value: 'tailwind', labelEn: 'Tailwind CSS', labelId: 'Tailwind CSS' },
+    { value: 'bootstrap', labelEn: 'Bootstrap', labelId: 'Bootstrap' },
+    { value: 'css-modules', labelEn: 'CSS Modules', labelId: 'CSS Modules' },
+    { value: 'styled-components', labelEn: 'Styled Components', labelId: 'Styled Components' },
+  ];
+  return allOptions.filter(o => compatible.includes(o.value));
+});
+
+const stateManagementOptions = computed(() => {
+  return STATE_MANAGEMENT_OPTIONS[wizardState.outputFormat] || [];
+});
+
+const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[] = [
+  { value: 'vite', labelEn: 'Vite', labelId: 'Vite' },
+  { value: 'webpack', labelEn: 'Webpack', labelId: 'Webpack' },
+  { value: 'turbopack', labelEn: 'Turbopack', labelId: 'Turbopack' },
+];
 </script>
 
 <template>
@@ -485,10 +540,227 @@ const isComponentSelected = (id: string) => wizardState.components.includes(id);
       </div>
     </section>
 
-    <!-- ========== SECTION 2: Theme & Colors ========== -->
+    <!-- ========== SECTION 1.5: Technology Stack ========== -->
     <section>
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">2</div>
+        <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 dark:text-white">
+            {{ currentLang === 'en' ? 'Technology Stack' : 'Teknologi' }}
+          </h2>
+          <p class="text-sm text-slate-500 dark:text-slate-400">
+            {{ currentLang === 'en' ? 'Choose CSS framework and output format' : 'Pilih CSS framework dan format output' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-6">
+        <!-- CSS Framework -->
+        <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
+            CSS Framework
+          </h3>
+          <div class="space-y-2">
+            <button
+              v-for="fw in cssFrameworks"
+              :key="fw.id"
+              @click="selectCssFramework(fw.id)"
+              :class="[
+                'w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all',
+                wizardState.framework === fw.id
+                  ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm'
+                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
+              ]"
+            >
+              <span class="text-lg">{{ fw.icon }}</span>
+              <div>
+                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ currentLang === 'en' ? fw.labelEn : fw.labelId }}</span>
+                <p class="text-xs text-slate-400 dark:text-slate-500">{{ currentLang === 'en' ? fw.descEn : fw.descId }}</p>
+              </div>
+              <svg v-if="wizardState.framework === fw.id" class="w-5 h-5 text-blue-500 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Output Format -->
+        <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
+            {{ currentLang === 'en' ? 'Output Format' : 'Format Output' }}
+          </h3>
+          <div class="space-y-2">
+            <button
+              v-for="fmt in outputFormats"
+              :key="fmt.id"
+              @click="selectOutputFormat(fmt.id)"
+              :class="[
+                'w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all',
+                wizardState.outputFormat === fmt.id
+                  ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm'
+                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
+              ]"
+            >
+              <span class="text-lg">{{ fmt.icon }}</span>
+              <div class="flex-1">
+                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ currentLang === 'en' ? fmt.labelEn : fmt.labelId }}</span>
+                <p class="text-xs text-slate-400 dark:text-slate-500">{{ currentLang === 'en' ? fmt.descEn : fmt.descId }}</p>
+              </div>
+              <span v-if="fmt.multiplier > 1" class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full flex-shrink-0">
+                ×{{ fmt.multiplier }}
+              </span>
+              <svg v-if="wizardState.outputFormat === fmt.id" class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Framework Configuration (shown when JS framework is selected) -->
+      <div v-if="isFrameworkOutput" class="mt-6 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl p-5 border border-indigo-200 dark:border-indigo-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-1 text-sm">
+          {{ currentLang === 'en' ? 'Framework Configuration' : 'Konfigurasi Framework' }}
+        </h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
+          {{ currentLang === 'en' ? 'Customize your framework project settings' : 'Sesuaikan pengaturan proyek framework' }}
+        </p>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Language -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              {{ currentLang === 'en' ? 'Language' : 'Bahasa' }}
+            </label>
+            <div class="flex gap-2">
+              <button
+                @click="wizardState.frameworkConfig.language = 'typescript'"
+                :class="[
+                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
+                  wizardState.frameworkConfig.language === 'typescript'
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >TypeScript</button>
+              <button
+                @click="wizardState.frameworkConfig.language = 'javascript'"
+                :class="[
+                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
+                  wizardState.frameworkConfig.language === 'javascript'
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >JavaScript</button>
+            </div>
+          </div>
+
+          <!-- Styling -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              Styling
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="opt in stylingOptions"
+                :key="opt.value"
+                @click="wizardState.frameworkConfig.styling = opt.value"
+                :class="[
+                  'py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2',
+                  wizardState.frameworkConfig.styling === opt.value
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >{{ currentLang === 'en' ? opt.labelEn : opt.labelId }}</button>
+            </div>
+          </div>
+
+          <!-- Build Tool -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              Build Tool
+            </label>
+            <div class="flex gap-2">
+              <button
+                v-for="bt in buildToolOptions"
+                :key="bt.value"
+                @click="wizardState.frameworkConfig.buildTool = bt.value"
+                :class="[
+                  'flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2',
+                  wizardState.frameworkConfig.buildTool === bt.value
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >{{ currentLang === 'en' ? bt.labelEn : bt.labelId }}</button>
+            </div>
+          </div>
+
+          <!-- Router -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              Router
+            </label>
+            <div class="flex gap-2">
+              <button
+                @click="wizardState.frameworkConfig.router = true"
+                :class="[
+                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
+                  wizardState.frameworkConfig.router
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >{{ currentLang === 'en' ? 'Enabled' : 'Aktif' }}</button>
+              <button
+                @click="wizardState.frameworkConfig.router = false"
+                :class="[
+                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
+                  !wizardState.frameworkConfig.router
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >{{ currentLang === 'en' ? 'Disabled' : 'Nonaktif' }}</button>
+            </div>
+          </div>
+
+          <!-- State Management -->
+          <div v-if="stateManagementOptions.length > 0" class="sm:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              State Management
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="sm in stateManagementOptions"
+                :key="sm.value"
+                @click="wizardState.frameworkConfig.stateManagement = sm.value"
+                :class="[
+                  'py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2',
+                  wizardState.frameworkConfig.stateManagement === sm.value
+                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
+                ]"
+              >{{ sm.label }}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Credit multiplier info -->
+        <div class="mt-4 pt-3 border-t border-indigo-200/50 dark:border-indigo-700/50">
+          <p class="text-xs text-indigo-600 dark:text-indigo-400">
+            ⚡ {{ currentLang === 'en'
+              ? `JS framework output applies a ${frameworkCreditMultiplier}× credit multiplier`
+              : `Output framework JS menggunakan pengali kredit ${frameworkCreditMultiplier}×` }}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SECTION 3: Theme & Colors ========== -->
+    <section>
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">3</div>
         <div>
           <h2 class="text-xl font-bold text-slate-900 dark:text-white">
             {{ currentLang === 'en' ? 'Theme & Style' : 'Tema & Gaya' }}
@@ -722,10 +994,10 @@ const isComponentSelected = (id: string) => wizardState.components.includes(id);
       </div>
     </section>
 
-    <!-- ========== SECTION 3: Custom Modifications (Optional) ========== -->
+    <!-- ========== SECTION 4: Custom Modifications (Optional) ========== -->
     <section>
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">3</div>
+        <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">4</div>
         <div>
           <h2 class="text-xl font-bold text-slate-900 dark:text-white">
             {{ currentLang === 'en' ? 'Custom Modifications' : 'Modifikasi Kustom' }}

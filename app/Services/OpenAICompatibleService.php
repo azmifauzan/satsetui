@@ -13,13 +13,13 @@ use Illuminate\Support\Facades\Log;
  */
 class OpenAICompatibleService
 {
-    protected string $apiKey;
-    protected string $baseUrl;
+    protected ?string $apiKey;
+    protected ?string $baseUrl;
 
     public function __construct()
     {
         $this->apiKey = config('services.llm.api_key');
-        $this->baseUrl = config('services.llm.base_url');
+        $this->baseUrl = config('services.llm.base_url', 'https://ai.sumopod.com/v1');
     }
 
     /**

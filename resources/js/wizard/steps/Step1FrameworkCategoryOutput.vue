@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { wizardState, Framework, Category, PredefinedCategory, OutputFormat, PredefinedOutputFormat } from '../wizardState';
+import { wizardState, Framework, Category, PredefinedCategory, OutputFormat, PredefinedOutputFormat, isFrameworkOutput, frameworkCreditMultiplier, STATE_MANAGEMENT_OPTIONS, COMPATIBLE_STYLING_OPTIONS, DEFAULT_STYLING_FOR_FRAMEWORK, isStylingCompatible, type FrameworkLanguage, type FrameworkStyling, type StateManagement, type BuildTool } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
 import { computed, ref, watch } from 'vue';
 
@@ -105,6 +105,13 @@ const predefinedOutputFormats = computed(() => [
 
 function selectFramework(framework: Framework) {
   wizardState.framework = framework;
+  // Auto-sync frameworkConfig.styling when CSS framework changes
+  if (isFrameworkOutput.value) {
+    const currentStyling = wizardState.frameworkConfig.styling;
+    if (!isStylingCompatible(framework, currentStyling)) {
+      wizardState.frameworkConfig.styling = DEFAULT_STYLING_FOR_FRAMEWORK[framework];
+    }
+  }
 }
 
 function selectCategory(category: Category) {
@@ -123,6 +130,66 @@ function selectOutputFormat(format: OutputFormat) {
   if (format !== 'custom') {
     wizardState.customOutputFormat = '';
   }
+  // Reset framework config state management when switching frameworks
+  if (['react', 'vue', 'angular', 'svelte'].includes(format)) {
+    const options = STATE_MANAGEMENT_OPTIONS[format] ?? [];
+    const currentValid = options.some(o => o.value === wizardState.frameworkConfig.stateManagement);
+    if (!currentValid) {
+      wizardState.frameworkConfig.stateManagement = 'none';
+    }
+    // Auto-sync styling from CSS framework on first framework output selection
+    const currentStyling = wizardState.frameworkConfig.styling;
+    if (!isStylingCompatible(wizardState.framework, currentStyling)) {
+      wizardState.frameworkConfig.styling = DEFAULT_STYLING_FOR_FRAMEWORK[wizardState.framework];
+    }
+  }
+}
+
+// Framework config helpers
+const currentStateManagementOptions = computed(() => {
+  if (!isFrameworkOutput.value) return [];
+  return STATE_MANAGEMENT_OPTIONS[wizardState.outputFormat] ?? [];
+});
+
+const stylingOptions = computed(() => {
+  const fc = t.value.wizard?.steps?.outputFormat?.frameworkConfig;
+  const compatible = COMPATIBLE_STYLING_OPTIONS[wizardState.framework] ?? ['tailwind', 'bootstrap', 'css-modules', 'styled-components'];
+  const allOptions: { value: FrameworkStyling; label: string }[] = [
+    { value: 'tailwind', label: fc?.tailwind || 'Tailwind CSS' },
+    { value: 'bootstrap', label: fc?.bootstrap || 'Bootstrap' },
+    { value: 'css-modules', label: fc?.cssModules || 'CSS Modules' },
+    { value: 'styled-components', label: fc?.styledComponents || 'Styled Components' },
+  ];
+  return allOptions.filter(o => compatible.includes(o.value));
+});
+
+const buildToolOptions = computed(() => {
+  const fc = t.value.wizard?.steps?.outputFormat?.frameworkConfig;
+  return [
+    { value: 'vite' as BuildTool, label: fc?.vite || 'Vite', description: fc?.viteDesc || 'Fast, modern, instant HMR' },
+    { value: 'webpack' as BuildTool, label: fc?.webpack || 'Webpack', description: fc?.webpackDesc || 'Mature, flexible configuration' },
+    { value: 'turbopack' as BuildTool, label: fc?.turbopack || 'Turbopack', description: fc?.turbopackDesc || 'Incremental bundler by Vercel' },
+  ];
+});
+
+function setFrameworkLanguage(lang: FrameworkLanguage) {
+  wizardState.frameworkConfig.language = lang;
+}
+
+function setFrameworkStyling(styling: FrameworkStyling) {
+  wizardState.frameworkConfig.styling = styling;
+}
+
+function setStateManagement(sm: StateManagement) {
+  wizardState.frameworkConfig.stateManagement = sm;
+}
+
+function toggleRouter() {
+  wizardState.frameworkConfig.router = !wizardState.frameworkConfig.router;
+}
+
+function setBuildTool(tool: BuildTool) {
+  wizardState.frameworkConfig.buildTool = tool;
 }
 
 // Watch for custom category selection
@@ -503,6 +570,193 @@ function getFrameworkIcon(framework: string) {
         <p class="mt-2 text-sm text-purple-600 dark:text-purple-400">
           {{ t.wizard?.steps?.outputFormat?.customHint }}
         </p>
+      </div>
+
+      <!-- Framework Configuration Panel -->
+      <div
+        v-if="isFrameworkOutput"
+        class="p-6 rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10 space-y-6"
+      >
+        <div class="flex items-center gap-3 mb-1">
+          <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.title }}
+            </h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.description }}
+            </p>
+          </div>
+          <!-- Credit multiplier badge -->
+          <div class="ml-auto">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full"
+                  :class="frameworkCreditMultiplier > 1 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {{ frameworkCreditMultiplier }}x {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.creditMultiplier }}
+            </span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Language -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.language }}
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                @click="setFrameworkLanguage('typescript')"
+                :class="[
+                  'px-4 py-3 rounded-lg border-2 text-left transition-all text-sm',
+                  wizardState.frameworkConfig.language === 'typescript'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-400'
+                ]"
+              >
+                <div class="font-semibold text-slate-900 dark:text-white">
+                  {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.typescript }}
+                </div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.typescriptDesc }}
+                </div>
+              </button>
+              <button
+                @click="setFrameworkLanguage('javascript')"
+                :class="[
+                  'px-4 py-3 rounded-lg border-2 text-left transition-all text-sm',
+                  wizardState.frameworkConfig.language === 'javascript'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-400'
+                ]"
+              >
+                <div class="font-semibold text-slate-900 dark:text-white">
+                  {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.javascript }}
+                </div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.javascriptDesc }}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Styling -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.styling }}
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                v-for="style in stylingOptions"
+                :key="style.value"
+                @click="setFrameworkStyling(style.value)"
+                :class="[
+                  'px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all',
+                  wizardState.frameworkConfig.styling === style.value
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                ]"
+              >
+                {{ style.label }}
+              </button>
+            </div>
+            <!-- CSS framework sync info -->
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.stylingHint }}
+            </p>
+          </div>
+
+          <!-- Router Toggle -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.router }}
+            </label>
+            <button
+              @click="toggleRouter"
+              :class="[
+                'w-full px-4 py-3 rounded-lg border-2 text-left transition-all text-sm flex items-center justify-between',
+                wizardState.frameworkConfig.router
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+              ]"
+            >
+              <span class="text-slate-700 dark:text-slate-300">
+                {{ wizardState.frameworkConfig.router
+                  ? t.wizard?.steps?.outputFormat?.frameworkConfig?.routerEnabled
+                  : t.wizard?.steps?.outputFormat?.frameworkConfig?.routerDisabled
+                }}
+              </span>
+              <!-- Toggle switch -->
+              <div
+                :class="[
+                  'relative w-11 h-6 rounded-full transition-colors',
+                  wizardState.frameworkConfig.router ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
+                ]"
+              >
+                <div
+                  :class="[
+                    'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                    wizardState.frameworkConfig.router ? 'translate-x-5.5' : 'translate-x-0.5'
+                  ]"
+                ></div>
+              </div>
+            </button>
+          </div>
+
+          <!-- State Management -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.stateManagement }}
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                v-for="sm in currentStateManagementOptions"
+                :key="sm.value"
+                @click="setStateManagement(sm.value)"
+                :class="[
+                  'px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all',
+                  wizardState.frameworkConfig.stateManagement === sm.value
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                ]"
+              >
+                {{ sm.value === 'none' ? (t.wizard?.steps?.outputFormat?.frameworkConfig?.none || 'None') : sm.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Build Tool (full width) -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            {{ t.wizard?.steps?.outputFormat?.frameworkConfig?.buildTool }}
+          </label>
+          <div class="grid grid-cols-3 gap-3">
+            <button
+              v-for="bt in buildToolOptions"
+              :key="bt.value"
+              @click="setBuildTool(bt.value)"
+              :class="[
+                'px-4 py-3 rounded-lg border-2 text-left transition-all text-sm',
+                wizardState.frameworkConfig.buildTool === bt.value
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-400'
+              ]"
+            >
+              <div class="font-semibold text-slate-900 dark:text-white">{{ bt.label }}</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ bt.description }}</div>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

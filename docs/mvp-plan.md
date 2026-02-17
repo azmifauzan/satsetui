@@ -35,12 +35,11 @@
 
 ✅ **Per-Page LLM Generation** (Laravel Service)
 - Generate each page separately with focused context
-- Progress tracking (X of Y pages)
+- Progress tracking (X of Y pages) via SSE streaming
 - Error recovery (continue on single page failure)
 - Automatic retry mechanism (3x with exponential backoff)
-- Membership-aware model selection
-- Free tier uses Gemini 2.5 Flash
-- Premium tier can choose admin-configured models
+- 2 model types: Satset (cepat) & Expert (premium)
+- Background queue generation via ProcessTemplateGeneration job
 
 ✅ **Generation History Recording**
 - Record every prompt sent to LLM
@@ -63,11 +62,11 @@
 - Credit estimation learning from historical data
 - Automatic refund on generation failure
 
-✅ **Billing (Premium Credits)**
-- Premium users top up credits
-- Each premium generation charges credits with margins
+✅ **Billing (Credits)**
+- All users start with 100 credits
+- Each generation charges credits with margins
 - Admin-configurable margin percentages
-- 25 credits on registration
+- Auto-refund on generation failure
 
 ✅ **Admin Panel (MVP)**
 - View usage statistics
@@ -92,9 +91,10 @@
 
 ✅ **Basic Auth** (Laravel)
 - User registration and login
-- 25 credits on registration
-- Dashboard to view saved blueprints
-- Rate limiting (10 generations/hour)
+- Email verification (MustVerifyEmail)
+- 100 credits on registration
+- Dashboard with statistics
+- Rate limiting (5 login attempts)
 
 ✅ **Documentation**
 - Product instruction (3-step wizard specification)
@@ -117,7 +117,11 @@
 
 ❌ **Advanced Analytics**: Basic statistics only
 
-❌ **Component Customization**: No post-generation editing
+✅ **Refinement Chat**: Post-generation editing via conversational refinement (implemented)
+
+❌ **JS Framework Live Preview**: No live preview with framework-specific rendering
+
+❌ **Payment System**: No credit purchase/topup flow
 
 ---
 
@@ -125,32 +129,49 @@
 
 ### Completed ✅
 
-1. ✅ Laravel + Vue + Inertia setup with Vite
-2. ✅ Database migrations for all tables
-3. ✅ Authentication (login, register)
-4. ✅ 3-step wizard UI with state management
-5. ✅ McpPromptBuilder with per-page generation
-6. ✅ GenerationService with progress tracking
-7. ✅ LLM integration (OpenAI-compatible API)
-8. ✅ Credit system with margins
-9. ✅ Admin panel (Dashboard, Users, Models, Settings, Generations)
-10. ✅ Bilingual support (ID/EN)
-11. ✅ Dark/Light theme support
-12. ✅ Automatic retry mechanism
-13. ✅ Credit refund on failure
-14. ✅ Cost tracking
+1. ✅ Laravel 12 + Vue 3 + Inertia v2 setup with Vite 7
+2. ✅ Database migrations (17 files)
+3. ✅ Authentication (login, register, email verification)
+4. ✅ 3-step wizard UI with state management (wizardState.ts)
+5. ✅ McpPromptBuilder with per-page generation (1236 lines)
+6. ✅ GenerationService with retry, context, progress tracking (664 lines)
+7. ✅ LLM integration (OpenAI-compatible API via Sumopod)
+8. ✅ 2-model system (Satset + Expert) — admin-configurable
+9. ✅ Credit system with margins + auto-refund
+10. ✅ Credit estimation learning (CreditEstimationService)
+11. ✅ Cost tracking (USD + IDR) per page generation
+12. ✅ Admin panel (Dashboard, Users, Models, Settings, Generations)
+13. ✅ Bilingual support (ID/EN) with user persistence
+14. ✅ Dark/Light theme support
+15. ✅ Automatic retry mechanism (3x, exponential backoff)
+16. ✅ SSE streaming for real-time generation progress
+17. ✅ Background queue generation (ProcessTemplateGeneration job)
+18. ✅ Refinement chat (post-generation editing)
+19. ✅ ZIP download (JSZip)
+20. ✅ Project info/branding consistency across pages
+21. ✅ Telegram notifications for admin (user registration)
+22. ✅ Generation policy (user access control)
+23. ✅ Generation naming
+24. ✅ Docker deployment setup
+25. ✅ Test suite (13 files: 9 Feature + 4 Unit)
 
-### In Progress 🔄
+### Known Issues / TODO 🔄
 
-1. 🔄 Template preview with syntax highlighting
-2. 🔄 ZIP download functionality
-3. 🔄 Custom page statistics view in admin
+1. 🔄 Custom page type detection always records 'predefined'
+2. 🔄 Dashboard recent activity is placeholder (empty array)
+3. 🔄 AdminStatisticsController exists but has no routes (unused)
+4. 🔄 UserFactory missing credits, is_premium, is_admin, is_active fields
+5. 🔄 Legacy wizard step files still present (old 5-step system)
+6. 🔄 Admin retry action has dispatched job commented out
 
-### Pending ⏳
+### Not Implemented ❌
 
-1. ⏳ Comprehensive test suite
-2. ⏳ Performance optimization
-3. ⏳ Production deployment setup
+1. ❌ Payment/topup flow (CreditTransaction::TYPE_TOPUP exists, no controller)
+2. ❌ Rate limiting for generation endpoint
+3. ❌ Bulk admin actions (CSV export, bulk credit adjustment)
+4. ❌ JS framework live preview in workspace
+5. ❌ Blueprint presets / template library
+6. ❌ Team collaboration
 
 ---
 
@@ -165,10 +186,12 @@ CREATE TABLE users (
     name VARCHAR(255),
     email VARCHAR(255) UNIQUE,
     password VARCHAR(255),
-    credits INT DEFAULT 25,
+    credits INT DEFAULT 100,
     is_premium BOOLEAN DEFAULT FALSE,
     is_admin BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    language VARCHAR(5) DEFAULT 'id',
+    suspended_at TIMESTAMP NULL
 );
 
 -- Generation records
@@ -208,17 +231,26 @@ CREATE TABLE page_generations (
     status ENUM('pending', 'processing', 'completed', 'failed')
 );
 
--- LLM models
+-- LLM models (2-type system)
 CREATE TABLE llm_models (
     id BIGINT PRIMARY KEY,
-    name VARCHAR(255) UNIQUE,
-    display_name VARCHAR(255),
-    input_price_per_million DECIMAL(10,7),
-    output_price_per_million DECIMAL(10,7),
-    estimated_credits_per_generation INT,
-    is_free BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
-    sort_order INT DEFAULT 0
+    model_type ENUM('satset', 'expert') UNIQUE,
+    provider ENUM('gemini', 'openai'),
+    model_name VARCHAR(255),
+    api_key TEXT, -- encrypted
+    base_url TEXT, -- encrypted
+    base_credits INT DEFAULT 6,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Refinement messages
+CREATE TABLE refinement_messages (
+    id BIGINT PRIMARY KEY,
+    generation_id BIGINT,
+    role ENUM('user', 'assistant'),
+    content TEXT,
+    type VARCHAR(50),
+    page_name VARCHAR(100)
 );
 
 -- Admin settings
@@ -241,9 +273,12 @@ CREATE TABLE admin_settings (
 
 ### Generation
 - `GET /generation/{id}` - View generation
-- `GET /generation/{id}/progress` - Get progress
+- `GET /generation/{id}/progress` - Get progress (polling)
+- `GET /generation/{id}/stream` - SSE streaming progress
 - `POST /generation/{id}/next` - Generate next page
 - `POST /generation/{id}/background` - Continue in background
+- `POST /generation/{id}/refine` - Refinement chat
+- `PATCH /generation/{id}/name` - Update template name
 
 ### Templates
 - `GET /templates` - User templates list
