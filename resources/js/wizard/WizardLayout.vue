@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from '@/lib/i18n';
+import { wizardState } from './wizardState';
 import UnifiedWizardStep from './steps/UnifiedWizardStep.vue';
 
 defineProps<{
@@ -12,6 +14,8 @@ const emit = defineEmits<{
 }>();
 
 const { currentLang } = useI18n();
+
+const isSatset = computed(() => wizardState.wizardMode === 'satset');
 </script>
 
 <template>
@@ -29,8 +33,18 @@ const { currentLang } = useI18n();
               {{ description || (currentLang === 'en' ? 'Configure your project in one step — sat-set!' : 'Konfigurasi proyek kamu dalam satu langkah — sat-set!') }}
             </p>
           </div>
-          <div class="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <span class="text-sm font-medium text-blue-700 dark:text-blue-300">⚡ Sat-set!</span>
+          <div :class="[
+            'flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors',
+            isSatset
+              ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+              : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+          ]">
+            <span :class="[
+              'text-sm font-medium',
+              isSatset ? 'text-blue-700 dark:text-blue-300' : 'text-purple-700 dark:text-purple-300'
+            ]">
+              {{ isSatset ? '⚡ Sat-set!' : '⚙️ Expert' }}
+            </span>
           </div>
         </div>
       </div>

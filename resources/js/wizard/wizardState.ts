@@ -336,11 +336,17 @@ export interface CreditBreakdown {
 }
 
 /**
+ * Wizard mode: satset (quick defaults) or expert (full customization)
+ */
+export type WizardMode = 'satset' | 'expert';
+
+/**
  * Complete wizard state interface
  */
 export interface WizardState {
   // Meta
   currentStep: number;
+  wizardMode: WizardMode;
 
   // Step 1: Framework, Category & Output Format
   framework: Framework;
@@ -403,6 +409,7 @@ export interface WizardState {
  */
 export const wizardState = reactive<WizardState>({
   currentStep: 1,
+  wizardMode: 'satset',
 
   // Step 1: Framework, Category & Output Format
   framework: 'tailwind',
@@ -900,6 +907,7 @@ export function goToStep(step: number): boolean {
  */
 export function resetWizard(): void {
   wizardState.currentStep = 1;
+  wizardState.wizardMode = 'satset';
   wizardState.framework = 'tailwind';
   wizardState.category = 'admin-dashboard';
   wizardState.customCategoryName = '';
@@ -955,6 +963,7 @@ export function resetWizard(): void {
  * @param blueprint Blueprint JSON object
  */
 export function loadFromBlueprint(blueprint: Partial<WizardState>): void {
+  if (blueprint.wizardMode) wizardState.wizardMode = blueprint.wizardMode;
   if (blueprint.framework) wizardState.framework = blueprint.framework;
   if (blueprint.category) wizardState.category = blueprint.category;
   if (blueprint.customCategoryName) wizardState.customCategoryName = blueprint.customCategoryName;
@@ -1097,6 +1106,142 @@ export function removeCustomComponent(id: string): void {
 }
 
 // ========================================================================
+// Mode Switching Functions
+// ========================================================================
+
+/**
+ * Satset mode defaults per category.
+ * In satset mode, everything is pre-configured with best defaults.
+ */
+const SATSET_CATEGORY_DEFAULTS: Record<string, { pages: string[]; navStyle: string; colorScheme: string; stylePreset: string; components: string[] }> = {
+  'landing-page': {
+    pages: ['home', 'about', 'features', 'pricing', 'contact'],
+    navStyle: 'top',
+    colorScheme: 'blue',
+    stylePreset: 'modern',
+    components: ['hero', 'features', 'testimonials', 'pricing', 'contact'],
+  },
+  'company-profile': {
+    pages: ['home', 'about', 'services', 'team', 'contact'],
+    navStyle: 'top',
+    colorScheme: 'purple',
+    stylePreset: 'elegant',
+    components: ['hero', 'features', 'gallery', 'contact'],
+  },
+  'mobile-apps': {
+    pages: ['login', 'home', 'profile', 'settings'],
+    navStyle: 'top',
+    colorScheme: 'blue',
+    stylePreset: 'modern',
+    components: ['cards', 'forms'],
+  },
+  'e-commerce': {
+    pages: ['home', 'products', 'product-detail', 'cart', 'checkout', 'login'],
+    navStyle: 'top',
+    colorScheme: 'green',
+    stylePreset: 'modern',
+    components: ['cards', 'forms', 'gallery'],
+  },
+  'dashboard': {
+    pages: ['login', 'dashboard', 'tables', 'charts', 'settings'],
+    navStyle: 'sidebar',
+    colorScheme: 'blue',
+    stylePreset: 'modern',
+    components: ['charts', 'tables', 'cards', 'forms'],
+  },
+};
+
+/**
+ * Apply Satset mode defaults based on current category.
+ * Resets all custom inputs and applies best defaults.
+ */
+export function applySatsetDefaults(): void {
+  const cat = wizardState.category;
+  const defaults = SATSET_CATEGORY_DEFAULTS[cat] || SATSET_CATEGORY_DEFAULTS['landing-page']!;
+
+  // Framework & output
+  wizardState.framework = 'tailwind';
+  wizardState.outputFormat = 'html-css';
+  wizardState.customCategoryName = '';
+  wizardState.customCategoryDescription = '';
+  wizardState.customOutputFormat = '';
+
+  // Pages (category defaults only, no custom)
+  wizardState.pages = [...defaults.pages];
+  wizardState.customPages = [];
+
+  // Theme defaults
+  const colorMap: Record<string, { primary: string; secondary: string }> = {
+    blue: { primary: '#3B82F6', secondary: '#6366F1' },
+    green: { primary: '#10B981', secondary: '#059669' },
+    purple: { primary: '#8B5CF6', secondary: '#7C3AED' },
+    red: { primary: '#EF4444', secondary: '#DC2626' },
+    amber: { primary: '#F59E0B', secondary: '#D97706' },
+    slate: { primary: '#64748B', secondary: '#475569' },
+  };
+  wizardState.colorScheme = defaults.colorScheme;
+  wizardState.theme.primary = colorMap[defaults.colorScheme]?.primary ?? '#3B82F6';
+  wizardState.theme.secondary = colorMap[defaults.colorScheme]?.secondary ?? '#6366F1';
+  wizardState.theme.mode = 'light';
+  wizardState.theme.background = 'solid';
+  wizardState.stylePreset = defaults.stylePreset;
+  wizardState.fontFamily = 'inter';
+  wizardState.navStyle = defaults.navStyle;
+  wizardState.themeMode = 'dark';
+  wizardState.logoFile = null;
+
+  // Layout
+  const navMapping: Record<string, NavigationType> = { top: 'topbar', sidebar: 'sidebar', both: 'hybrid' };
+  wizardState.layout.navigation = navMapping[defaults.navStyle] ?? 'topbar';
+  wizardState.layout.sidebarDefaultState = defaults.navStyle === 'sidebar' ? 'expanded' : undefined;
+  wizardState.layout.breadcrumbs = true;
+  wizardState.layout.footer = 'minimal';
+  wizardState.layout.customNavItems = [];
+
+  // UI
+  wizardState.ui.density = 'comfortable';
+  wizardState.ui.borderRadius = 'rounded';
+
+  // Components (category defaults only, no custom)
+  wizardState.components = [...defaults.components];
+  wizardState.customComponents = [];
+  wizardState.chartLibrary = defaults.components.includes('charts') ? 'chartjs' : undefined;
+
+  // Clear custom instructions
+  wizardState.customInstructions = '';
+
+  // Model defaults to 'satset'
+  wizardState.llmModel = 'satset';
+
+  // Framework config defaults
+  wizardState.frameworkConfig = {
+    language: 'typescript',
+    styling: 'tailwind',
+    router: true,
+    stateManagement: 'none',
+    buildTool: 'vite',
+  };
+}
+
+/**
+ * Switch wizard mode.
+ * - Satset → Expert: keeps current state, reveals all options, sets model to 'expert'
+ * - Expert → Satset: applies satset defaults for current category, sets model to 'satset'
+ */
+export function switchWizardMode(mode: WizardMode): void {
+  if (wizardState.wizardMode === mode) return;
+
+  wizardState.wizardMode = mode;
+
+  if (mode === 'satset') {
+    applySatsetDefaults();
+  } else {
+    // Switching to expert: keep current state, just change model default
+    wizardState.llmModel = 'expert';
+  }
+}
+
+// ========================================================================
 // Blueprint Export Functions
 // ========================================================================
 
@@ -1108,6 +1253,9 @@ export function removeCustomComponent(id: string): void {
  */
 export function generateBlueprintJson(): Record<string, unknown> {
   return {
+    // Wizard mode
+    wizardMode: wizardState.wizardMode,
+
     // Step 1: Framework, Category & Output Format
     framework: wizardState.framework,
     category: wizardState.category,

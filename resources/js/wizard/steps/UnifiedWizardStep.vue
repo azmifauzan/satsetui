@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { wizardState, type Category, type Framework, type OutputFormat, isFrameworkOutput, frameworkCreditMultiplier, COMPATIBLE_STYLING_OPTIONS, DEFAULT_STYLING_FOR_FRAMEWORK, isStylingCompatible, STATE_MANAGEMENT_OPTIONS, type FrameworkStyling, type BuildTool } from '../wizardState';
+import { wizardState, type Category, type Framework, type OutputFormat, type WizardMode, isFrameworkOutput, frameworkCreditMultiplier, COMPATIBLE_STYLING_OPTIONS, DEFAULT_STYLING_FOR_FRAMEWORK, isStylingCompatible, STATE_MANAGEMENT_OPTIONS, type FrameworkStyling, type BuildTool, switchWizardMode, applySatsetDefaults } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
 
 const { currentLang } = useI18n();
+
+// ========== MODE TOGGLE ==========
+const setMode = (mode: WizardMode) => {
+  switchWizardMode(mode);
+};
+
+const isSatset = computed(() => wizardState.wizardMode === 'satset');
+const isExpert = computed(() => wizardState.wizardMode === 'expert');
 
 // ========== SECTION 1: What to Build ==========
 const categories = [
@@ -97,19 +105,25 @@ const currentDefaultPages = computed(() => categoryDefaultPages[wizardState.cate
 
 const selectCategory = (id: string) => {
   wizardState.category = id as Category;
+  // In satset mode, auto-apply defaults for the new category
+  if (isSatset.value) {
+    applySatsetDefaults();
+  }
 };
 
-// Watch category changes -> auto-select default pages
+// Watch category changes -> auto-select default pages (expert mode only)
 watch(() => wizardState.category, (newCat) => {
-  const defaults = categoryDefaultPages[newCat];
-  if (defaults) {
-    wizardState.pages = defaults.map(p => p.id);
-  } else {
-    wizardState.pages = [];
+  if (isExpert.value) {
+    const defaults = categoryDefaultPages[newCat];
+    if (defaults) {
+      wizardState.pages = defaults.map(p => p.id);
+    } else {
+      wizardState.pages = [];
+    }
   }
 });
 
-// Page selection toggles
+// Page selection toggles (expert mode)
 const isPageSelected = (id: string) => wizardState.pages.includes(id);
 const togglePage = (id: string) => {
   const idx = wizardState.pages.indexOf(id);
@@ -120,7 +134,7 @@ const togglePage = (id: string) => {
   }
 };
 
-// Custom pages
+// Custom pages (expert mode)
 const customPageName = ref('');
 const addCustomPageHandler = () => {
   const name = customPageName.value.trim();
@@ -134,7 +148,7 @@ const removeCustomPage = (page: string) => {
   if (idx > -1) wizardState.pages.splice(idx, 1);
 };
 
-// ========== Category-Specific Inputs ==========
+// ========== Category-Specific Inputs (expert mode) ==========
 const companyName = ref('');
 const companyDescription = ref('');
 const appName = ref('');
@@ -212,9 +226,10 @@ const selectFont = (fontId: string) => {
   wizardState.fontFamily = fontId;
 };
 
-// Watch category-specific inputs + custom style/font to store in customInstructions AND projectInfo
+// Watch category-specific inputs -> projectInfo & customInstructions (expert mode only)
 watch([companyName, companyDescription, appName, storeName, storeDescription, useCustomStyle, customStyleName, useCustomFont, customFontName], () => {
-  // Save to structured projectInfo for consistent usage across all pages
+  if (isSatset.value) return;
+
   if (wizardState.category === 'company-profile') {
     wizardState.projectInfo.companyName = companyName.value.trim();
     wizardState.projectInfo.companyDescription = companyDescription.value.trim();
@@ -227,7 +242,6 @@ watch([companyName, companyDescription, appName, storeName, storeDescription, us
     wizardState.projectInfo.appName = appName.value.trim();
   }
 
-  // Also keep in customInstructions for backward compatibility
   let contextInfo = '';
   if (wizardState.category === 'company-profile') {
     if (companyName.value) contextInfo += `Company Name: ${companyName.value}. `;
@@ -240,15 +254,12 @@ watch([companyName, companyDescription, appName, storeName, storeDescription, us
   } else if (wizardState.category === 'dashboard') {
     if (appName.value) contextInfo += `Dashboard Name: ${appName.value}. `;
   }
-  // Add custom style info
   if (useCustomStyle.value && customStyleName.value.trim()) {
     contextInfo += `Custom Style: ${customStyleName.value}. `;
   }
-  // Add custom font info
   if (useCustomFont.value && customFontName.value.trim()) {
     contextInfo += `Custom Font: ${customFontName.value}. `;
   }
-  // Store context info (merge with custom instructions if any)
   const baseInstructions = wizardState.customInstructions.replace(/\[AUTO_CONTEXT\].*?\[\/AUTO_CONTEXT\]/g, '').trim();
   wizardState.customInstructions = contextInfo ? `[AUTO_CONTEXT]${contextInfo}[/AUTO_CONTEXT] ${baseInstructions}` : baseInstructions;
 });
@@ -261,13 +272,11 @@ const navStyles = [
 
 // Sync navStyle with layout.navigation
 watch(() => wizardState.navStyle, (newNavStyle) => {
-  // Map navStyle to layout.navigation
   const navMapping: Record<string, 'topbar' | 'sidebar' | 'hybrid'> = {
     'top': 'topbar',
     'sidebar': 'sidebar',
     'both': 'hybrid',
   };
-  
   if (newNavStyle && navMapping[newNavStyle]) {
     wizardState.layout.navigation = navMapping[newNavStyle];
   }
@@ -296,7 +305,7 @@ const removeLogo = () => {
   wizardState.logoFile = null;
 };
 
-// ========== SECTION 3: Custom Modifications (Optional) ==========
+// ========== SECTION 3: Custom Modifications (Expert mode only) ==========
 const availableComponents = [
   { id: 'hero', labelEn: 'Hero Section', labelId: 'Bagian Hero', icon: '🏠' },
   { id: 'features', labelEn: 'Features Grid', labelId: 'Grid Fitur', icon: '⚡' },
@@ -323,7 +332,7 @@ const toggleComponent = (id: string) => {
 
 const isComponentSelected = (id: string) => wizardState.components.includes(id);
 
-// ========== SECTION: Technology Stack ==========
+// ========== SECTION: Technology Stack (Expert mode only) ==========
 const cssFrameworks = [
   { id: 'tailwind' as Framework, labelEn: 'Tailwind CSS', labelId: 'Tailwind CSS', descEn: 'Utility-first, highly customizable', descId: 'Utility-first, sangat fleksibel', icon: '🎨' },
   { id: 'bootstrap' as Framework, labelEn: 'Bootstrap', labelId: 'Bootstrap', descEn: 'Component-based, rapid prototyping', descId: 'Berbasis komponen, prototyping cepat', icon: '📐' },
@@ -340,7 +349,6 @@ const outputFormats = [
 
 const selectCssFramework = (id: Framework) => {
   wizardState.framework = id;
-  // Auto-sync frameworkConfig.styling if incompatible
   if (isFrameworkOutput.value && !isStylingCompatible(id, wizardState.frameworkConfig.styling)) {
     wizardState.frameworkConfig.styling = DEFAULT_STYLING_FOR_FRAMEWORK[id];
   }
@@ -348,7 +356,6 @@ const selectCssFramework = (id: Framework) => {
 
 const selectOutputFormat = (id: OutputFormat) => {
   wizardState.outputFormat = id;
-  // Auto-sync frameworkConfig.styling compatibility
   if (['react', 'vue', 'angular', 'svelte'].includes(id)) {
     if (!isStylingCompatible(wizardState.framework, wizardState.frameworkConfig.styling)) {
       wizardState.frameworkConfig.styling = DEFAULT_STYLING_FOR_FRAMEWORK[wizardState.framework];
@@ -356,7 +363,6 @@ const selectOutputFormat = (id: OutputFormat) => {
   }
 };
 
-// Framework config options
 const stylingOptions = computed(() => {
   const compatible = COMPATIBLE_STYLING_OPTIONS[wizardState.framework] || [];
   const allOptions: { value: FrameworkStyling; labelEn: string; labelId: string }[] = [
@@ -377,14 +383,80 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
   { value: 'webpack', labelEn: 'Webpack', labelId: 'Webpack' },
   { value: 'turbopack', labelEn: 'Turbopack', labelId: 'Turbopack' },
 ];
+
+// ========== Satset mode summary ==========
+const satsetSummaryDefaults = computed(() => {
+  const pages = currentDefaultPages.value;
+  return {
+    framework: 'Tailwind CSS',
+    output: 'HTML + CSS',
+    pages: pages.map(p => currentLang.value === 'en' ? p.labelEn : p.labelId),
+    color: colorPresets.find(c => c.id === wizardState.colorScheme)?.name || 'Ocean Blue',
+    style: stylePresets.find(s => s.id === wizardState.stylePreset)?.[currentLang.value === 'en' ? 'labelEn' : 'labelId'] || 'Modern',
+    font: 'Inter',
+    components: wizardState.components.length,
+  };
+});
 </script>
 
 <template>
-  <div class="space-y-10">
-    <!-- ========== SECTION 1: What to Build ========== -->
+  <div class="space-y-8">
+    <!-- ========== MODE TOGGLE ========== -->
+    <div class="flex flex-col items-center gap-4">
+      <div class="inline-flex items-center p-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-2xl border border-slate-200 dark:border-slate-600 shadow-sm">
+        <button
+          @click="setMode('satset')"
+          :class="[
+            'relative flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300',
+            isSatset
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-600/50'
+          ]"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Sat-set!</span>
+          <span v-if="isSatset" class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
+        </button>
+        <button
+          @click="setMode('expert')"
+          :class="[
+            'relative flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300',
+            isExpert
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30 scale-[1.02]'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-600/50'
+          ]"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>Expert</span>
+          <span v-if="isExpert" class="absolute -top-1 -right-1 w-3 h-3 bg-purple-400 rounded-full animate-pulse"></span>
+        </button>
+      </div>
+      <p class="text-sm text-slate-500 dark:text-slate-400 text-center max-w-md">
+        <template v-if="isSatset">
+          {{ currentLang === 'en' 
+            ? 'Quick mode — just pick a category and generate! All settings are optimized for you.' 
+            : 'Mode cepat — pilih kategori dan langsung generate! Semua pengaturan sudah optimal.' }}
+        </template>
+        <template v-else>
+          {{ currentLang === 'en' 
+            ? 'Full control — customize every detail of your project.' 
+            : 'Kontrol penuh — sesuaikan setiap detail proyek kamu.' }}
+        </template>
+      </p>
+    </div>
+
+    <!-- ========== SECTION 1: What to Build (ALWAYS VISIBLE) ========== -->
     <section>
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">1</div>
+        <div :class="[
+          'w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-lg',
+          isSatset ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-purple-500 to-pink-600'
+        ]">1</div>
         <div>
           <h2 class="text-xl font-bold text-slate-900 dark:text-white">
             {{ currentLang === 'en' ? 'What do you want to build?' : 'Apa yang ingin kamu buat?' }}
@@ -426,122 +498,180 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
         </button>
       </div>
 
-      <!-- Category-Specific Inputs -->
-      <div v-if="wizardState.category === 'company-profile'" class="mt-5 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
-        <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
-          {{ currentLang === 'en' ? 'Company Information' : 'Informasi Perusahaan' }}
+      <!-- ===== SATSET MODE: Summary card of what will be generated ===== -->
+      <div v-if="isSatset && wizardState.category" class="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-5 border border-blue-200 dark:border-blue-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {{ currentLang === 'en' ? 'Your project will include:' : 'Proyek kamu akan berisi:' }}
         </h3>
-        <div class="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {{ currentLang === 'en' ? 'Company Name' : 'Nama Perusahaan' }}
-            </label>
-            <input v-model="companyName" type="text" :placeholder="currentLang === 'en' ? 'e.g. Acme Corp' : 'contoh: PT Maju Jaya'"
-              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+            <span class="text-slate-600 dark:text-slate-400">Framework:</span>
+            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.framework }}</span>
           </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {{ currentLang === 'en' ? 'Brief Description' : 'Deskripsi Singkat' }}
-            </label>
-            <input v-model="companyDescription" type="text" :placeholder="currentLang === 'en' ? 'e.g. Technology consulting firm' : 'contoh: Perusahaan konsultan teknologi'"
-              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+            <span class="text-slate-600 dark:text-slate-400">Output:</span>
+            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.output }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-purple-500 rounded-full"></span>
+            <span class="text-slate-600 dark:text-slate-400">{{ currentLang === 'en' ? 'Color:' : 'Warna:' }}</span>
+            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.color }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
+            <span class="text-slate-600 dark:text-slate-400">{{ currentLang === 'en' ? 'Style:' : 'Gaya:' }}</span>
+            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.style }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-pink-500 rounded-full"></span>
+            <span class="text-slate-600 dark:text-slate-400">Font:</span>
+            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.font }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-teal-500 rounded-full"></span>
+            <span class="text-slate-600 dark:text-slate-400">{{ currentLang === 'en' ? 'Components:' : 'Komponen:' }}</span>
+            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.components }}</span>
           </div>
         </div>
+        <div class="mt-3 pt-3 border-t border-blue-200/50 dark:border-blue-700/50">
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{{ currentLang === 'en' ? 'Pages:' : 'Halaman:' }}</p>
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-for="page in satsetSummaryDefaults.pages"
+              :key="page"
+              class="px-2.5 py-1 bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-600"
+            >{{ page }}</span>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-blue-600 dark:text-blue-400">
+          {{ currentLang === 'en' 
+            ? '💡 Want to customize? Switch to Expert mode above.' 
+            : '💡 Ingin kustomisasi? Beralih ke mode Expert di atas.' }}
+        </p>
       </div>
 
-      <div v-if="wizardState.category === 'e-commerce'" class="mt-5 bg-green-50 dark:bg-green-900/10 rounded-xl p-5 border border-green-200 dark:border-green-800">
-        <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
-          {{ currentLang === 'en' ? 'Store Information' : 'Informasi Toko' }}
-        </h3>
-        <div class="grid sm:grid-cols-2 gap-4">
+      <!-- ===== EXPERT MODE: Category-Specific Inputs ===== -->
+      <template v-if="isExpert">
+        <div v-if="wizardState.category === 'company-profile'" class="mt-5 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
+            {{ currentLang === 'en' ? 'Company Information' : 'Informasi Perusahaan' }}
+          </h3>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Company Name' : 'Nama Perusahaan' }}
+              </label>
+              <input v-model="companyName" type="text" :placeholder="currentLang === 'en' ? 'e.g. Acme Corp' : 'contoh: PT Maju Jaya'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Brief Description' : 'Deskripsi Singkat' }}
+              </label>
+              <input v-model="companyDescription" type="text" :placeholder="currentLang === 'en' ? 'e.g. Technology consulting firm' : 'contoh: Perusahaan konsultan teknologi'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="wizardState.category === 'e-commerce'" class="mt-5 bg-green-50 dark:bg-green-900/10 rounded-xl p-5 border border-green-200 dark:border-green-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
+            {{ currentLang === 'en' ? 'Store Information' : 'Informasi Toko' }}
+          </h3>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Store Name' : 'Nama Toko' }}
+              </label>
+              <input v-model="storeName" type="text" :placeholder="currentLang === 'en' ? 'e.g. TechStore' : 'contoh: TokoTech'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'What do you sell?' : 'Apa yang dijual?' }}
+              </label>
+              <input v-model="storeDescription" type="text" :placeholder="currentLang === 'en' ? 'e.g. Electronics and gadgets' : 'contoh: Elektronik dan gadget'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="wizardState.category === 'mobile-apps' || wizardState.category === 'dashboard'" class="mt-5 bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-5 border border-cyan-200 dark:border-cyan-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
+            {{ wizardState.category === 'dashboard' 
+              ? (currentLang === 'en' ? 'Dashboard Information' : 'Informasi Dashboard')
+              : (currentLang === 'en' ? 'App Information' : 'Informasi Aplikasi') }}
+          </h3>
           <div>
             <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {{ currentLang === 'en' ? 'Store Name' : 'Nama Toko' }}
+              {{ currentLang === 'en' ? 'App/Dashboard Name' : 'Nama Aplikasi/Dashboard' }}
             </label>
-            <input v-model="storeName" type="text" :placeholder="currentLang === 'en' ? 'e.g. TechStore' : 'contoh: TokoTech'"
-              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {{ currentLang === 'en' ? 'What do you sell?' : 'Apa yang dijual?' }}
-            </label>
-            <input v-model="storeDescription" type="text" :placeholder="currentLang === 'en' ? 'e.g. Electronics and gadgets' : 'contoh: Elektronik dan gadget'"
-              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input v-model="appName" type="text" :placeholder="currentLang === 'en' ? 'e.g. MyApp' : 'contoh: AplikasiKu'"
+              class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent max-w-md" />
           </div>
         </div>
-      </div>
 
-      <div v-if="wizardState.category === 'mobile-apps' || wizardState.category === 'dashboard'" class="mt-5 bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-5 border border-cyan-200 dark:border-cyan-800">
-        <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
-          {{ wizardState.category === 'dashboard' 
-            ? (currentLang === 'en' ? 'Dashboard Information' : 'Informasi Dashboard')
-            : (currentLang === 'en' ? 'App Information' : 'Informasi Aplikasi') }}
-        </h3>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-            {{ currentLang === 'en' ? 'App/Dashboard Name' : 'Nama Aplikasi/Dashboard' }}
-          </label>
-          <input v-model="appName" type="text" :placeholder="currentLang === 'en' ? 'e.g. MyApp' : 'contoh: AplikasiKu'"
-            class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent max-w-md" />
-        </div>
-      </div>
-
-      <!-- Pages Selection -->
-      <div class="mt-6 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-        <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-          {{ currentLang === 'en' ? 'Pages to Generate' : 'Halaman yang Akan Dibuat' }}
-        </h3>
-        <!-- Default pages for category -->
-        <div class="flex flex-wrap gap-2 mb-3">
-          <button
-            v-for="page in currentDefaultPages"
-            :key="page.id"
-            @click="togglePage(page.id)"
-            :class="[
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-sm font-medium transition-all',
-              isPageSelected(page.id)
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-blue-300'
-            ]"
-          >
-            <svg v-if="isPageSelected(page.id)" class="w-3.5 h-3.5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-            </svg>
-            {{ currentLang === 'en' ? page.labelEn : page.labelId }}
-          </button>
-        </div>
-        <!-- Custom pages added -->
-        <div v-if="wizardState.pages.filter(p => p.startsWith('custom:')).length" class="flex flex-wrap gap-2 mb-3">
-          <span
-            v-for="page in wizardState.pages.filter(p => p.startsWith('custom:'))"
-            :key="page"
-            class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-300 dark:border-indigo-700 text-sm text-indigo-700 dark:text-indigo-300"
-          >
-            {{ page.replace('custom:', '') }}
-            <button @click="removeCustomPage(page)" class="ml-1 text-indigo-400 hover:text-red-500">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        <!-- Pages Selection (Expert mode) -->
+        <div class="mt-6 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
+            {{ currentLang === 'en' ? 'Pages to Generate' : 'Halaman yang Akan Dibuat' }}
+          </h3>
+          <div class="flex flex-wrap gap-2 mb-3">
+            <button
+              v-for="page in currentDefaultPages"
+              :key="page.id"
+              @click="togglePage(page.id)"
+              :class="[
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-sm font-medium transition-all',
+                isPageSelected(page.id)
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-blue-300'
+              ]"
+            >
+              <svg v-if="isPageSelected(page.id)" class="w-3.5 h-3.5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+              </svg>
+              {{ currentLang === 'en' ? page.labelEn : page.labelId }}
             </button>
-          </span>
+          </div>
+          <!-- Custom pages added -->
+          <div v-if="wizardState.pages.filter(p => p.startsWith('custom:')).length" class="flex flex-wrap gap-2 mb-3">
+            <span
+              v-for="page in wizardState.pages.filter(p => p.startsWith('custom:'))"
+              :key="page"
+              class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-300 dark:border-indigo-700 text-sm text-indigo-700 dark:text-indigo-300"
+            >
+              {{ page.replace('custom:', '') }}
+              <button @click="removeCustomPage(page)" class="ml-1 text-indigo-400 hover:text-red-500">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </span>
+          </div>
+          <!-- Add custom page -->
+          <div class="flex items-center gap-2">
+            <input
+              v-model="customPageName"
+              type="text"
+              :placeholder="currentLang === 'en' ? 'Add custom page...' : 'Tambah halaman kustom...'"
+              class="flex-1 max-w-xs px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              @keyup.enter="addCustomPageHandler"
+            />
+            <button @click="addCustomPageHandler" :disabled="!customPageName.trim() || customPageName.trim().length < 2"
+              class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:dark:bg-slate-700 text-white text-sm rounded-lg transition-colors">
+              +
+            </button>
+          </div>
         </div>
-        <!-- Add custom page -->
-        <div class="flex items-center gap-2">
-          <input
-            v-model="customPageName"
-            type="text"
-            :placeholder="currentLang === 'en' ? 'Add custom page...' : 'Tambah halaman kustom...'"
-            class="flex-1 max-w-xs px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            @keyup.enter="addCustomPageHandler"
-          />
-          <button @click="addCustomPageHandler" :disabled="!customPageName.trim() || customPageName.trim().length < 2"
-            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:dark:bg-slate-700 text-white text-sm rounded-lg transition-colors">
-            +
-          </button>
-        </div>
-      </div>
+      </template>
     </section>
 
-    <!-- ========== SECTION 1.5: Technology Stack ========== -->
-    <section>
+    <!-- ========== SECTION 2: Technology Stack (EXPERT MODE ONLY) ========== -->
+    <section v-if="isExpert">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -561,9 +691,7 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
       <div class="grid lg:grid-cols-2 gap-6">
         <!-- CSS Framework -->
         <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-            CSS Framework
-          </h3>
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">CSS Framework</h3>
           <div class="space-y-2">
             <button
               v-for="fw in cssFrameworks"
@@ -621,7 +749,7 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
         </div>
       </div>
 
-      <!-- Framework Configuration (shown when JS framework is selected) -->
+      <!-- Framework Configuration -->
       <div v-if="isFrameworkOutput" class="mt-6 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl p-5 border border-indigo-200 dark:border-indigo-800">
         <h3 class="font-semibold text-slate-900 dark:text-white mb-1 text-sm">
           {{ currentLang === 'en' ? 'Framework Configuration' : 'Konfigurasi Framework' }}
@@ -629,127 +757,45 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
         <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
           {{ currentLang === 'en' ? 'Customize your framework project settings' : 'Sesuaikan pengaturan proyek framework' }}
         </p>
-
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <!-- Language -->
           <div>
             <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
               {{ currentLang === 'en' ? 'Language' : 'Bahasa' }}
             </label>
             <div class="flex gap-2">
-              <button
-                @click="wizardState.frameworkConfig.language = 'typescript'"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  wizardState.frameworkConfig.language === 'typescript'
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >TypeScript</button>
-              <button
-                @click="wizardState.frameworkConfig.language = 'javascript'"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  wizardState.frameworkConfig.language === 'javascript'
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >JavaScript</button>
+              <button @click="wizardState.frameworkConfig.language = 'typescript'" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', wizardState.frameworkConfig.language === 'typescript' ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">TypeScript</button>
+              <button @click="wizardState.frameworkConfig.language = 'javascript'" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', wizardState.frameworkConfig.language === 'javascript' ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">JavaScript</button>
             </div>
           </div>
-
-          <!-- Styling -->
           <div>
-            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
-              Styling
-            </label>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Styling</label>
             <div class="flex flex-wrap gap-2">
-              <button
-                v-for="opt in stylingOptions"
-                :key="opt.value"
-                @click="wizardState.frameworkConfig.styling = opt.value"
-                :class="[
-                  'py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2',
-                  wizardState.frameworkConfig.styling === opt.value
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >{{ currentLang === 'en' ? opt.labelEn : opt.labelId }}</button>
+              <button v-for="opt in stylingOptions" :key="opt.value" @click="wizardState.frameworkConfig.styling = opt.value" :class="['py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2', wizardState.frameworkConfig.styling === opt.value ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">{{ currentLang === 'en' ? opt.labelEn : opt.labelId }}</button>
             </div>
           </div>
-
-          <!-- Build Tool -->
           <div>
-            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
-              Build Tool
-            </label>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Build Tool</label>
             <div class="flex gap-2">
-              <button
-                v-for="bt in buildToolOptions"
-                :key="bt.value"
-                @click="wizardState.frameworkConfig.buildTool = bt.value"
-                :class="[
-                  'flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2',
-                  wizardState.frameworkConfig.buildTool === bt.value
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >{{ currentLang === 'en' ? bt.labelEn : bt.labelId }}</button>
+              <button v-for="bt in buildToolOptions" :key="bt.value" @click="wizardState.frameworkConfig.buildTool = bt.value" :class="['flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2', wizardState.frameworkConfig.buildTool === bt.value ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">{{ currentLang === 'en' ? bt.labelEn : bt.labelId }}</button>
             </div>
           </div>
-
-          <!-- Router -->
           <div>
-            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
-              Router
-            </label>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Router</label>
             <div class="flex gap-2">
-              <button
-                @click="wizardState.frameworkConfig.router = true"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  wizardState.frameworkConfig.router
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >{{ currentLang === 'en' ? 'Enabled' : 'Aktif' }}</button>
-              <button
-                @click="wizardState.frameworkConfig.router = false"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  !wizardState.frameworkConfig.router
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >{{ currentLang === 'en' ? 'Disabled' : 'Nonaktif' }}</button>
+              <button @click="wizardState.frameworkConfig.router = true" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', wizardState.frameworkConfig.router ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">{{ currentLang === 'en' ? 'Enabled' : 'Aktif' }}</button>
+              <button @click="wizardState.frameworkConfig.router = false" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', !wizardState.frameworkConfig.router ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">{{ currentLang === 'en' ? 'Disabled' : 'Nonaktif' }}</button>
             </div>
           </div>
-
-          <!-- State Management -->
           <div v-if="stateManagementOptions.length > 0" class="sm:col-span-2">
-            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
-              State Management
-            </label>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">State Management</label>
             <div class="flex flex-wrap gap-2">
-              <button
-                v-for="sm in stateManagementOptions"
-                :key="sm.value"
-                @click="wizardState.frameworkConfig.stateManagement = sm.value"
-                :class="[
-                  'py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2',
-                  wizardState.frameworkConfig.stateManagement === sm.value
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
-                ]"
-              >{{ sm.label }}</button>
+              <button v-for="sm in stateManagementOptions" :key="sm.value" @click="wizardState.frameworkConfig.stateManagement = sm.value" :class="['py-1.5 px-3 rounded-lg text-xs font-medium transition-all border-2', wizardState.frameworkConfig.stateManagement === sm.value ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50']">{{ sm.label }}</button>
             </div>
           </div>
         </div>
-
-        <!-- Credit multiplier info -->
         <div class="mt-4 pt-3 border-t border-indigo-200/50 dark:border-indigo-700/50">
           <p class="text-xs text-indigo-600 dark:text-indigo-400">
-            ⚡ {{ currentLang === 'en'
+            {{ currentLang === 'en'
               ? `JS framework output applies a ${frameworkCreditMultiplier}× credit multiplier`
               : `Output framework JS menggunakan pengali kredit ${frameworkCreditMultiplier}×` }}
           </p>
@@ -757,8 +803,8 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
       </div>
     </section>
 
-    <!-- ========== SECTION 3: Theme & Colors ========== -->
-    <section>
+    <!-- ========== SECTION 3: Theme & Colors (EXPERT MODE ONLY) ========== -->
+    <section v-if="isExpert">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">3</div>
         <div>
@@ -770,25 +816,12 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
           </p>
         </div>
       </div>
-
       <div class="grid lg:grid-cols-2 gap-6">
         <!-- Color Scheme -->
         <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-            {{ currentLang === 'en' ? 'Color Scheme' : 'Skema Warna' }}
-          </h3>
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">{{ currentLang === 'en' ? 'Color Scheme' : 'Skema Warna' }}</h3>
           <div class="grid grid-cols-3 gap-2 mb-3">
-            <button
-              v-for="color in colorPresets"
-              :key="color.id"
-              @click="selectColor(color)"
-              :class="[
-                'flex flex-col items-center p-3 rounded-lg border-2 transition-all',
-                wizardState.colorScheme === color.id && !useCustomColor
-                  ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm'
-                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-              ]"
-            >
+            <button v-for="color in colorPresets" :key="color.id" @click="selectColor(color)" :class="['flex flex-col items-center p-3 rounded-lg border-2 transition-all', wizardState.colorScheme === color.id && !useCustomColor ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600']">
               <div class="flex gap-1 mb-2">
                 <div class="w-5 h-5 rounded-full" :style="{ backgroundColor: color.primary }"></div>
                 <div class="w-5 h-5 rounded-full" :style="{ backgroundColor: color.secondary }"></div>
@@ -796,194 +829,88 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
               <span class="text-xs text-slate-600 dark:text-slate-400 text-center">{{ color.name }}</span>
             </button>
           </div>
-          <!-- Custom color picker -->
           <div class="border-t border-slate-200 dark:border-slate-700 pt-3">
-            <button
-              @click="useCustomColor = !useCustomColor"
-              :class="[
-                'flex items-center gap-2 text-sm font-medium transition-colors',
-                useCustomColor ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-blue-600'
-              ]"
-            >
+            <button @click="useCustomColor = !useCustomColor" :class="['flex items-center gap-2 text-sm font-medium transition-colors', useCustomColor ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-blue-600']">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
               {{ currentLang === 'en' ? 'Custom Color' : 'Warna Kustom' }}
             </button>
             <div v-if="useCustomColor" class="flex items-center gap-3 mt-2">
-              <label class="flex items-center gap-1.5">
-                <span class="text-xs text-slate-500">Primary</span>
-                <input type="color" v-model="customPrimaryColor" class="w-8 h-8 rounded cursor-pointer border-0" />
-              </label>
-              <label class="flex items-center gap-1.5">
-                <span class="text-xs text-slate-500">Secondary</span>
-                <input type="color" v-model="customSecondaryColor" class="w-8 h-8 rounded cursor-pointer border-0" />
-              </label>
+              <label class="flex items-center gap-1.5"><span class="text-xs text-slate-500">Primary</span><input type="color" v-model="customPrimaryColor" class="w-8 h-8 rounded cursor-pointer border-0" /></label>
+              <label class="flex items-center gap-1.5"><span class="text-xs text-slate-500">Secondary</span><input type="color" v-model="customSecondaryColor" class="w-8 h-8 rounded cursor-pointer border-0" /></label>
             </div>
           </div>
         </div>
 
         <!-- Style Preset -->
         <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-            {{ currentLang === 'en' ? 'Style' : 'Gaya' }}
-          </h3>
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">{{ currentLang === 'en' ? 'Style' : 'Gaya' }}</h3>
           <div class="grid grid-cols-2 gap-2">
-            <button
-              v-for="style in stylePresets"
-              :key="style.id"
-              @click="() => { wizardState.stylePreset = style.id; useCustomStyle = false; }"
-              :class="[
-                'flex items-center gap-2 p-3 rounded-lg border-2 text-left transition-all',
-                wizardState.stylePreset === style.id && !useCustomStyle
-                  ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm'
-                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-              ]"
-            >
+            <button v-for="style in stylePresets" :key="style.id" @click="() => { wizardState.stylePreset = style.id; useCustomStyle = false; }" :class="['flex items-center gap-2 p-3 rounded-lg border-2 text-left transition-all', wizardState.stylePreset === style.id && !useCustomStyle ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600']">
               <span class="text-lg">{{ style.icon }}</span>
-              <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">
-                {{ currentLang === 'en' ? style.labelEn : style.labelId }}
-              </span>
+              <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">{{ currentLang === 'en' ? style.labelEn : style.labelId }}</span>
             </button>
           </div>
-          <!-- Custom Style -->
           <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
             <label class="flex items-center gap-2 cursor-pointer mb-2">
               <input type="checkbox" v-model="useCustomStyle" class="rounded" />
-              <span class="text-xs font-medium text-slate-700 dark:text-slate-300">
-                🎨 {{ currentLang === 'en' ? 'Custom Style' : 'Gaya Kustom' }}
-              </span>
+              <span class="text-xs font-medium text-slate-700 dark:text-slate-300">{{ currentLang === 'en' ? 'Custom Style' : 'Gaya Kustom' }}</span>
             </label>
-            <input
-              v-if="useCustomStyle"
-              v-model="customStyleName"
-              type="text"
-              :placeholder="currentLang === 'en' ? 'e.g., Corporate, Futuristic, Retro...' : 'mis., Korporat, Futuristik, Retro...'"
-              class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input v-if="useCustomStyle" v-model="customStyleName" type="text" :placeholder="currentLang === 'en' ? 'e.g., Corporate, Futuristic, Retro...' : 'mis., Korporat, Futuristik, Retro...'" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </div>
 
         <!-- Font -->
         <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-            Font
-          </h3>
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">Font</h3>
           <div class="space-y-2 mb-3">
-            <button
-              v-for="font in fontOptions"
-              :key="font.id"
-              @click="selectFont(font.id)"
-              :class="[
-                'w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all',
-                wizardState.fontFamily === font.id && !useCustomFont
-                  ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm'
-                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-              ]"
-            >
+            <button v-for="font in fontOptions" :key="font.id" @click="selectFont(font.id)" :class="['w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all', wizardState.fontFamily === font.id && !useCustomFont ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600']">
               <span :class="[font.preview, 'text-sm text-slate-700 dark:text-slate-300 font-medium']">{{ font.name }}</span>
               <span :class="[font.preview, 'text-xs text-slate-400']">Aa Bb Cc 123</span>
             </button>
           </div>
-          <!-- Custom font -->
           <div class="border-t border-slate-200 dark:border-slate-700 pt-3">
-            <button
-              @click="useCustomFont = !useCustomFont"
-              :class="[
-                'flex items-center gap-2 text-sm font-medium transition-colors',
-                useCustomFont ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-blue-600'
-              ]"
-            >
+            <button @click="useCustomFont = !useCustomFont" :class="['flex items-center gap-2 text-sm font-medium transition-colors', useCustomFont ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-blue-600']">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
               {{ currentLang === 'en' ? 'Custom Font' : 'Font Kustom' }}
             </button>
             <div v-if="useCustomFont" class="mt-2">
-              <input v-model="customFontName" type="text" :placeholder="currentLang === 'en' ? 'e.g. Lato, Open Sans' : 'contoh: Lato, Open Sans'"
-                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              <input v-model="customFontName" type="text" :placeholder="currentLang === 'en' ? 'e.g. Lato, Open Sans' : 'contoh: Lato, Open Sans'" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
           </div>
         </div>
 
         <!-- Navigation Style -->
         <div class="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-            {{ currentLang === 'en' ? 'Navigation' : 'Navigasi' }}
-          </h3>
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">{{ currentLang === 'en' ? 'Navigation' : 'Navigasi' }}</h3>
           <div class="space-y-2">
-            <button
-              v-for="nav in navStyles"
-              :key="nav.id"
-              @click="wizardState.navStyle = nav.id"
-              :class="[
-                'w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left',
-                wizardState.navStyle === nav.id
-                  ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm'
-                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-              ]"
-            >
+            <button v-for="nav in navStyles" :key="nav.id" @click="wizardState.navStyle = nav.id" :class="['w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left', wizardState.navStyle === nav.id ? 'border-blue-500 bg-white dark:bg-slate-800 shadow-sm' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600']">
               <span class="text-lg opacity-60">{{ nav.icon }}</span>
-              <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">
-                {{ currentLang === 'en' ? nav.labelEn : nav.labelId }}
-              </span>
+              <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">{{ currentLang === 'en' ? nav.labelEn : nav.labelId }}</span>
             </button>
           </div>
-
-          <!-- Theme Mode -->
           <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-            <h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
-              {{ currentLang === 'en' ? 'Theme Mode' : 'Mode Tema' }}
-            </h4>
+            <h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">{{ currentLang === 'en' ? 'Theme Mode' : 'Mode Tema' }}</h4>
             <div class="flex gap-2">
-              <button
-                @click="themeMode = 'light'"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  themeMode === 'light'
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
-                ]"
-              >Light</button>
-              <button
-                @click="themeMode = 'dark'"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  themeMode === 'dark'
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
-                ]"
-              >Dark</button>
-              <button
-                @click="themeMode = 'both'"
-                :class="[
-                  'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2',
-                  themeMode === 'both'
-                    ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
-                ]"
-              >Both</button>
+              <button @click="themeMode = 'light'" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', themeMode === 'light' ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600']">Light</button>
+              <button @click="themeMode = 'dark'" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', themeMode === 'dark' ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600']">Dark</button>
+              <button @click="themeMode = 'both'" :class="['flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all border-2', themeMode === 'both' ? 'border-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'border-transparent text-slate-500 hover:border-slate-300 dark:hover:border-slate-600']">Both</button>
             </div>
           </div>
         </div>
 
         <!-- Logo Upload -->
         <div class="lg:col-span-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
-            {{ currentLang === 'en' ? 'Logo (Optional)' : 'Logo (Opsional)' }}
-          </h3>
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">{{ currentLang === 'en' ? 'Logo (Optional)' : 'Logo (Opsional)' }}</h3>
           <div class="flex items-center gap-4">
             <div v-if="logoPreviewUrl" class="relative">
               <img :src="logoPreviewUrl" alt="Logo preview" class="w-16 h-16 object-contain rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1" />
-              <button @click="removeLogo" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600">
-                ✕
-              </button>
+              <button @click="removeLogo" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600">✕</button>
             </div>
             <label class="flex-1 cursor-pointer">
               <div class="flex items-center justify-center py-4 px-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors bg-white dark:bg-slate-800">
                 <div class="text-center">
-                  <svg class="w-8 h-8 text-slate-400 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span class="text-sm text-slate-500 dark:text-slate-400">
-                    {{ currentLang === 'en' ? 'Click to upload logo' : 'Klik untuk upload logo' }}
-                  </span>
+                  <svg class="w-8 h-8 text-slate-400 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span class="text-sm text-slate-500 dark:text-slate-400">{{ currentLang === 'en' ? 'Click to upload logo' : 'Klik untuk upload logo' }}</span>
                   <span class="text-xs text-slate-400 block mt-1">PNG, JPG, SVG (max 2MB)</span>
                 </div>
               </div>
@@ -994,8 +921,8 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
       </div>
     </section>
 
-    <!-- ========== SECTION 4: Custom Modifications (Optional) ========== -->
-    <section>
+    <!-- ========== SECTION 4: Custom Modifications (EXPERT MODE ONLY) ========== -->
+    <section v-if="isExpert">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">4</div>
         <div>
@@ -1008,30 +935,15 @@ const buildToolOptions: { value: BuildTool; labelEn: string; labelId: string }[]
           </p>
         </div>
       </div>
-
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        <button
-          v-for="comp in availableComponents"
-          :key="comp.id"
-          @click="toggleComponent(comp.id)"
-          :class="[
-            'flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all',
-            isComponentSelected(comp.id)
-              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600'
-          ]"
-        >
+        <button v-for="comp in availableComponents" :key="comp.id" @click="toggleComponent(comp.id)" :class="['flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all', isComponentSelected(comp.id) ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600']">
           <span class="text-lg">{{ comp.icon }}</span>
-          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
-            {{ currentLang === 'en' ? comp.labelEn : comp.labelId }}
-          </span>
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ currentLang === 'en' ? comp.labelEn : comp.labelId }}</span>
           <svg v-if="isComponentSelected(comp.id)" class="w-4 h-4 text-blue-500 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
           </svg>
         </button>
       </div>
-
-      <!-- Custom instructions -->
       <div class="mt-4">
         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
           {{ currentLang === 'en' ? 'Additional instructions (optional)' : 'Instruksi tambahan (opsional)' }}
