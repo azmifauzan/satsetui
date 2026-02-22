@@ -35,9 +35,10 @@ class McpPromptBuilder
      * @param  array  $blueprint  Validated blueprint data matching schema
      * @param  string  $pageName  Name of the page to generate (e.g., 'dashboard', 'custom:inventory')
      * @param  int  $pageIndex  0-based index of current page in generation order
+     * @param  array  $sharedLayout  Optional pre-generated layout components (sidebar, topbar, footer, head_styles, scripts)
      * @return string Complete MCP prompt ready for LLM API
      */
-    public function buildForPage(array $blueprint, string $pageName, int $pageIndex = 0): string
+    public function buildForPage(array $blueprint, string $pageName, int $pageIndex = 0, array $sharedLayout = []): string
     {
         // Extract auto-selected values with defaults
         $autoSelected = $blueprint['autoSelected'] ?? [];
@@ -79,8 +80,296 @@ class McpPromptBuilder
             $this->buildSinglePageImplementation($blueprint, $pageName, $isCustomPage, $customPageInfo),
         ]);
 
+        // Inject shared layout components for HTML+CSS output
+        if (! empty($sharedLayout) && ! $isFrameworkOutput) {
+            $sections[] = $this->buildSharedLayoutInjection($sharedLayout, $pageName);
+        }
+
         // Filter out empty sections
         return implode("\n\n", array_filter($sections, fn ($s) => ! empty(trim($s))));
+    }
+
+    /**
+     * Build MCP prompt to generate shared layout components (sidebar/navbar/footer)
+     *
+     * For HTML+CSS output, each page is a standalone HTML file. To ensure
+     * visual consistency across pages, we pre-generate the reusable layout
+     * HTML (sidebar, navbar, footer) in a single LLM call. This layout HTML
+     * is then injected verbatim into each page's MCP prompt.
+     *
+     * This method is NOT used for JS framework outputs — those use
+     * ScaffoldGeneratorService which generates a deterministic MainLayout component.
+     *
+     * @param  array  $blueprint  Validated blueprint data
+     * @return string MCP prompt for layout generation
+     */
+    public function buildLayoutGenerationPrompt(array $blueprint): string
+    {
+        // Extract auto-selected values with defaults
+        $autoSelected = $blueprint['autoSelected'] ?? [];
+        $blueprint['responsiveness'] = $autoSelected['responsiveness'] ?? 'fully-responsive';
+        $blueprint['interaction'] = $autoSelected['interaction'] ?? 'moderate';
+        $blueprint['codeStyle'] = $autoSelected['codeStyle'] ?? 'documented';
+
+        $framework = $blueprint['framework'];
+        $frameworkName = $this->getFrameworkName($framework);
+        $allPages = $this->getPageList($blueprint);
+        $navigation = $blueprint['layout']['navigation'] ?? 'sidebar';
+        $footer = ucfirst($blueprint['layout']['footer'] ?? 'simple');
+        $theme = $blueprint['theme'] ?? [];
+        $ui = $blueprint['ui'] ?? [];
+
+        $sections = [];
+
+        // Role
+        $sections[] = "You are an expert frontend developer specializing in {$frameworkName} and modern HTML5/CSS3.\n".
+            "Your task is to generate ONLY the reusable layout components (navigation and footer) as HTML snippets.\n".
+            'These exact HTML snippets will be embedded into every page to ensure 100% visual consistency.';
+
+        // Project info
+        $sections[] = $this->buildProjectInfoSection($blueprint);
+
+        // Theme
+        $sections[] = $this->buildThemeSection($blueprint);
+
+        // UI density
+        $sections[] = $this->buildUiDensitySection($blueprint);
+
+        // Navigation structure
+        $navSection = ['NAVIGATION STRUCTURE:'];
+        $navSection[] = 'Navigation Pattern: '.$this->formatNavigationName($navigation);
+
+        if ($navigation === 'sidebar' || $navigation === 'hybrid') {
+            $sidebarState = $blueprint['layout']['sidebarDefaultState'] ?? 'expanded';
+            $navSection[] = '- Sidebar Default State: '.ucfirst($sidebarState);
+            $navSection[] = '- Sidebar Width: 256px expanded, 64px collapsed';
+            $navSection[] = '- Collapsible with toggle button';
+            $navSection[] = '- Include appropriate icons for each menu item (use inline SVG icons)';
+        }
+        if ($navigation === 'topbar' || $navigation === 'hybrid') {
+            $navSection[] = '- Top Bar: Fixed position, full width';
+            $navSection[] = '- Top Bar Height: 64px';
+        }
+
+        // Menu items
+        $navSection[] = '';
+        $navSection[] = 'Menu Items (in this exact order):';
+        foreach ($allPages as $pageName) {
+            if (str_starts_with($pageName, 'component:')) {
+                $cleanName = str_replace(['component:custom:', 'component:'], '', $pageName);
+                $displayName = ucwords(str_replace('-', ' ', $cleanName));
+                $navSection[] = "  - {$displayName} (UI Components)";
+            } elseif (str_starts_with($pageName, 'custom:')) {
+                $cleanName = substr($pageName, 7);
+                $displayName = ucwords(str_replace('-', ' ', $cleanName));
+                $navSection[] = "  - {$displayName}";
+            } else {
+                $displayName = ucwords(str_replace('-', ' ', $pageName));
+                $navSection[] = "  - {$displayName}";
+            }
+        }
+
+        // Custom navigation items
+        $customNavItems = $blueprint['layout']['customNavItems'] ?? [];
+        if (! empty($customNavItems)) {
+            foreach ($customNavItems as $item) {
+                $navSection[] = "  - {$item['label']}";
+            }
+        }
+
+        $sections[] = implode("\n", $navSection);
+
+        // Footer spec
+        $footerSection = ['FOOTER SPECIFICATION:'];
+        $footerSection[] = "- Footer Style: {$footer}";
+        $footerSection[] = '- Include copyright text with current year';
+        if (strtolower($footer) === 'detailed') {
+            $footerSection[] = '- Include quick links section';
+            $footerSection[] = '- Include social media icon links';
+        }
+        $sections[] = implode("\n", $footerSection);
+
+        // Framework-specific CSS instructions
+        $cssSection = ['CSS FRAMEWORK: '.$frameworkName];
+        if ($framework === 'tailwind') {
+            $cssSection[] = '- Use Tailwind CSS utility classes for ALL styling';
+            $cssSection[] = '- Dark mode support: Include dark: variants for key elements';
+        } elseif ($framework === 'bootstrap') {
+            $cssSection[] = '- Use Bootstrap utility classes and components';
+        } else {
+            $cssSection[] = '- Use clean, well-organized custom CSS';
+        }
+        $sections[] = implode("\n", $cssSection);
+
+        // Responsiveness
+        $sections[] = $this->buildResponsivenessSection($blueprint);
+
+        // Output format instructions
+        $outputSection = ['OUTPUT FORMAT:'];
+        $outputSection[] = 'Generate exactly 3 clearly separated HTML snippets wrapped in markers:';
+        $outputSection[] = '';
+
+        if ($navigation === 'sidebar' || $navigation === 'hybrid') {
+            $outputSection[] = '<!-- === SIDEBAR_START === -->';
+            $outputSection[] = '(Complete sidebar HTML with navigation links, icons, collapse toggle)';
+            $outputSection[] = '<!-- === SIDEBAR_END === -->';
+            $outputSection[] = '';
+        }
+
+        if ($navigation === 'topbar' || $navigation === 'hybrid') {
+            $outputSection[] = '<!-- === TOPBAR_START === -->';
+            $outputSection[] = '(Complete top navigation bar HTML)';
+            $outputSection[] = '<!-- === TOPBAR_END === -->';
+            $outputSection[] = '';
+        }
+
+        $outputSection[] = '<!-- === FOOTER_START === -->';
+        $outputSection[] = '(Complete footer HTML)';
+        $outputSection[] = '<!-- === FOOTER_END === -->';
+        $outputSection[] = '';
+        $outputSection[] = '<!-- === HEAD_STYLES_START === -->';
+        $outputSection[] = '(CSS styles for the layout components - navigation, sidebar, footer)';
+        $outputSection[] = '(Include responsive styles, transitions, dark mode if applicable)';
+        $outputSection[] = '<!-- === HEAD_STYLES_END === -->';
+        $outputSection[] = '';
+        $outputSection[] = '<!-- === SCRIPTS_START === -->';
+        $outputSection[] = '(JavaScript for sidebar toggle, mobile menu, active link highlighting)';
+        $outputSection[] = '<!-- === SCRIPTS_END === -->';
+        $outputSection[] = '';
+        $outputSection[] = 'CRITICAL RULES:';
+        $outputSection[] = '- Each navigation link should use href="#pagename" (e.g., href="#dashboard")';
+        $outputSection[] = '- Include a data-page attribute on the <body> or main wrapper to identify the active page';
+        $outputSection[] = '- The JavaScript MUST highlight the active menu item based on data-page attribute';
+        $outputSection[] = '- Return ONLY the HTML snippets above — no explanations, no markdown, no code blocks';
+        $outputSection[] = '- Start directly with the first marker comment';
+        $outputSection[] = '- Use realistic, professional styling';
+
+        $sections[] = implode("\n", $outputSection);
+
+        return implode("\n\n", array_filter($sections, fn ($s) => ! empty(trim($s))));
+    }
+
+    /**
+     * Parse shared layout components from LLM-generated layout HTML
+     *
+     * Extracts sidebar, topbar, footer, styles, and scripts from the marked-up HTML output.
+     *
+     * @param  string  $layoutHtml  Raw LLM output with marker comments
+     * @return array Associative array with keys: sidebar, topbar, footer, head_styles, scripts
+     */
+    public function parseLayoutComponents(string $layoutHtml): array
+    {
+        $components = [
+            'sidebar' => '',
+            'topbar' => '',
+            'footer' => '',
+            'head_styles' => '',
+            'scripts' => '',
+        ];
+
+        $patterns = [
+            'sidebar' => '/<!-- === SIDEBAR_START === -->(.*?)<!-- === SIDEBAR_END === -->/s',
+            'topbar' => '/<!-- === TOPBAR_START === -->(.*?)<!-- === TOPBAR_END === -->/s',
+            'footer' => '/<!-- === FOOTER_START === -->(.*?)<!-- === FOOTER_END === -->/s',
+            'head_styles' => '/<!-- === HEAD_STYLES_START === -->(.*?)<!-- === HEAD_STYLES_END === -->/s',
+            'scripts' => '/<!-- === SCRIPTS_START === -->(.*?)<!-- === SCRIPTS_END === -->/s',
+        ];
+
+        foreach ($patterns as $key => $pattern) {
+            if (preg_match($pattern, $layoutHtml, $match)) {
+                $components[$key] = trim($match[1]);
+            }
+        }
+
+        return $components;
+    }
+
+    /**
+     * Build the shared layout injection section for page MCP prompts
+     *
+     * Injects pre-generated layout HTML into the page prompt so the LLM
+     * uses the exact same sidebar/navbar/footer on every page.
+     *
+     * @param  array  $sharedLayout  Parsed layout components from parseLayoutComponents()
+     * @param  string  $pageName  Current page name (for active state)
+     * @return string Layout injection section for the MCP prompt
+     */
+    private function buildSharedLayoutInjection(array $sharedLayout, string $pageName): string
+    {
+        $cleanName = str_starts_with($pageName, 'custom:') ? substr($pageName, 7) : $pageName;
+        $cleanName = str_starts_with($cleanName, 'component:custom:') ? substr($cleanName, 17) : $cleanName;
+        $cleanName = str_starts_with($cleanName, 'component:') ? substr($cleanName, 10) : $cleanName;
+
+        $section = [];
+        $section[] = '=== SHARED LAYOUT COMPONENTS (USE VERBATIM) ===';
+        $section[] = '';
+        $section[] = '⚠️ CRITICAL: The following HTML snippets are PRE-GENERATED shared layout components.';
+        $section[] = 'You MUST copy them EXACTLY into your page output. DO NOT modify, restyle, or recreate them.';
+        $section[] = "The only change allowed is marking '{$cleanName}' as the active menu item.";
+        $section[] = '';
+
+        if (! empty($sharedLayout['head_styles'])) {
+            $section[] = 'LAYOUT CSS (include in <head> inside <style> tag):';
+            $section[] = $sharedLayout['head_styles'];
+            $section[] = '';
+        }
+
+        if (! empty($sharedLayout['sidebar'])) {
+            $section[] = 'SIDEBAR HTML (place inside <body>):';
+            $section[] = $sharedLayout['sidebar'];
+            $section[] = '';
+        }
+
+        if (! empty($sharedLayout['topbar'])) {
+            $section[] = 'TOPBAR HTML (place inside <body>):';
+            $section[] = $sharedLayout['topbar'];
+            $section[] = '';
+        }
+
+        if (! empty($sharedLayout['footer'])) {
+            $section[] = 'FOOTER HTML (place before closing </body>):';
+            $section[] = $sharedLayout['footer'];
+            $section[] = '';
+        }
+
+        if (! empty($sharedLayout['scripts'])) {
+            $section[] = 'LAYOUT SCRIPTS (include before closing </body>):';
+            $section[] = $sharedLayout['scripts'];
+            $section[] = '';
+        }
+
+        $section[] = 'PAGE STRUCTURE TEMPLATE:';
+        $section[] = 'Your output MUST follow this structure:';
+        $section[] = '<!DOCTYPE html>';
+        $section[] = '<html lang="en">';
+        $section[] = '<head>';
+        $section[] = '  (meta tags, title, CDN links)';
+        $section[] = '  <style>(LAYOUT CSS from above + page-specific styles)</style>';
+        $section[] = '</head>';
+        $section[] = "<body data-page=\"{$cleanName}\">";
+
+        if (! empty($sharedLayout['sidebar'])) {
+            $section[] = '  (SIDEBAR HTML from above — copied verbatim)';
+        }
+        if (! empty($sharedLayout['topbar'])) {
+            $section[] = '  (TOPBAR HTML from above — copied verbatim)';
+        }
+
+        $section[] = '  <main class="main-content">';
+        $section[] = '    (PAGE-SPECIFIC CONTENT — this is what YOU generate)';
+        $section[] = '  </main>';
+
+        if (! empty($sharedLayout['footer'])) {
+            $section[] = '  (FOOTER HTML from above — copied verbatim)';
+        }
+        if (! empty($sharedLayout['scripts'])) {
+            $section[] = '  <script>(LAYOUT SCRIPTS from above + page-specific scripts)</script>';
+        }
+
+        $section[] = '</body>';
+        $section[] = '</html>';
+
+        return implode("\n", $section);
     }
 
     /**
@@ -1176,7 +1465,10 @@ class McpPromptBuilder
 
             $section = array_merge($section, $this->getFrameworkImplementationGuidance($outputFormat, $frameworkConfig));
         } else {
-            $section[] = '- Use the Layout component wrapper';
+            $section[] = '- Generate a COMPLETE standalone HTML page with <!DOCTYPE html>';
+            $section[] = '- If shared layout components are provided below, COPY them EXACTLY into the page';
+            $section[] = '- DO NOT recreate or restyle the sidebar, navbar, or footer — use them verbatim';
+            $section[] = '- Only generate the main content area that is unique to this page';
             $section[] = '- Apply theme colors consistently';
             $section[] = '- Implement responsive design';
             $section[] = '- Include loading and error states where appropriate';

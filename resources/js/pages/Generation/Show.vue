@@ -85,6 +85,7 @@ const editTitleValue = ref('');
 const titleInput = ref<HTMLInputElement | null>(null);
 const selectedRefineModel = ref('satset');
 const userCredits = ref(props.userCredits);
+const isRetrying = ref(false);
 let msgId = 0;
 
 // Framework output state
@@ -139,6 +140,14 @@ const pageNames = computed(() => Object.keys(generationData.value.progress_data 
 
 const isCompleted = computed(() => generationData.value.status === 'completed');
 const isFailed = computed(() => generationData.value.status === 'failed');
+const hasFailedPages = computed(() =>
+  Object.values(generationData.value.progress_data || {}).some((p) => p.status === 'failed'),
+);
+const failedPageNames = computed(() =>
+  Object.entries(generationData.value.progress_data || {})
+    .filter(([, p]) => p.status === 'failed')
+    .map(([name]) => name),
+);
 
 const progressPercentage = computed(() => {
   if (!generationData.value.total_pages) return 0;
@@ -277,9 +286,27 @@ async function startStreamGeneration() {
         if (data.type === 'complete') {
           generationData.value.status = data.status;
           generationData.value.current_page_index = data.total_pages;
-          addMessage('system', currentLang.value === 'en'
-            ? '🎉 Generation complete! You can now refine your pages using commands below.'
-            : '🎉 Generasi selesai! Kamu bisa merevisi halaman menggunakan perintah di bawah.', 'status');
+
+          const currentFailed = Object.values(generationData.value.progress_data || {}).filter(
+            (p) => p.status === 'failed',
+          );
+
+          if (data.status === 'completed' && currentFailed.length === 0) {
+            addMessage('system', currentLang.value === 'en'
+              ? '🎉 Generation complete! You can now refine your pages using commands below.'
+              : '🎉 Generasi selesai! Kamu bisa merevisi halaman menggunakan perintah di bawah.', 'status');
+          } else if (currentFailed.length > 0) {
+            const failedNames = Object.entries(generationData.value.progress_data || {})
+              .filter(([, p]) => p.status === 'failed').map(([n]) => n);
+            addMessage('system', currentLang.value === 'en'
+              ? `⚠️ Generation finished with ${currentFailed.length} failed page(s): ${failedNames.join(', ')}. Use the Retry button to retry.`
+              : `⚠️ Generasi selesai dengan ${currentFailed.length} halaman gagal: ${failedNames.join(', ')}. Gunakan tombol Retry untuk mencoba ulang.`, 'error');
+          } else {
+            addMessage('system', currentLang.value === 'en'
+              ? '❌ Generation failed. Use the Retry button to try again.'
+              : '❌ Generasi gagal. Gunakan tombol Retry untuk mencoba lagi.', 'error');
+          }
+
           isGenerating.value = false;
           evtSource.close();
           // Reload to get full data
@@ -308,6 +335,42 @@ async function startStreamGeneration() {
   } catch (error) {
     isGenerating.value = false;
     addMessage('system', `Error: ${error}`, 'error');
+  }
+}
+
+// Retry failed pages
+async function retryFailedPages() {
+  if (isRetrying.value || isGenerating.value) return;
+  isRetrying.value = true;
+
+  const pages = failedPageNames.value;
+  addMessage('system', currentLang.value === 'en'
+    ? `🔄 Retrying failed pages: ${pages.join(', ')}...`
+    : `🔄 Mengulang halaman yang gagal: ${pages.join(', ')}...`, 'status');
+
+  try {
+    const response = await axios.post(`/generation/${generationData.value.id}/retry-failed`);
+
+    if (response.data.success) {
+      // Reset local state for failed pages
+      for (const pageName of pages) {
+        if (generationData.value.progress_data[pageName]) {
+          generationData.value.progress_data[pageName].status = 'pending';
+          generationData.value.progress_data[pageName].error = null;
+        }
+      }
+      generationData.value.status = 'generating';
+      generationData.value.current_page_index = response.data.retry_from_index;
+
+      // Restart SSE stream
+      startStreamGeneration();
+    } else {
+      addMessage('system', `❌ ${response.data.error}`, 'error');
+    }
+  } catch (error: any) {
+    addMessage('system', `❌ ${error.response?.data?.error || error.message}`, 'error');
+  } finally {
+    isRetrying.value = false;
   }
 }
 
@@ -482,10 +545,11 @@ onMounted(() => {  // Load stored refinement messages first
       if (firstPage) {
         selectedPage.value = firstPage;
       }
-    } else {
+    } else if (isFailed.value || hasFailedPages.value) {
+      const failed = failedPageNames.value;
       addMessage('system', currentLang.value === 'en'
-        ? '❌ Generation failed. Try generating again from the wizard.'
-        : '❌ Generasi gagal. Coba generate ulang dari wizard.', 'error');
+        ? `❌ ${failed.length > 0 ? `Page(s) failed: ${failed.join(', ')}. Use the Retry button to try again.` : 'Generation failed. Use the Retry button to try again.'}`
+        : `❌ ${failed.length > 0 ? `Halaman gagal: ${failed.join(', ')}. Gunakan tombol Retry untuk mencoba lagi.` : 'Generasi gagal. Gunakan tombol Retry untuk mencoba lagi.'}`, 'error');
     }
     updatePreview();
   }
@@ -645,6 +709,12 @@ onMounted(() => {  // Load stored refinement messages first
             {{ currentLang === 'en' ? 'Generating...' : 'Membuat...' }}
           </div>
 
+          <!-- Retrying indicator -->
+          <div v-if="isRetrying" class="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 px-3 py-2 bg-amber-100 dark:bg-amber-600/10 rounded-lg border border-amber-200 dark:border-amber-600/20">
+            <div class="w-3 h-3 border-2 border-amber-600 dark:border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+            {{ currentLang === 'en' ? 'Preparing retry...' : 'Mempersiapkan retry...' }}
+          </div>
+
           <!-- Refining indicator -->
           <div v-if="isRefining" class="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300 px-3 py-2 bg-purple-100 dark:bg-purple-600/10 rounded-lg border border-purple-200 dark:border-purple-600/20">
             <div class="w-3 h-3 border-2 border-purple-600 dark:border-purple-400 border-t-transparent rounded-full animate-spin"></div>
@@ -659,6 +729,27 @@ onMounted(() => {  // Load stored refinement messages first
             <span class="text-[10px] text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Targeting' : 'Target' }}:</span>
             <span class="text-[10px] px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-medium">{{ selectedPage }}</span>
           </div>
+          <!-- Retry Failed Pages Banner -->
+          <div v-if="hasFailedPages && !isGenerating && !isRetrying" class="mb-2 flex items-center justify-between px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-lg">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg class="w-3.5 h-3.5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span class="text-[10px] text-red-700 dark:text-red-300 truncate">
+                {{ currentLang === 'en' ? `Failed: ${failedPageNames.join(', ')}` : `Gagal: ${failedPageNames.join(', ')}` }}
+              </span>
+            </div>
+            <button
+              @click="retryFailedPages"
+              class="ml-2 flex-shrink-0 px-2.5 py-1 text-[10px] font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors flex items-center gap-1"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {{ currentLang === 'en' ? 'Retry' : 'Retry' }}
+            </button>
+          </div>
+
           <!-- Text input - larger -->
           <textarea
             v-model="commandInput"

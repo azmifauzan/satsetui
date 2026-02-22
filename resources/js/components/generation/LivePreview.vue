@@ -9,7 +9,7 @@
  * For frameworks (React/Vue/Svelte/Angular): sets up a server-side
  * workspace with npm install + vite dev server, then proxies via backend.
  */
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import { useI18n } from '@/lib/i18n';
 
@@ -41,6 +41,16 @@ const previewUrl = ref<string | null>(null);
 const previewError = ref<string | null>(null);
 const isSettingUp = ref(false);
 const statusPollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
+const logsPollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
+
+const terminalOpen = ref(true);
+const terminalLines = ref<string[]>([]);
+const terminalBodyRef = ref<HTMLElement | null>(null);
+const terminalStatus = ref<'none' | PreviewStatus>('none');
+const terminalProgress = ref(0);
+const terminalPhase = ref('idle');
+const terminalDetail = ref('');
+const lastLoggedStatus = ref<'none' | PreviewStatus>('none');
 
 // Whether this is a framework output (needs server-side preview)
 const isFramework = computed(() => {
@@ -64,12 +74,14 @@ async function setupPreview() {
   isSettingUp.value = true;
   previewError.value = null;
   previewStatus.value = 'creating';
+  appendTerminal(currentLang.value === 'en' ? 'Starting preview setup...' : 'Memulai setup preview...');
 
   try {
     const response = await axios.post(`/generation/${props.generationId}/preview/setup`);
     if (response.data.success) {
       previewUrl.value = response.data.preview_url || null;
       previewStatus.value = (response.data.status as PreviewStatus) || 'creating';
+      appendTerminal(`${currentLang.value === 'en' ? 'Setup response' : 'Respons setup'}: ${previewStatus.value}`);
 
       // If not yet running, poll for status
       if (previewStatus.value !== 'running') {
@@ -78,10 +90,12 @@ async function setupPreview() {
     } else {
       previewError.value = response.data.error || 'Setup failed';
       previewStatus.value = 'error';
+      appendTerminal(`ERROR: ${previewError.value}`);
     }
   } catch (error: any) {
     previewError.value = error.response?.data?.error || error.message || 'Setup failed';
     previewStatus.value = 'error';
+    appendTerminal(`ERROR: ${previewError.value}`);
   } finally {
     isSettingUp.value = false;
   }
@@ -92,10 +106,26 @@ async function stopPreview() {
     await axios.post(`/generation/${props.generationId}/preview/stop`);
     previewStatus.value = 'stopped';
     previewUrl.value = null;
+    appendTerminal(currentLang.value === 'en' ? 'Preview stopped.' : 'Preview dihentikan.');
     stopStatusPolling();
   } catch (error: any) {
     console.error('Stop preview error:', error);
+    appendTerminal(`ERROR: ${error.response?.data?.error || error.message || 'stop failed'}`);
   }
+}
+
+async function retryPreview() {
+  // Stop existing errored session first, then start fresh
+  previewStatus.value = 'idle';
+  previewError.value = null;
+  previewUrl.value = null;
+  try {
+    await axios.post(`/generation/${props.generationId}/preview/stop`);
+  } catch {
+    // Ignore stop errors — session may already be stopped
+  }
+  appendTerminal(currentLang.value === 'en' ? 'Retrying preview setup...' : 'Mencoba ulang setup preview...');
+  setupPreview();
 }
 
 function startStatusPolling() {
@@ -106,17 +136,99 @@ function startStatusPolling() {
       const status = response.data.status as PreviewStatus;
       previewStatus.value = status;
 
+      if (lastLoggedStatus.value !== status) {
+        appendTerminal(`${currentLang.value === 'en' ? 'Status changed' : 'Status berubah'}: ${status}`);
+        lastLoggedStatus.value = status;
+      }
+
       if (status === 'running') {
         previewUrl.value = response.data.preview_url || `/generation/${props.generationId}/preview/proxy`;
+        appendTerminal(`${currentLang.value === 'en' ? 'Preview proxy active at' : 'Proxy preview aktif di'} /generation/${props.generationId}/preview/proxy`);
         stopStatusPolling();
       } else if (status === 'error' || status === 'stopped') {
         previewError.value = response.data.error || null;
+        if (previewError.value) {
+          appendTerminal(`ERROR: ${previewError.value}`);
+        }
         stopStatusPolling();
       }
     } catch {
       // Ignore polling errors
     }
   }, 3000);
+}
+
+function appendTerminal(message: string) {
+  const timestamp = new Date().toLocaleTimeString('id-ID', { hour12: false });
+  terminalLines.value.push(`[${timestamp}] ${message}`);
+  if (terminalLines.value.length > 400) {
+    terminalLines.value = terminalLines.value.slice(-400);
+  }
+
+  nextTick(() => {
+    if (terminalBodyRef.value) {
+      terminalBodyRef.value.scrollTop = terminalBodyRef.value.scrollHeight;
+    }
+  });
+}
+
+function clearTerminal() {
+  terminalLines.value = [];
+}
+
+async function pollTerminalLogs() {
+  if (!isFramework.value) {
+    return;
+  }
+
+  try {
+    const response = await axios.get(`/generation/${props.generationId}/preview/logs`, {
+      params: { lines: 120 },
+    });
+
+    terminalStatus.value = (response.data.status || 'none') as 'none' | PreviewStatus;
+    terminalProgress.value = Number(response.data.progress_percentage || 0);
+    terminalPhase.value = String(response.data.phase || 'idle');
+    terminalDetail.value = String(response.data.progress_detail || '');
+    if (Array.isArray(response.data.lines)) {
+      terminalLines.value = response.data.lines as string[];
+      nextTick(() => {
+        if (terminalBodyRef.value) {
+          terminalBodyRef.value.scrollTop = terminalBodyRef.value.scrollHeight;
+        }
+      });
+    }
+  } catch {
+    // Keep current terminal logs, do not interrupt preview flow
+  }
+}
+
+const terminalPhaseLabel = computed(() => {
+  const isEn = currentLang.value === 'en';
+  switch (terminalPhase.value) {
+    case 'prewarming': return isEn ? 'Prewarming dependencies' : 'Memanaskan dependensi';
+    case 'workspace': return isEn ? 'Preparing workspace' : 'Menyiapkan workspace';
+    case 'installing': return isEn ? 'Installing dependencies' : 'Menginstal dependensi';
+    case 'booting': return isEn ? 'Booting dev server' : 'Menjalankan dev server';
+    case 'running': return isEn ? 'Running' : 'Berjalan';
+    case 'error': return isEn ? 'Error' : 'Error';
+    default: return isEn ? 'Waiting' : 'Menunggu';
+  }
+});
+
+function startLogsPolling() {
+  stopLogsPolling();
+  pollTerminalLogs();
+  logsPollingInterval.value = setInterval(() => {
+    pollTerminalLogs();
+  }, 2500);
+}
+
+function stopLogsPolling() {
+  if (logsPollingInterval.value) {
+    clearInterval(logsPollingInterval.value);
+    logsPollingInterval.value = null;
+  }
 }
 
 function stopStatusPolling() {
@@ -137,15 +249,30 @@ async function checkInitialStatus() {
     } else if (response.data.status === 'installing' || response.data.status === 'creating') {
       previewStatus.value = response.data.status as PreviewStatus;
       startStatusPolling();
+    } else if (response.data.status === 'idle' || response.data.status === 'none' || !response.data.status) {
+      // No active session — auto-start preview
+      setupPreview();
     }
   } catch {
-    // No active session
+    // No active session — auto-start preview
+    setupPreview();
   }
 }
+
+// Auto-start preview when generation completes (framework output)
+watch(() => props.isCompleted, (completed, wasCompleted) => {
+  if (completed && !wasCompleted && isFramework.value && previewStatus.value === 'idle') {
+    setupPreview();
+  }
+});
 
 // Auto-check status on mount
 if (isFramework.value && props.isCompleted) {
   checkInitialStatus();
+}
+
+if (isFramework.value) {
+  startLogsPolling();
 }
 
 // Computed iframe source for framework preview
@@ -198,9 +325,10 @@ const statusColor = computed(() => {
 // Cleanup on unmount
 onUnmounted(() => {
   stopStatusPolling();
+  stopLogsPolling();
 });
 
-defineExpose({ setupPreview, stopPreview, checkInitialStatus });
+defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
 </script>
 
 <template>
@@ -405,10 +533,14 @@ defineExpose({ setupPreview, stopPreview, checkInitialStatus });
           </h3>
           <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ previewError }}</p>
           <button
-            @click="setupPreview"
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+            @click="retryPreview"
+            :disabled="isSettingUp"
+            class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-2 mx-auto"
           >
-            {{ currentLang === 'en' ? 'Retry' : 'Coba Lagi' }}
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {{ currentLang === 'en' ? 'Retry Preview' : 'Coba Lagi' }}
           </button>
         </div>
       </div>
@@ -423,6 +555,54 @@ defineExpose({ setupPreview, stopPreview, checkInitialStatus });
           <p class="text-slate-500 dark:text-slate-500 text-sm">
             {{ currentLang === 'en' ? 'Preview will appear here' : 'Preview akan muncul di sini' }}
           </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini Terminal Panel (framework preview only) -->
+    <div v-if="isFramework" class="border-t border-slate-200 dark:border-slate-800 bg-slate-950 text-slate-100 flex-shrink-0">
+      <div class="px-3 py-1.5 bg-slate-900 border-b border-slate-800">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full" :class="terminalStatus === 'error' ? 'bg-red-500' : terminalStatus === 'running' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'"></div>
+            <span class="text-[11px] font-medium text-slate-300">
+              {{ currentLang === 'en' ? 'Preview Terminal' : 'Terminal Preview' }}
+            </span>
+            <span class="text-[10px] text-slate-400">• {{ terminalPhaseLabel }}</span>
+            <span v-if="terminalDetail" class="text-[10px] text-slate-500">- {{ terminalDetail }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-slate-300">{{ terminalProgress }}%</span>
+            <button
+              @click="clearTerminal"
+              class="px-2 py-0.5 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            >
+              {{ currentLang === 'en' ? 'Clear' : 'Bersihkan' }}
+            </button>
+            <button
+              @click="terminalOpen = !terminalOpen"
+              class="px-2 py-0.5 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+            >
+              {{ terminalOpen ? (currentLang === 'en' ? 'Hide' : 'Sembunyikan') : (currentLang === 'en' ? 'Show' : 'Tampilkan') }}
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-1 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+          <div
+            class="h-full rounded-full transition-all duration-300"
+            :class="terminalStatus === 'error' ? 'bg-red-500' : terminalStatus === 'running' ? 'bg-green-500' : 'bg-amber-500'"
+            :style="{ width: `${terminalProgress}%` }"
+          ></div>
+        </div>
+      </div>
+
+      <div v-show="terminalOpen" ref="terminalBodyRef" class="h-36 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-black/90">
+        <div v-if="terminalLines.length === 0" class="text-slate-500">
+          {{ currentLang === 'en' ? 'Waiting for preview logs...' : 'Menunggu log preview...' }}
+        </div>
+        <div v-for="(line, index) in terminalLines" :key="index" class="whitespace-pre-wrap break-words text-slate-300">
+          {{ line }}
         </div>
       </div>
     </div>

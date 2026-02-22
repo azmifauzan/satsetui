@@ -1268,6 +1268,17 @@ export function generateBlueprintJson(): Record<string, unknown> {
       customOutputFormat: wizardState.customOutputFormat,
     }),
 
+    // Framework configuration (only for JS framework outputs)
+    ...(isFrameworkOutput.value && {
+      frameworkConfig: {
+        language: wizardState.frameworkConfig.language,
+        styling: wizardState.frameworkConfig.styling,
+        router: wizardState.frameworkConfig.router,
+        stateManagement: wizardState.frameworkConfig.stateManagement,
+        buildTool: wizardState.frameworkConfig.buildTool,
+      },
+    }),
+
     // Project Information (for consistent branding across all pages)
     projectInfo: {
       ...(wizardState.projectInfo.companyName && { companyName: wizardState.projectInfo.companyName }),

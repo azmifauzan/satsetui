@@ -1,15 +1,53 @@
-# Development override — mounts source code and enables hot reload
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# ============================================================================
+# SatsetUI — Development Compose (standalone, batteries included)
+# ============================================================================
+# Usage:  docker compose -f docker-compose.dev.yml up --build
+#
+# Features:
+#  • Source code mounted as volume → PHP changes are live immediately
+#  • Vite dev server (port 5173) → Vue/TS HMR in the browser
+#  • PostgreSQL container on the 'postgre' network
+#  • vendor/ and node_modules/ stored in named volumes (persist between restarts)
+#  • Migrations run automatically on first start
+# ============================================================================
+
 services:
+  # --------------------------------------------------------------------------
+  # App — Laravel + Apache + Vite dev server
+  # --------------------------------------------------------------------------
   app:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    container_name: satsetui-app-dev
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:80"
+      - "5173:5173"       # Vite HMR
     volumes:
-      - ./:/var/www/html
-      - /var/www/html/vendor
-      - /var/www/html/node_modules
+      - ./.env.docker.dev:/var/www/html/.env:ro   # dev env
+      - ./:/var/www/html                           # live source code
+      - vendor_cache:/var/www/html/vendor          # composer cache (persisted)
+      - node_modules_cache:/var/www/html/node_modules  # npm cache (persisted)
     environment:
       - APP_ENV=local
       - APP_DEBUG=true
-      - CACHE_STORE=database
+      - RUNNING_IN_DOCKER=true
+      - RUN_MIGRATIONS=${RUN_MIGRATIONS:-true}
+      - RUN_SEEDERS=${RUN_SEEDERS:-false}
+    networks:
+      - postgre
+
+# --------------------------------------------------------------------------
+# Volumes
+# --------------------------------------------------------------------------
+volumes:
+  vendor_cache:
+  node_modules_cache:
+
+# --------------------------------------------------------------------------
+# Networks
+# --------------------------------------------------------------------------
+networks:
+  postgre:
+    external: true

@@ -87,7 +87,7 @@ async function handleGenerate() {
         isGenerating.value = false;
         return;
       }
-      errorMessage = error.response?.data?.error || `Server error: ${error.response?.status}`;
+      errorMessage = error.response?.data?.error || error.response?.data?.message || `Server error: ${error.response?.status ?? 'unknown'}`;
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }

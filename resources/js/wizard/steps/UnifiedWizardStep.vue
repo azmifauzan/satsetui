@@ -228,12 +228,12 @@ const selectFont = (fontId: string) => {
 
 // Watch category-specific inputs -> projectInfo & customInstructions (expert mode only)
 watch([companyName, companyDescription, appName, storeName, storeDescription, useCustomStyle, customStyleName, useCustomFont, customFontName], () => {
-  if (isSatset.value) return;
-
   if (wizardState.category === 'company-profile') {
     wizardState.projectInfo.companyName = companyName.value.trim();
     wizardState.projectInfo.companyDescription = companyDescription.value.trim();
-  } else if (wizardState.category === 'e-commerce') {
+  }
+
+  if (wizardState.category === 'e-commerce') {
     wizardState.projectInfo.storeName = storeName.value.trim();
     wizardState.projectInfo.storeDescription = storeDescription.value.trim();
   } else if (wizardState.category === 'mobile-apps') {
@@ -246,7 +246,9 @@ watch([companyName, companyDescription, appName, storeName, storeDescription, us
   if (wizardState.category === 'company-profile') {
     if (companyName.value) contextInfo += `Company Name: ${companyName.value}. `;
     if (companyDescription.value) contextInfo += `Company Info: ${companyDescription.value}. `;
-  } else if (wizardState.category === 'e-commerce') {
+  }
+
+  if (wizardState.category === 'e-commerce') {
     if (storeName.value) contextInfo += `Store Name: ${storeName.value}. `;
     if (storeDescription.value) contextInfo += `Store Description: ${storeDescription.value}. `;
   } else if (wizardState.category === 'mobile-apps') {
@@ -254,11 +256,13 @@ watch([companyName, companyDescription, appName, storeName, storeDescription, us
   } else if (wizardState.category === 'dashboard') {
     if (appName.value) contextInfo += `Dashboard Name: ${appName.value}. `;
   }
-  if (useCustomStyle.value && customStyleName.value.trim()) {
-    contextInfo += `Custom Style: ${customStyleName.value}. `;
-  }
-  if (useCustomFont.value && customFontName.value.trim()) {
-    contextInfo += `Custom Font: ${customFontName.value}. `;
+  if (isExpert.value) {
+    if (useCustomStyle.value && customStyleName.value.trim()) {
+      contextInfo += `Custom Style: ${customStyleName.value}. `;
+    }
+    if (useCustomFont.value && customFontName.value.trim()) {
+      contextInfo += `Custom Font: ${customFontName.value}. `;
+    }
   }
   const baseInstructions = wizardState.customInstructions.replace(/\[AUTO_CONTEXT\].*?\[\/AUTO_CONTEXT\]/g, '').trim();
   wizardState.customInstructions = contextInfo ? `[AUTO_CONTEXT]${contextInfo}[/AUTO_CONTEXT] ${baseInstructions}` : baseInstructions;
@@ -498,6 +502,33 @@ const satsetSummaryDefaults = computed(() => {
         </button>
       </div>
 
+      <!-- ===== Important category-specific input (Satset + Expert) ===== -->
+      <div v-if="wizardState.category === 'company-profile'" class="mt-5 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
+            {{ currentLang === 'en' ? 'Company Information' : 'Informasi Perusahaan' }}
+          </h3>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Company Name' : 'Nama Perusahaan' }}
+              </label>
+              <input v-model="companyName" type="text" :placeholder="currentLang === 'en' ? 'e.g. Acme Corp' : 'contoh: PT Maju Jaya'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Brief Description' : 'Deskripsi Singkat' }}
+              </label>
+              <textarea
+                v-model="companyDescription"
+                rows="3"
+                :placeholder="currentLang === 'en' ? 'e.g. Technology consulting firm' : 'contoh: Perusahaan konsultan teknologi'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              ></textarea>
+            </div>
+          </div>
+      </div>
+
       <!-- ===== SATSET MODE: Summary card of what will be generated ===== -->
       <div v-if="isSatset && wizardState.category" class="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-5 border border-blue-200 dark:border-blue-800">
         <h3 class="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
@@ -555,31 +586,8 @@ const satsetSummaryDefaults = computed(() => {
         </p>
       </div>
 
-      <!-- ===== EXPERT MODE: Category-Specific Inputs ===== -->
-      <template v-if="isExpert">
-        <div v-if="wizardState.category === 'company-profile'" class="mt-5 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
-          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
-            {{ currentLang === 'en' ? 'Company Information' : 'Informasi Perusahaan' }}
-          </h3>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {{ currentLang === 'en' ? 'Company Name' : 'Nama Perusahaan' }}
-              </label>
-              <input v-model="companyName" type="text" :placeholder="currentLang === 'en' ? 'e.g. Acme Corp' : 'contoh: PT Maju Jaya'"
-                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {{ currentLang === 'en' ? 'Brief Description' : 'Deskripsi Singkat' }}
-              </label>
-              <input v-model="companyDescription" type="text" :placeholder="currentLang === 'en' ? 'e.g. Technology consulting firm' : 'contoh: Perusahaan konsultan teknologi'"
-                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-          </div>
-        </div>
-
-        <div v-if="wizardState.category === 'e-commerce'" class="mt-5 bg-green-50 dark:bg-green-900/10 rounded-xl p-5 border border-green-200 dark:border-green-800">
+      <!-- ===== Category-Specific Inputs (Satset + Expert) ===== -->
+      <div v-if="wizardState.category === 'e-commerce'" class="mt-5 bg-green-50 dark:bg-green-900/10 rounded-xl p-5 border border-green-200 dark:border-green-800">
           <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
             {{ currentLang === 'en' ? 'Store Information' : 'Informasi Toko' }}
           </h3>
@@ -599,9 +607,9 @@ const satsetSummaryDefaults = computed(() => {
                 class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
           </div>
-        </div>
+      </div>
 
-        <div v-if="wizardState.category === 'mobile-apps' || wizardState.category === 'dashboard'" class="mt-5 bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-5 border border-cyan-200 dark:border-cyan-800">
+      <div v-if="wizardState.category === 'mobile-apps' || wizardState.category === 'dashboard'" class="mt-5 bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-5 border border-cyan-200 dark:border-cyan-800">
           <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
             {{ wizardState.category === 'dashboard' 
               ? (currentLang === 'en' ? 'Dashboard Information' : 'Informasi Dashboard')
@@ -614,8 +622,10 @@ const satsetSummaryDefaults = computed(() => {
             <input v-model="appName" type="text" :placeholder="currentLang === 'en' ? 'e.g. MyApp' : 'contoh: AplikasiKu'"
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent max-w-md" />
           </div>
-        </div>
+      </div>
 
+      <!-- ===== EXPERT MODE: Advanced Inputs ===== -->
+      <template v-if="isExpert">
         <!-- Pages Selection (Expert mode) -->
         <div class="mt-6 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
           <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm uppercase tracking-wide">

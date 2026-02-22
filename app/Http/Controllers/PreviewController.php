@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Generation;
+use App\Models\PreviewSession;
 use App\Services\WorkspaceService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -10,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /**
  * Preview Controller
@@ -65,19 +67,187 @@ class PreviewController extends Controller
             ]);
         }
 
+        $previewUrl = $session->preview_port
+            ? "/generation/{$generation->id}/preview/proxy"
+            : null;
+
         return response()->json([
             'success' => true,
             'session_id' => $session->id,
             'status' => $session->status,
             'preview_type' => $session->preview_type,
             'port' => $session->preview_port,
-            'url' => $session->preview_port
-                ? "http://localhost:{$session->preview_port}"
-                : null,
+            'url' => $previewUrl,
+            'preview_url' => $previewUrl,
             'error' => $session->error_message,
             'started_at' => $session->started_at?->toISOString(),
             'last_activity' => $session->last_activity_at?->toISOString(),
         ]);
+    }
+
+    /**
+     * Get lightweight terminal logs for preview progress.
+     */
+    public function logs(Generation $generation, Request $request): JsonResponse
+    {
+        $this->authorize('view', $generation);
+
+        $maxLines = max(20, min(200, (int) $request->integer('lines', 80)));
+        $lines = [];
+
+        $session = $generation->previewSessions()
+            ->latest()
+            ->first();
+
+        $lines[] = sprintf(
+            '[%s] Generation status: %s (%d/%d)',
+            now()->format('H:i:s'),
+            $generation->current_status ?? $generation->status,
+            (int) $generation->current_page_index,
+            (int) $generation->total_pages
+        );
+
+        if ($session) {
+            $lines[] = sprintf(
+                '[%s] Preview session: %s%s',
+                now()->format('H:i:s'),
+                $session->status,
+                $session->preview_port ? " on :{$session->preview_port}" : ''
+            );
+
+            if ($session->error_message) {
+                $lines[] = sprintf('[%s] ERROR: %s', now()->format('H:i:s'), $session->error_message);
+            }
+        }
+
+        $prewarmLog = storage_path("logs/preview-prewarm-{$generation->id}.log");
+        if (File::exists($prewarmLog)) {
+            $lines = array_merge($lines, $this->tailLines($prewarmLog, (int) floor($maxLines / 2)));
+        }
+
+        if ($session?->preview_port) {
+            $runtimeLog = "/tmp/preview-{$session->preview_port}.log";
+            if (File::exists($runtimeLog)) {
+                $runtimeLines = $this->tailLines($runtimeLog, (int) floor($maxLines / 2));
+                foreach ($runtimeLines as $runtimeLine) {
+                    $lines[] = '[vite] '.$runtimeLine;
+                }
+            }
+        }
+
+        $lines = array_values(array_filter(array_map(static fn ($line) => trim($line), $lines), static fn ($line) => $line !== ''));
+        $lines = array_slice($lines, -$maxLines);
+        $progress = $this->resolveProgress($session?->status ?? 'none', $lines);
+
+        return response()->json([
+            'success' => true,
+            'status' => $session?->status ?? 'none',
+            'lines' => $lines,
+            'phase' => $progress['phase'],
+            'progress_percentage' => $progress['percentage'],
+            'progress_detail' => $progress['detail'],
+        ]);
+    }
+
+    /**
+     * Read the last N lines of a file.
+     *
+     * @return array<int, string>
+     */
+    private function tailLines(string $filePath, int $maxLines): array
+    {
+        $content = File::get($filePath);
+        $all = preg_split('/\r\n|\r|\n/', $content) ?: [];
+
+        return array_slice(array_values(array_filter(array_map(static fn ($line) => Str::limit(trim($line), 500, '...'), $all), static fn ($line) => $line !== '')), -$maxLines);
+    }
+
+    /**
+     * Estimate setup progress for terminal UI from session status + log milestones.
+     *
+     * @param  array<int, string>  $lines
+     * @return array{phase: string, percentage: int, detail: string}
+     */
+    private function resolveProgress(string $status, array $lines): array
+    {
+        $phase = $status;
+        $detail = 'Waiting';
+
+        $percentage = match ($status) {
+            'creating' => 15,
+            'installing' => 45,
+            'running' => 100,
+            'stopped' => 100,
+            'error' => 0,
+            default => 5,
+        };
+
+        $joined = strtolower(implode("\n", $lines));
+
+        if (str_contains($joined, 'starting parallel dependency prewarm')) {
+            $percentage = max($percentage, 20);
+            $phase = 'prewarming';
+            $detail = 'Starting dependency prewarm';
+        }
+        if (str_contains($joined, 'workspace ready')) {
+            $percentage = max($percentage, 35);
+            $phase = 'workspace';
+            $detail = 'Workspace prepared';
+        }
+        if (str_contains($joined, 'install dependencies') || str_contains($joined, 'installing dependencies')) {
+            $percentage = max($percentage, 60);
+            $phase = 'installing';
+            $detail = 'Installing npm dependencies';
+        }
+        if (str_contains($joined, '[install] starting npm install')) {
+            $percentage = max($percentage, 62);
+            $phase = 'installing';
+            $detail = 'npm install started';
+        }
+        if (str_contains($joined, 'added ') && str_contains($joined, 'packages in')) {
+            $percentage = max($percentage, 74);
+            $phase = 'installing';
+            $detail = 'Packages added';
+        }
+        if (str_contains($joined, 'up to date in')) {
+            $percentage = max($percentage, 80);
+            $phase = 'installing';
+            $detail = 'Dependencies already up to date';
+        }
+        if (str_contains($joined, 'audited ') && str_contains($joined, 'packages')) {
+            $percentage = max($percentage, 83);
+            $phase = 'installing';
+            $detail = 'Dependency audit done';
+        }
+        if (str_contains($joined, 'dependencies installed successfully')) {
+            $percentage = max($percentage, 85);
+            $phase = 'booting';
+            $detail = 'Dependencies installed';
+        }
+        if (str_contains($joined, '[install] npm install completed')) {
+            $percentage = max($percentage, 88);
+            $phase = 'booting';
+            $detail = 'npm install completed';
+        }
+        if (str_contains($joined, 'dev server started') || str_contains($joined, 'ready in') || str_contains($joined, 'local:')) {
+            $percentage = max($percentage, 95);
+            $phase = 'booting';
+            $detail = 'Dev server is booting';
+        }
+        if ($status === 'running') {
+            $percentage = 100;
+            $phase = 'running';
+            $detail = 'Preview ready';
+        }
+        if ($status === 'error') {
+            $detail = 'Failed to start preview';
+        }
+
+        return [
+            'phase' => $phase,
+            'percentage' => max(0, min(100, $percentage)),
+            'detail' => $detail,
+        ];
     }
 
     /**
@@ -145,7 +315,7 @@ class PreviewController extends Controller
         $this->authorize('view', $generation);
 
         $session = $generation->previewSessions()
-            ->where('status', 'running')
+            ->whereIn('status', ['running', 'creating', 'installing', 'error'])
             ->latest()
             ->first();
 
@@ -156,7 +326,14 @@ class PreviewController extends Controller
             ]);
         }
 
-        $this->workspaceService->stopDevServer($session);
+        if ($session->status === 'running') {
+            $this->workspaceService->stopDevServer($session);
+        } else {
+            $session->update([
+                'status' => PreviewSession::STATUS_STOPPED,
+                'stopped_at' => now(),
+            ]);
+        }
 
         return response()->json([
             'success' => true,

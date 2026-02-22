@@ -13,7 +13,7 @@ use Inertia\Inertia;
 class GenerationController extends Controller
 {
     use AuthorizesRequests;
-    
+
     protected GenerationService $generationService;
 
     public function __construct(GenerationService $generationService)
@@ -33,7 +33,7 @@ class GenerationController extends Controller
         ]);
 
         $user = Auth::user();
-        
+
         try {
             $result = $this->generationService->startGeneration(
                 $validated['blueprint'],
@@ -42,10 +42,10 @@ class GenerationController extends Controller
                 $validated['project_name'] ?? null
             );
 
-            if (!$result['success']) {
+            if (! $result['success']) {
                 return response()->json([
                     'success' => false,
-                    'error' => $result['error'] ?? 'Failed to start generation'
+                    'error' => $result['error'] ?? 'Failed to start generation',
                 ], 400);
             }
 
@@ -61,7 +61,7 @@ class GenerationController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'error' => 'An error occurred: ' . $e->getMessage()
+                'error' => 'An error occurred: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -75,7 +75,7 @@ class GenerationController extends Controller
 
         try {
             $result = $this->generationService->generateNextPage($generation);
-            
+
             return response()->json($result);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
@@ -83,35 +83,88 @@ class GenerationController extends Controller
                 'generation_id' => $generation->id,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'error' => 'Unable to connect to LLM service. Please check your API configuration.',
             ], 503);
-            
+
         } catch (\Illuminate\Http\Client\RequestException $e) {
             \Log::error('Generation request error', [
                 'generation_id' => $generation->id,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
-                'error' => 'LLM request failed: ' . ($e->response?->body() ?? $e->getMessage()),
+                'error' => 'LLM request failed: '.($e->response?->body() ?? $e->getMessage()),
             ], 500);
-            
+
         } catch (\Exception $e) {
             \Log::error('Generation exception', [
                 'generation_id' => $generation->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
-                'error' => 'An error occurred during generation: ' . $e->getMessage(),
+                'error' => 'An error occurred during generation: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Retry failed pages — resets failed pages to pending and restarts from first failure
+     */
+    public function retryFailedPages(Generation $generation)
+    {
+        $this->authorize('view', $generation);
+
+        $progressData = $generation->progress_data;
+        $pages = array_keys($progressData);
+        $firstFailedIndex = null;
+        $failedPageNames = [];
+
+        foreach ($pages as $index => $pageName) {
+            if (($progressData[$pageName]['status'] ?? '') === 'failed') {
+                if ($firstFailedIndex === null) {
+                    $firstFailedIndex = $index;
+                }
+                $failedPageNames[] = $pageName;
+                $progressData[$pageName]['status'] = 'pending';
+                $progressData[$pageName]['error'] = null;
+            }
+        }
+
+        if ($firstFailedIndex === null) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No failed pages found to retry.',
+            ], 400);
+        }
+
+        \Log::info("Retrying {$generation->id} failed pages", [
+            'failed_pages' => $failedPageNames,
+            'restarting_from_index' => $firstFailedIndex,
+        ]);
+
+        $generation->update([
+            'progress_data' => $progressData,
+            'status' => 'generating',
+            'current_status' => 'Retrying failed pages...',
+            'current_page_index' => $firstFailedIndex,
+            'error_message' => null,
+            'completed_at' => null,
+        ]);
+
+        $generation->project->update(['status' => 'generating']);
+
+        return response()->json([
+            'success' => true,
+            'failed_pages' => $failedPageNames,
+            'retry_from_index' => $firstFailedIndex,
+        ]);
     }
 
     /**
@@ -138,7 +191,7 @@ class GenerationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to queue background generation: ' . $e->getMessage(),
+                'error' => 'Failed to queue background generation: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -182,7 +235,7 @@ class GenerationController extends Controller
                 $validated['model'] ?? $generation->model_used
             );
 
-            if (!$result['success']) {
+            if (! $result['success']) {
                 return response()->json($result, 400);
             }
 
@@ -224,18 +277,18 @@ class GenerationController extends Controller
             while ($generation->current_page_index < $generation->total_pages) {
                 $currentIndex = $generation->current_page_index;
                 $currentPage = $pages[$currentIndex] ?? null;
-                if (!$currentPage) {
+                if (! $currentPage) {
                     break;
                 }
 
                 // Send status update
-                echo "data: " . json_encode([
+                echo 'data: '.json_encode([
                     'type' => 'status',
                     'page' => $currentPage,
                     'index' => $currentIndex,
                     'total' => $generation->total_pages,
                     'message' => "Generating {$currentPage}...",
-                ]) . "\n\n";
+                ])."\n\n";
 
                 if (connection_aborted()) {
                     break;
@@ -251,20 +304,20 @@ class GenerationController extends Controller
                         // Get page content from progress_data
                         $pageContent = $generation->progress_data[$currentPage]['content'] ?? '';
 
-                        echo "data: " . json_encode([
+                        echo 'data: '.json_encode([
                             'type' => 'page_complete',
                             'page' => $currentPage,
                             'content' => $pageContent,
                             'index' => $currentIndex + 1,
                             'total' => $generation->total_pages,
                             'completed' => $result['completed'] ?? false,
-                        ]) . "\n\n";
+                        ])."\n\n";
                     } else {
-                        echo "data: " . json_encode([
+                        echo 'data: '.json_encode([
                             'type' => 'page_error',
                             'page' => $currentPage,
                             'error' => $result['error'] ?? 'Unknown error',
-                        ]) . "\n\n";
+                        ])."\n\n";
                         break;
                     }
 
@@ -274,10 +327,10 @@ class GenerationController extends Controller
                         break;
                     }
                 } catch (\Exception $e) {
-                    echo "data: " . json_encode([
+                    echo 'data: '.json_encode([
                         'type' => 'error',
                         'message' => $e->getMessage(),
-                    ]) . "\n\n";
+                    ])."\n\n";
                     flush();
                     break;
                 }
@@ -285,11 +338,11 @@ class GenerationController extends Controller
 
             // Send final complete event
             $generation->refresh();
-            echo "data: " . json_encode([
+            echo 'data: '.json_encode([
                 'type' => 'complete',
                 'status' => $generation->status,
                 'total_pages' => $generation->total_pages,
-            ]) . "\n\n";
+            ])."\n\n";
             flush();
 
         }, 200, [

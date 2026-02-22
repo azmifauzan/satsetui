@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Jobs\PrepareWorkspaceDependencies;
 use App\Models\Generation;
 use App\Models\GenerationFile;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Generation Service
@@ -113,6 +115,35 @@ class GenerationService
                     $theme,
                     $layout
                 );
+
+                // Ask AI once at the beginning to define all dependencies
+                // needed across all pages, then merge into scaffold package.json.
+                $dependencyManifest = $this->discoverDependenciesForAllPages(
+                    $blueprint,
+                    $pages,
+                    $modelType
+                );
+
+                if (! empty($dependencyManifest['dependencies']) || ! empty($dependencyManifest['devDependencies'])) {
+                    $this->mergeDependenciesIntoScaffoldPackageJson($generation, $dependencyManifest);
+                }
+
+                // Store manifest for observability/debugging
+                $generation->update([
+                    'mcp_prompt' => json_encode([
+                        'dependency_manifest' => $dependencyManifest,
+                    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                ]);
+
+                // Parallel mechanism: prewarm workspace dependency installation in queue
+                // while page generation continues in foreground/stream.
+                DB::afterCommit(function () use ($generation): void {
+                    PrepareWorkspaceDependencies::dispatch($generation->id);
+                });
+            } else {
+                // HTML+CSS output: pre-generate shared layout components
+                // This ensures sidebar/navbar/footer are identical across all pages
+                $this->generateSharedLayout($generation, $blueprint, $modelType);
             }
 
             DB::commit();
@@ -173,7 +204,12 @@ class GenerationService
             $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
             $isFramework = $this->scaffoldGenerator->requiresScaffold($outputFormat);
 
-            $mcpPrompt = $this->mcpPromptBuilder->buildForPage($blueprint, $currentPage, $currentIndex);
+            $mcpPrompt = $this->mcpPromptBuilder->buildForPage(
+                $blueprint,
+                $currentPage,
+                $currentIndex,
+                $isFramework ? [] : $this->getSharedLayout($generation)
+            );
 
             // Add context from previously generated pages
             $previousContext = $this->buildPreviousPageContext($generation, $currentIndex);
@@ -228,20 +264,30 @@ class GenerationService
             $processingTime = (int) ((microtime(true) - $startTime) * 1000);
 
             if (! $result['success']) {
-                // Check if error is timeout (524) and should retry
-                $isTimeoutError = str_contains($result['error'], '524') ||
-                                  str_contains(strtolower($result['error']), 'timeout');
+                // Determine if error is retriable (transient server-side errors)
+                $errorStr = $result['error'] ?? '';
+                $errorLower = strtolower($errorStr);
+                $isRetriableError = str_contains($errorStr, '524') ||
+                                    str_contains($errorStr, '503') ||
+                                    str_contains($errorStr, '429') ||
+                                    str_contains($errorStr, '500') ||
+                                    str_contains($errorLower, 'timeout') ||
+                                    str_contains($errorLower, 'high demand') ||
+                                    str_contains($errorLower, 'unavailable') ||
+                                    str_contains($errorLower, 'overloaded') ||
+                                    str_contains($errorLower, 'rate limit') ||
+                                    str_contains($errorLower, 'try again');
 
-                if ($isTimeoutError && $retryCount < $maxRetries) {
+                if ($isRetriableError && $retryCount < $maxRetries) {
                     // Log retry attempt
                     \Illuminate\Support\Facades\Log::info("Retrying generation for page '{$currentPage}' (attempt ".($retryCount + 1)."/{$maxRetries})", [
                         'generation_id' => $generation->id,
                         'page' => $currentPage,
-                        'error' => $result['error'],
+                        'error' => $errorStr,
                     ]);
 
-                    // Wait a bit before retry (exponential backoff)
-                    sleep(pow(2, $retryCount)); // 1s, 2s, 4s
+                    // Wait before retry with exponential backoff (2s, 4s, 8s)
+                    sleep(pow(2, $retryCount + 1));
 
                     // Retry the generation
                     return $this->generateNextPage($generation, $retryCount + 1);
@@ -400,7 +446,7 @@ class GenerationService
             $generation->project->update(['status' => 'failed']);
 
             // Refund credits if premium model
-            $model = $this->llmService->getModel($generation->model_used);
+            $model = $this->llmService->getModelByType($generation->model_used);
             if ($model && ! $model->is_free && $generation->credits_used > 0) {
                 $this->creditService->refund(
                     $generation->user,
@@ -569,6 +615,84 @@ class GenerationService
     }
 
     /**
+     * Pre-generate shared layout components for HTML+CSS output
+     *
+     * Makes one LLM call to generate sidebar/navbar/footer HTML that will be
+     * injected verbatim into every page's MCP prompt, ensuring 100% visual
+     * consistency across all generated pages.
+     *
+     * The layout is stored in the Generation's mcp_prompt field as JSON.
+     */
+    private function generateSharedLayout(Generation $generation, array $blueprint, string $modelType): void
+    {
+        try {
+            $generation->update([
+                'current_status' => 'Generating shared layout components...',
+            ]);
+
+            $layoutPrompt = $this->mcpPromptBuilder->buildLayoutGenerationPrompt($blueprint);
+
+            $result = $this->llmService->generateTemplate($layoutPrompt, $modelType);
+
+            if (! $result['success']) {
+                Log::warning('Failed to generate shared layout, pages will generate independently', [
+                    'generation_id' => $generation->id,
+                    'error' => $result['error'] ?? 'Unknown error',
+                ]);
+
+                return;
+            }
+
+            $layoutComponents = $this->mcpPromptBuilder->parseLayoutComponents($result['content']);
+
+            // Verify we got meaningful components (at least one nav + footer)
+            $hasNav = ! empty($layoutComponents['sidebar']) || ! empty($layoutComponents['topbar']);
+            $hasFooter = ! empty($layoutComponents['footer']);
+
+            if (! $hasNav && ! $hasFooter) {
+                Log::warning('Shared layout generation returned empty components, pages will generate independently', [
+                    'generation_id' => $generation->id,
+                ]);
+
+                return;
+            }
+
+            // Store layout components in mcp_prompt field as JSON for retrieval during page generation
+            $existingPromptData = json_decode($generation->mcp_prompt ?: '{}', true) ?: [];
+            $existingPromptData['shared_layout'] = $layoutComponents;
+
+            $generation->update([
+                'mcp_prompt' => json_encode($existingPromptData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            ]);
+
+            Log::info('Shared layout components generated successfully', [
+                'generation_id' => $generation->id,
+                'has_sidebar' => ! empty($layoutComponents['sidebar']),
+                'has_topbar' => ! empty($layoutComponents['topbar']),
+                'has_footer' => ! empty($layoutComponents['footer']),
+            ]);
+        } catch (\Exception $e) {
+            // Non-fatal: if layout generation fails, pages will still generate independently
+            Log::warning('Exception during shared layout generation', [
+                'generation_id' => $generation->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Retrieve shared layout components from a Generation record
+     *
+     * @return array Layout components array or empty array if not available
+     */
+    private function getSharedLayout(Generation $generation): array
+    {
+        $promptData = json_decode($generation->mcp_prompt ?: '{}', true);
+
+        return $promptData['shared_layout'] ?? [];
+    }
+
+    /**
      * Initialize progress data structure
      */
     private function initializeProgressData(array $pages): array
@@ -730,5 +854,133 @@ class GenerationService
 
         // Default fallback
         return 'unknown';
+    }
+
+    /**
+     * Ask AI once to determine consolidated dependencies for all pages.
+     *
+     * @return array{dependencies: array<string, string>, devDependencies: array<string, string>}
+     */
+    private function discoverDependenciesForAllPages(array $blueprint, array $pages, string $modelType): array
+    {
+        $outputFormat = $blueprint['outputFormat'] ?? 'html-css';
+        $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
+        $components = $blueprint['components'] ?? [];
+
+        $prompt = "DEPENDENCY MANIFEST TASK\n";
+        $prompt .= "You are preparing a single package.json dependency manifest for a {$outputFormat} project.\n";
+        $prompt .= 'Framework config: '.json_encode($frameworkConfig, JSON_UNESCAPED_SLASHES)."\n";
+        $prompt .= 'Pages: '.json_encode(array_values($pages), JSON_UNESCAPED_SLASHES)."\n";
+        $prompt .= 'Components/features: '.json_encode($components, JSON_UNESCAPED_SLASHES)."\n\n";
+        $prompt .= "Rules:\n";
+        $prompt .= "1) Return ONLY valid JSON object (no markdown).\n";
+        $prompt .= "2) Shape must be exactly: {\"dependencies\":{},\"devDependencies\":{}}\n";
+        $prompt .= "3) Include ONLY npm package names as keys and semver ranges as values.\n";
+        $prompt .= "4) Do not include duplicate or unnecessary packages.\n";
+        $prompt .= "5) Keep it deterministic and minimal.\n";
+
+        $result = $this->llmService->generateTemplate($prompt, $modelType);
+        if (! ($result['success'] ?? false)) {
+            Log::warning('Dependency discovery failed; using scaffold defaults', [
+                'error' => $result['error'] ?? 'unknown',
+            ]);
+
+            return [
+                'dependencies' => [],
+                'devDependencies' => [],
+            ];
+        }
+
+        $decoded = $this->extractDependencyManifest((string) ($result['content'] ?? ''));
+
+        return [
+            'dependencies' => $decoded['dependencies'] ?? [],
+            'devDependencies' => $decoded['devDependencies'] ?? [],
+        ];
+    }
+
+    /**
+     * Parse JSON manifest from AI output safely.
+     *
+     * @return array{dependencies: array<string, string>, devDependencies: array<string, string>}
+     */
+    private function extractDependencyManifest(string $content): array
+    {
+        $raw = trim($content);
+
+        if (preg_match('/\{.*\}/s', $raw, $matches)) {
+            $raw = $matches[0];
+        }
+
+        $parsed = json_decode($raw, true);
+        if (! is_array($parsed)) {
+            return [
+                'dependencies' => [],
+                'devDependencies' => [],
+            ];
+        }
+
+        $dependencies = [];
+        $devDependencies = [];
+
+        foreach (($parsed['dependencies'] ?? []) as $name => $version) {
+            if (is_string($name) && is_string($version) && $name !== '' && $version !== '') {
+                $dependencies[$name] = $version;
+            }
+        }
+
+        foreach (($parsed['devDependencies'] ?? []) as $name => $version) {
+            if (is_string($name) && is_string($version) && $name !== '' && $version !== '') {
+                $devDependencies[$name] = $version;
+            }
+        }
+
+        ksort($dependencies);
+        ksort($devDependencies);
+
+        return [
+            'dependencies' => $dependencies,
+            'devDependencies' => $devDependencies,
+        ];
+    }
+
+    /**
+     * Merge discovered dependencies into scaffold package.json file.
+     *
+     * @param  array{dependencies: array<string, string>, devDependencies: array<string, string>}  $manifest
+     */
+    private function mergeDependenciesIntoScaffoldPackageJson(Generation $generation, array $manifest): void
+    {
+        /** @var GenerationFile|null $packageFile */
+        $packageFile = $generation->generationFiles()
+            ->where('is_scaffold', true)
+            ->where('file_path', 'package.json')
+            ->first();
+
+        if (! $packageFile) {
+            return;
+        }
+
+        $package = json_decode($packageFile->file_content, true);
+        if (! is_array($package)) {
+            return;
+        }
+
+        $package['dependencies'] = array_merge(
+            $package['dependencies'] ?? [],
+            $manifest['dependencies'] ?? []
+        );
+
+        $package['devDependencies'] = array_merge(
+            $package['devDependencies'] ?? [],
+            $manifest['devDependencies'] ?? []
+        );
+
+        ksort($package['dependencies']);
+        ksort($package['devDependencies']);
+
+        $packageFile->update([
+            'file_content' => json_encode($package, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        ]);
     }
 }

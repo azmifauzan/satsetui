@@ -79,9 +79,14 @@ max_execution_time = 300\n\
 
 WORKDIR /var/www/html
 
-# ---------- Supervisor (Apache + Queue Worker) ----------
+# ---------- Supervisor configs ----------
 COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/supervisor/supervisord.dev.conf /etc/supervisor/conf.d/supervisord.dev.conf
 
-EXPOSE 80
+# ---------- Dev entrypoint ----------
+COPY docker/entrypoint.dev.sh /usr/local/bin/entrypoint.dev.sh
+RUN chmod +x /usr/local/bin/entrypoint.dev.sh
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+EXPOSE 80 5173
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.dev.sh"]

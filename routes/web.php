@@ -81,6 +81,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/generation/{generation}/next', [App\Http\Controllers\GenerationController::class, 'generateNext'])
             ->name('generation.next');
 
+        Route::post('/generation/{generation}/retry-failed', [App\Http\Controllers\GenerationController::class, 'retryFailedPages'])
+            ->name('generation.retryFailed');
+
         Route::post('/generation/{generation}/background', [App\Http\Controllers\GenerationController::class, 'continueInBackground'])
             ->name('generation.background');
 
@@ -102,6 +105,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/generation/{generation}/preview/status', [App\Http\Controllers\PreviewController::class, 'status'])
             ->name('preview.status');
+
+        Route::get('/generation/{generation}/preview/logs', [App\Http\Controllers\PreviewController::class, 'logs'])
+            ->name('preview.logs');
 
         Route::get('/generation/{generation}/preview/proxy/{path?}', [App\Http\Controllers\PreviewController::class, 'proxy'])
             ->where('path', '.*')

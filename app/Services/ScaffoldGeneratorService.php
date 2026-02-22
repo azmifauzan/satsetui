@@ -151,11 +151,7 @@ class ScaffoldGeneratorService
         // Global CSS
         $files['src/styles/globals.css'] = $this->generateGlobalCss($styling, $theme);
 
-        // Tailwind config
-        if ($styling === 'tailwind') {
-            $files['tailwind.config.'.($isTs ? 'ts' : 'js')] = $this->generateTailwindConfig($isTs);
-            $files['postcss.config.js'] = $this->generatePostcssConfig();
-        }
+        // Tailwind v4 uses @tailwindcss/vite plugin — no config files needed
 
         return $files;
     }
@@ -224,9 +220,10 @@ class ScaffoldGeneratorService
         return <<<'VITE'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -502,10 +499,7 @@ LAYOUT;
         $files['src/layouts/MainLayout.vue'] = $this->generateVueLayout($pages, $layout, $theme);
         $files['src/assets/main.css'] = $this->generateGlobalCss($styling, $theme);
 
-        if ($styling === 'tailwind') {
-            $files['tailwind.config.'.($isTs ? 'ts' : 'js')] = $this->generateTailwindConfig($isTs);
-            $files['postcss.config.js'] = $this->generatePostcssConfig();
-        }
+        // Tailwind v4 uses @tailwindcss/vite plugin — no config files needed
 
         return $files;
     }
@@ -565,10 +559,11 @@ LAYOUT;
         return <<<'VITE'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), tailwindcss()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -847,10 +842,7 @@ LAYOUT;
         // Layout component
         $files['src/lib/layouts/MainLayout.svelte'] = $this->generateSvelteLayoutComponent($pages, $layout, $theme);
 
-        if ($styling === 'tailwind') {
-            $files['tailwind.config.'.($isTs ? 'ts' : 'js')] = $this->generateTailwindConfig($isTs);
-            $files['postcss.config.js'] = $this->generatePostcssConfig();
-        }
+        // Tailwind v4 uses @tailwindcss/vite plugin — no config files needed
 
         return $files;
     }
@@ -912,9 +904,10 @@ CONFIG;
         return <<<'VITE'
 import { defineConfig } from 'vite'
 import { sveltekit } from '@sveltejs/kit/vite'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [sveltekit()],
+  plugins: [sveltekit(), tailwindcss()],
   server: {
     port: 3000,
     host: '0.0.0.0',

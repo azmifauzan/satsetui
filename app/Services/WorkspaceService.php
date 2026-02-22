@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SetupPreviewSession;
 use App\Models\Generation;
 use App\Models\GenerationFile;
 use App\Models\PreviewSession;
@@ -68,12 +69,31 @@ class WorkspaceService
     {
         $workspaceDir = $this->getWorkspaceDir($generation);
 
-        // Clean up existing workspace
-        if (File::isDirectory($workspaceDir)) {
-            File::deleteDirectory($workspaceDir);
-        }
+        // If node_modules exists (from prewarm), keep it — only clear source files
+        $nodeModulesDir = $workspaceDir.DIRECTORY_SEPARATOR.'node_modules';
+        $hasPrewarmedDeps = File::isDirectory($nodeModulesDir);
 
-        File::makeDirectory($workspaceDir, 0755, true);
+        if (File::isDirectory($workspaceDir)) {
+            if ($hasPrewarmedDeps) {
+                // Preserve node_modules, remove everything else
+                $items = File::glob($workspaceDir.DIRECTORY_SEPARATOR.'*');
+                foreach ($items as $item) {
+                    if (basename($item) === 'node_modules') {
+                        continue;
+                    }
+                    if (is_dir($item)) {
+                        File::deleteDirectory($item);
+                    } else {
+                        File::delete($item);
+                    }
+                }
+            } else {
+                File::deleteDirectory($workspaceDir);
+                File::makeDirectory($workspaceDir, 0755, true);
+            }
+        } else {
+            File::makeDirectory($workspaceDir, 0755, true);
+        }
 
         // Write all generation files to workspace
         $files = $generation->generationFiles()->get();
@@ -89,6 +109,9 @@ class WorkspaceService
             File::put($filePath, $file->file_content);
         }
 
+        // Tailwind v4 cleanup: remove v3-era config files that crash Vite
+        $this->cleanupTailwindV3Artifacts($workspaceDir);
+
         Log::info("Workspace created for generation {$generation->id}", [
             'path' => $workspaceDir,
             'file_count' => $files->count(),
@@ -100,7 +123,7 @@ class WorkspaceService
     /**
      * Install dependencies (npm install) in workspace.
      */
-    public function installDependencies(string $workspaceDir): array
+    public function installDependencies(string $workspaceDir, ?string $progressLogPath = null): array
     {
         if (! File::exists($workspaceDir.DIRECTORY_SEPARATOR.'package.json')) {
             return [
@@ -109,18 +132,49 @@ class WorkspaceService
             ];
         }
 
+        // Skip npm install if node_modules already exists (from prewarm)
+        $nodeModulesDir = $workspaceDir.DIRECTORY_SEPARATOR.'node_modules';
+        if (File::isDirectory($nodeModulesDir) && File::exists($nodeModulesDir.DIRECTORY_SEPARATOR.'.package-lock.json')
+            || (File::isDirectory($nodeModulesDir) && count(File::directories($nodeModulesDir)) > 5)) {
+            if ($progressLogPath) {
+                File::append($progressLogPath, '['.now()->format('H:i:s')."] [install] Skipping npm install — node_modules already exists (from prewarm)\n");
+            }
+
+            Log::info("Skipping npm install for {$workspaceDir} — node_modules exists from prewarm");
+
+            return ['success' => true, 'skipped' => true];
+        }
+
         $npmBinary = $this->getNpmBinary();
 
-        $command = $this->buildSafeCommand("\"{$npmBinary}\" install --no-audit --no-fund");
+        $command = $this->buildSafeCommand("\"{$npmBinary}\" install --no-audit --no-fund --cache /tmp/.npm");
+
+        if ($progressLogPath) {
+            File::append($progressLogPath, '['.now()->format('H:i:s')."] [install] Starting npm install\n");
+        }
+
+        // Linux/container: stream npm output to prewarm log in real-time (for terminal indicator)
+        if ($progressLogPath && PHP_OS_FAMILY !== 'Windows') {
+            $logPath = escapeshellarg($progressLogPath);
+            $command = 'bash -lc '.escapeshellarg($command." 2>&1 | tee -a {$logPath}");
+        }
 
         $result = Process::path($workspaceDir)
             ->timeout(self::INSTALL_TIMEOUT)
             ->run($command);
 
         if ($result->successful()) {
+            if ($progressLogPath) {
+                File::append($progressLogPath, '['.now()->format('H:i:s')."] [install] npm install completed\n");
+            }
+
             Log::info("Dependencies installed for workspace {$workspaceDir}");
 
             return ['success' => true];
+        }
+
+        if ($progressLogPath) {
+            File::append($progressLogPath, '['.now()->format('H:i:s').'] [install] ERROR: npm install failed'."\n");
         }
 
         Log::error("npm install failed in {$workspaceDir}", [
@@ -152,24 +206,44 @@ class WorkspaceService
 
         $npmBinary = $this->getNpmBinary();
 
-        // Start vite/dev server in background
-        $command = $this->buildSafeCommand($this->buildDevServerCommand($workspaceDir, $port, $npmBinary));
+        // Start vite/dev server as a truly detached background process.
+        // Using nohup + disown so the process survives after the PHP/Apache request ends.
+        $pid = $this->spawnDaemonDevServer($workspaceDir, $port, $npmBinary);
 
-        // Run as background process
-        $process = Process::path($workspaceDir)
-            ->timeout(0)
-            ->start($command);
-
-        $pid = $process->id();
-
-        // Give the server a moment to start
-        sleep(2);
-
-        // Check if process is still running
-        if (! $this->isProcessRunning($pid)) {
+        if (! $pid) {
             return [
                 'success' => false,
-                'error' => 'Dev server failed to start',
+                'error' => 'Dev server failed to start (could not spawn process)',
+            ];
+        }
+
+        // Give Vite time to boot and start listening
+        $ready = false;
+        for ($i = 0; $i < 45; $i++) {
+            sleep(1);
+            if ($this->isPortInUse($port)) {
+                $ready = true;
+                Log::info("Dev server ready after {$i}s on port {$port}");
+                break;
+            }
+
+            // Check if process is still alive every 5 seconds
+            if ($i > 0 && $i % 5 === 0) {
+                if (! $this->isProcessRunning($pid)) {
+                    Log::error("Dev server process {$pid} died before port {$port} was ready");
+                    break;
+                }
+            }
+        }
+
+        if (! $ready) {
+            $logFile = "/tmp/preview-{$port}.log";
+            $logContent = file_exists($logFile) ? file_get_contents($logFile) : 'no log';
+            Log::error("Dev server port {$port} not listening after 45s", ['log' => $logContent, 'pid' => $pid]);
+
+            return [
+                'success' => false,
+                'error' => 'Dev server did not start in time. Check logs.',
             ];
         }
 
@@ -240,7 +314,9 @@ class WorkspaceService
     }
 
     /**
-     * Set up a complete preview session: create workspace, install deps, start server.
+     * Set up a complete preview session: create session and dispatch async setup job.
+     *
+     * Returns immediately with 'creating' status. The frontend polls /preview/status.
      */
     public function setupPreview(Generation $generation): array
     {
@@ -264,6 +340,19 @@ class WorkspaceService
             ];
         }
 
+        // Check if there's already a session being set up
+        $inProgress = $generation->previewSessions()
+            ->whereIn('status', [PreviewSession::STATUS_CREATING, PreviewSession::STATUS_INSTALLING])
+            ->first();
+
+        if ($inProgress) {
+            return [
+                'success' => true,
+                'session_id' => $inProgress->id,
+                'status' => $inProgress->status,
+            ];
+        }
+
         // Stop existing timed-out session
         if ($existing) {
             $this->stopDevServer($existing);
@@ -276,7 +365,37 @@ class WorkspaceService
             ? PreviewSession::TYPE_SERVER
             : PreviewSession::TYPE_STATIC;
 
-        // Create session record
+        // For static preview, set up synchronously (fast)
+        if ($previewType === PreviewSession::TYPE_STATIC) {
+            $session = PreviewSession::create([
+                'generation_id' => $generation->id,
+                'user_id' => $user->id,
+                'workspace_path' => $this->getWorkspaceDir($generation),
+                'preview_port' => 0,
+                'preview_type' => $previewType,
+                'status' => PreviewSession::STATUS_CREATING,
+                'started_at' => now(),
+                'last_activity_at' => now(),
+            ]);
+
+            $workspaceDir = $this->createWorkspace($generation);
+            $session->update([
+                'workspace_path' => $workspaceDir,
+                'status' => PreviewSession::STATUS_RUNNING,
+                'preview_port' => 0,
+            ]);
+
+            return [
+                'success' => true,
+                'session_id' => $session->id,
+                'port' => 0,
+                'url' => null,
+                'status' => 'static',
+                'preview_type' => 'static',
+            ];
+        }
+
+        // For framework preview, create session and dispatch async job
         $session = PreviewSession::create([
             'generation_id' => $generation->id,
             'user_id' => $user->id,
@@ -288,29 +407,29 @@ class WorkspaceService
             'last_activity_at' => now(),
         ]);
 
+        // Dispatch async setup job
+        SetupPreviewSession::dispatch($session->id, $generation->id);
+
+        return [
+            'success' => true,
+            'session_id' => $session->id,
+            'status' => 'creating',
+        ];
+    }
+
+    /**
+     * Execute the actual preview setup (called from the async job).
+     *
+     * Handles workspace creation, dependency installation, and dev server boot.
+     */
+    public function runPreviewSetup(PreviewSession $session, Generation $generation): void
+    {
         try {
-            // Step 1: Create workspace
+            // Step 1: Create workspace (preserves node_modules from prewarm)
             $workspaceDir = $this->createWorkspace($generation);
             $session->update(['workspace_path' => $workspaceDir]);
 
-            if ($previewType === PreviewSession::TYPE_STATIC) {
-                // Static HTML preview doesn't need npm install or dev server
-                $session->update([
-                    'status' => PreviewSession::STATUS_RUNNING,
-                    'preview_port' => 0, // No port needed
-                ]);
-
-                return [
-                    'success' => true,
-                    'session_id' => $session->id,
-                    'port' => 0,
-                    'url' => null,
-                    'status' => 'static',
-                    'preview_type' => 'static',
-                ];
-            }
-
-            // Step 2: Install dependencies
+            // Step 2: Install dependencies (skips if already prewarmed)
             $session->update(['status' => PreviewSession::STATUS_INSTALLING]);
             $installResult = $this->installDependencies($workspaceDir);
 
@@ -320,11 +439,7 @@ class WorkspaceService
                     'error_message' => $installResult['error'],
                 ]);
 
-                return [
-                    'success' => false,
-                    'error' => 'Failed to install dependencies: '.$installResult['error'],
-                    'session_id' => $session->id,
-                ];
+                return;
             }
 
             // Step 3: Start dev server
@@ -336,11 +451,7 @@ class WorkspaceService
                     'error_message' => $serverResult['error'],
                 ]);
 
-                return [
-                    'success' => false,
-                    'error' => 'Failed to start dev server: '.$serverResult['error'],
-                    'session_id' => $session->id,
-                ];
+                return;
             }
 
             $session->update([
@@ -348,14 +459,7 @@ class WorkspaceService
                 'preview_port' => $serverResult['port'],
             ]);
 
-            return [
-                'success' => true,
-                'session_id' => $session->id,
-                'port' => $serverResult['port'],
-                'url' => $this->getPreviewUrl($serverResult['port']),
-                'status' => 'running',
-                'preview_type' => 'server',
-            ];
+            Log::info("Preview session {$session->id} is running on port {$serverResult['port']}");
         } catch (\Exception $e) {
             $session->update([
                 'status' => PreviewSession::STATUS_ERROR,
@@ -365,12 +469,6 @@ class WorkspaceService
             Log::error("Preview setup failed for generation {$generation->id}", [
                 'error' => $e->getMessage(),
             ]);
-
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-                'session_id' => $session->id,
-            ];
         }
     }
 
@@ -449,6 +547,66 @@ class WorkspaceService
     // Private Helpers
     // ========================================================================
 
+    /**
+     * Remove Tailwind CSS v3-era config files (postcss.config.js, tailwind.config.*)
+     * when the project uses @tailwindcss/vite (Tailwind v4).
+     *
+     * Also patches vite.config.ts to include the @tailwindcss/vite plugin if missing.
+     */
+    private function cleanupTailwindV3Artifacts(string $workspaceDir): void
+    {
+        $packageJsonPath = $workspaceDir.DIRECTORY_SEPARATOR.'package.json';
+        if (! File::exists($packageJsonPath)) {
+            return;
+        }
+
+        $packageJson = json_decode(File::get($packageJsonPath), true);
+        $devDeps = $packageJson['devDependencies'] ?? [];
+
+        // Only clean up if using @tailwindcss/vite (Tailwind v4)
+        if (! isset($devDeps['@tailwindcss/vite'])) {
+            return;
+        }
+
+        // Remove postcss.config.js — not needed with @tailwindcss/vite
+        $postcssConfig = $workspaceDir.DIRECTORY_SEPARATOR.'postcss.config.js';
+        if (File::exists($postcssConfig)) {
+            File::delete($postcssConfig);
+            Log::info("Removed stale postcss.config.js from workspace {$workspaceDir}");
+        }
+
+        // Remove tailwind.config.* — Tailwind v4 uses CSS-first config
+        foreach (['tailwind.config.ts', 'tailwind.config.js'] as $configFile) {
+            $configPath = $workspaceDir.DIRECTORY_SEPARATOR.$configFile;
+            if (File::exists($configPath)) {
+                File::delete($configPath);
+                Log::info("Removed stale {$configFile} from workspace {$workspaceDir}");
+            }
+        }
+
+        // Ensure vite.config includes @tailwindcss/vite plugin
+        foreach (['vite.config.ts', 'vite.config.js'] as $viteFile) {
+            $vitePath = $workspaceDir.DIRECTORY_SEPARATOR.$viteFile;
+            if (! File::exists($vitePath)) {
+                continue;
+            }
+
+            $viteContent = File::get($vitePath);
+            if (! str_contains($viteContent, '@tailwindcss/vite')) {
+                // Inject tailwindcss import and plugin
+                $viteContent = "import tailwindcss from '@tailwindcss/vite'\n".$viteContent;
+                $viteContent = preg_replace(
+                    '/plugins:\s*\[/',
+                    'plugins: [tailwindcss(), ',
+                    $viteContent,
+                    1
+                );
+                File::put($vitePath, $viteContent);
+                Log::info("Patched {$viteFile} with @tailwindcss/vite plugin in {$workspaceDir}");
+            }
+        }
+    }
+
     private function getWorkspaceDir(Generation $generation): string
     {
         return $this->baseDir.DIRECTORY_SEPARATOR.'gen-'.$generation->id;
@@ -510,14 +668,52 @@ class WorkspaceService
         $scripts = $packageJson['scripts'] ?? [];
 
         if (isset($scripts['dev'])) {
-            // Inject port into dev command
-            return "\"{$npmBinary}\" run dev -- --port {$port} --host 0.0.0.0";
+            // Inject port; bind to 127.0.0.1 — PHP proxy runs in same container
+            return "\"{$npmBinary}\" run dev -- --port {$port} --host 127.0.0.1";
         }
 
         // Fallback to npx vite — derive npx path from npm path
         $npxBinary = $this->getNpxBinary($npmBinary);
 
-        return "\"{$npxBinary}\" vite --port {$port} --host 0.0.0.0";
+        return "\"{$npxBinary}\" vite --port {$port} --host 127.0.0.1";
+    }
+
+    /**
+     * Spawn a dev server as a truly detached daemon process.
+     *
+     * Uses nohup + bash disown so the Vite process outlives the PHP request.
+     * Returns the PID of the spawned process, or null on failure.
+     */
+    private function spawnDaemonDevServer(string $workspaceDir, int $port, string $npmBinary): ?int
+    {
+        $logFile = "/tmp/preview-{$port}.log";
+        $innerCmd = $this->buildDevServerCommand($workspaceDir, $port, $npmBinary);
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            // Windows: use START /B to detach
+            $command = $this->buildSafeCommand($innerCmd);
+            $process = Process::path($workspaceDir)->timeout(0)->start($command);
+
+            return $process->id() ?: null;
+        }
+
+        // Linux/Mac: use bash -c with nohup and disown to fully detach
+        // Prepend NODE path if needed
+        $envPrefix = '';
+        if ($this->resolvedNodeDir) {
+            $nodeDir = $this->resolvedNodeDir;
+            $envPrefix = "PATH=\"${nodeDir}:\$PATH\" ";
+        }
+
+        $escapedDir = escapeshellarg($workspaceDir);
+        $shellScript = "cd {$escapedDir} && {$envPrefix}nohup {$innerCmd} > ".escapeshellarg($logFile).' 2>&1 & echo $!';
+
+        $rawPid = shell_exec('bash -c '.escapeshellarg($shellScript));
+        $pid = (int) trim((string) $rawPid);
+
+        Log::info('Spawned dev server daemon', ['port' => $port, 'pid' => $pid, 'log' => $logFile]);
+
+        return $pid > 0 ? $pid : null;
     }
 
     private function getPreviewUrl(int $port): string

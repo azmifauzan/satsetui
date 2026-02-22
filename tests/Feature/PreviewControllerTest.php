@@ -60,6 +60,20 @@ test('preview status returns no session when none exists', function () {
         ]);
 });
 
+test('preview logs endpoint returns terminal lines', function () {
+    $this->actingAs($this->user)
+        ->getJson("/generation/{$this->generation->id}/preview/logs")
+        ->assertOk()
+        ->assertJsonStructure([
+            'success',
+            'status',
+            'lines',
+            'phase',
+            'progress_percentage',
+            'progress_detail',
+        ]);
+});
+
 test('serve static returns HTML content for completed pages', function () {
     $response = $this->actingAs($this->user)
         ->get("/generation/{$this->generation->id}/preview/static/dashboard");

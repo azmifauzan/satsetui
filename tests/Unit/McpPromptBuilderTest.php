@@ -385,3 +385,240 @@ test('MCP uses base framework for HTML+CSS output', function () {
     expect($result)->toContain('Tailwind');
     expect($result)->toContain('dark:');
 });
+
+// ========================================================================
+// Shared Layout Generation Tests
+// ========================================================================
+
+test('buildLayoutGenerationPrompt returns non-empty prompt with navigation structure', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'html-css',
+        'framework' => 'tailwind',
+        'pages' => ['login', 'dashboard', 'settings'],
+    ]);
+
+    $result = $builder->buildLayoutGenerationPrompt($blueprint);
+
+    expect($result)->toBeString();
+    expect(strlen($result))->toBeGreaterThan(100);
+    expect($result)->toContain('NAVIGATION STRUCTURE');
+    expect($result)->toContain('SIDEBAR_START');
+    expect($result)->toContain('FOOTER_START');
+    expect($result)->toContain('HEAD_STYLES_START');
+    expect($result)->toContain('SCRIPTS_START');
+    expect($result)->toContain('Login');
+    expect($result)->toContain('Dashboard');
+    expect($result)->toContain('Settings');
+});
+
+test('buildLayoutGenerationPrompt includes topbar for topbar navigation', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'html-css',
+        'layout' => [
+            'navigation' => 'topbar',
+            'breadcrumbs' => false,
+            'footer' => 'detailed',
+        ],
+    ]);
+
+    $result = $builder->buildLayoutGenerationPrompt($blueprint);
+
+    expect($result)->toContain('TOPBAR_START');
+    expect($result)->toContain('TOPBAR_END');
+    expect($result)->toContain('Detailed');
+    expect($result)->toContain('quick links');
+});
+
+test('buildLayoutGenerationPrompt includes both sidebar and topbar for hybrid navigation', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'html-css',
+        'layout' => [
+            'navigation' => 'hybrid',
+            'breadcrumbs' => true,
+            'footer' => 'minimal',
+            'sidebarDefaultState' => 'collapsed',
+        ],
+    ]);
+
+    $result = $builder->buildLayoutGenerationPrompt($blueprint);
+
+    expect($result)->toContain('SIDEBAR_START');
+    expect($result)->toContain('TOPBAR_START');
+    expect($result)->toContain('Collapsed');
+});
+
+test('buildLayoutGenerationPrompt is deterministic', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint(['outputFormat' => 'html-css']);
+
+    $result1 = $builder->buildLayoutGenerationPrompt($blueprint);
+    $result2 = $builder->buildLayoutGenerationPrompt($blueprint);
+
+    expect($result1)->toBe($result2);
+});
+
+test('parseLayoutComponents extracts all sections correctly', function () {
+    $builder = new McpPromptBuilder;
+    $layoutHtml = <<<'HTML'
+<!-- === SIDEBAR_START === -->
+<nav class="sidebar">
+  <a href="#dashboard">Dashboard</a>
+  <a href="#settings">Settings</a>
+</nav>
+<!-- === SIDEBAR_END === -->
+
+<!-- === FOOTER_START === -->
+<footer class="footer">
+  <p>&copy; 2025 Company</p>
+</footer>
+<!-- === FOOTER_END === -->
+
+<!-- === HEAD_STYLES_START === -->
+.sidebar { width: 256px; }
+.footer { text-align: center; }
+<!-- === HEAD_STYLES_END === -->
+
+<!-- === SCRIPTS_START === -->
+document.querySelector('.sidebar-toggle').addEventListener('click', function() {});
+<!-- === SCRIPTS_END === -->
+HTML;
+
+    $components = $builder->parseLayoutComponents($layoutHtml);
+
+    expect($components['sidebar'])->toContain('class="sidebar"');
+    expect($components['sidebar'])->toContain('Dashboard');
+    expect($components['footer'])->toContain('2025 Company');
+    expect($components['head_styles'])->toContain('.sidebar');
+    expect($components['scripts'])->toContain('sidebar-toggle');
+    expect($components['topbar'])->toBe('');
+});
+
+test('parseLayoutComponents handles topbar layout', function () {
+    $builder = new McpPromptBuilder;
+    $layoutHtml = <<<'HTML'
+<!-- === TOPBAR_START === -->
+<header class="topbar">
+  <nav>Menu</nav>
+</header>
+<!-- === TOPBAR_END === -->
+
+<!-- === FOOTER_START === -->
+<footer>Footer</footer>
+<!-- === FOOTER_END === -->
+
+<!-- === HEAD_STYLES_START === -->
+.topbar { height: 64px; }
+<!-- === HEAD_STYLES_END === -->
+
+<!-- === SCRIPTS_START === -->
+console.log('ready');
+<!-- === SCRIPTS_END === -->
+HTML;
+
+    $components = $builder->parseLayoutComponents($layoutHtml);
+
+    expect($components['topbar'])->toContain('class="topbar"');
+    expect($components['sidebar'])->toBe('');
+    expect($components['footer'])->toContain('Footer');
+});
+
+test('parseLayoutComponents returns empty strings for missing sections', function () {
+    $builder = new McpPromptBuilder;
+
+    $components = $builder->parseLayoutComponents('Some random text without markers');
+
+    expect($components['sidebar'])->toBe('');
+    expect($components['topbar'])->toBe('');
+    expect($components['footer'])->toBe('');
+    expect($components['head_styles'])->toBe('');
+    expect($components['scripts'])->toBe('');
+});
+
+test('buildForPage includes shared layout injection for HTML+CSS output', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'html-css',
+        'framework' => 'tailwind',
+    ]);
+
+    $sharedLayout = [
+        'sidebar' => '<nav class="shared-sidebar">Menu</nav>',
+        'topbar' => '',
+        'footer' => '<footer class="shared-footer">Copyright</footer>',
+        'head_styles' => '.shared-sidebar { width: 256px; }',
+        'scripts' => 'console.log("toggle");',
+    ];
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0, $sharedLayout);
+
+    expect($result)->toContain('SHARED LAYOUT COMPONENTS');
+    expect($result)->toContain('shared-sidebar');
+    expect($result)->toContain('shared-footer');
+    expect($result)->toContain('USE VERBATIM');
+    expect($result)->toContain('data-page="dashboard"');
+});
+
+test('buildForPage does NOT inject shared layout for framework output', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'react',
+        'frameworkConfig' => [
+            'language' => 'typescript',
+            'styling' => 'tailwind',
+            'router' => true,
+            'stateManagement' => 'none',
+            'buildTool' => 'vite',
+        ],
+    ]);
+
+    $sharedLayout = [
+        'sidebar' => '<nav>Sidebar</nav>',
+        'footer' => '<footer>Footer</footer>',
+        'head_styles' => '.sidebar {}',
+        'scripts' => '',
+        'topbar' => '',
+    ];
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0, $sharedLayout);
+
+    // Should NOT contain shared layout injection for framework output
+    expect($result)->not->toContain('SHARED LAYOUT COMPONENTS');
+    expect($result)->not->toContain('USE VERBATIM');
+});
+
+test('buildForPage without shared layout works normally for HTML+CSS', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'html-css',
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    // Should still contain normal implementation requirements
+    expect($result)->toContain('IMPLEMENTATION REQUIREMENTS');
+    expect($result)->not->toContain('SHARED LAYOUT COMPONENTS');
+});
+
+test('shared layout injection includes correct page name in data-page', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'outputFormat' => 'html-css',
+    ]);
+
+    $sharedLayout = [
+        'sidebar' => '<nav>Menu</nav>',
+        'topbar' => '',
+        'footer' => '<footer>Footer</footer>',
+        'head_styles' => '',
+        'scripts' => '',
+    ];
+
+    $result = $builder->buildForPage($blueprint, 'user-management', 0, $sharedLayout);
+    expect($result)->toContain('data-page="user-management"');
+
+    $result2 = $builder->buildForPage($blueprint, 'custom:inventory', 0, $sharedLayout);
+    expect($result2)->toContain('data-page="inventory"');
+});
