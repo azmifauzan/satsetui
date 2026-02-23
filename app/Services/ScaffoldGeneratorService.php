@@ -131,7 +131,7 @@ class ScaffoldGeneratorService
         }
 
         // index.html
-        $files['index.html'] = $this->generateIndexHtml('React App', $styling);
+        $files['index.html'] = $this->generateIndexHtml('React App', $styling, 'root', '/src/main.tsx');
 
         // Main entry
         $ext = $isTs ? 'tsx' : 'jsx';
@@ -222,11 +222,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const previewBase = process.env.VITE_PREVIEW_BASE
+
 export default defineConfig({
+  base: previewBase || '/',
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
     host: '0.0.0.0',
+    hmr: previewBase ? false : undefined,
   },
 })
 VITE;
@@ -282,7 +286,7 @@ MAIN;
     {
         if ($hasRouter) {
             $imports = "import { BrowserRouter } from 'react-router-dom'\nimport AppRouter from './router'";
-            $content = "<BrowserRouter>\n      <AppRouter />\n    </BrowserRouter>";
+            $content = "<BrowserRouter basename={import.meta.env.BASE_URL}>\n      <AppRouter />\n    </BrowserRouter>";
         } else {
             $imports = '// No router configured';
             $content = '<div>App Content</div>';
@@ -486,7 +490,7 @@ LAYOUT;
             $files['tsconfig.json'] = $this->generateVueTsConfig();
         }
 
-        $files['index.html'] = $this->generateIndexHtml('Vue App', $styling);
+        $files['index.html'] = $this->generateIndexHtml('Vue App', $styling, 'app', '/src/main.ts');
 
         $ext = $isTs ? 'ts' : 'js';
         $files["src/main.{$ext}"] = $this->generateVueMain($hasRouter, $stateManagement, $isTs);
@@ -562,7 +566,10 @@ import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
+const previewBase = process.env.VITE_PREVIEW_BASE
+
 export default defineConfig({
+  base: previewBase || '/',
   plugins: [vue(), tailwindcss()],
   resolve: {
     alias: {
@@ -572,6 +579,7 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    hmr: previewBase ? false : undefined,
   },
 })
 VITE;
@@ -671,7 +679,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
@@ -906,11 +914,15 @@ import { defineConfig } from 'vite'
 import { sveltekit } from '@sveltejs/kit/vite'
 import tailwindcss from '@tailwindcss/vite'
 
+const previewBase = process.env.VITE_PREVIEW_BASE
+
 export default defineConfig({
+  base: previewBase || '/',
   plugins: [sveltekit(), tailwindcss()],
   server: {
     port: 3000,
     host: '0.0.0.0',
+    hmr: previewBase ? false : undefined,
   },
 })
 VITE;
@@ -1300,7 +1312,7 @@ COMPONENT;
     // Shared Helpers
     // ========================================================================
 
-    private function generateIndexHtml(string $title, string $styling): string
+    private function generateIndexHtml(string $title, string $styling, string $mountId = 'root', string $entryFile = '/src/main.tsx'): string
     {
         $cdnLinks = '';
         if ($styling === 'bootstrap') {
@@ -1317,8 +1329,8 @@ COMPONENT;
 {$cdnLinks}
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="{$mountId}"></div>
+    <script type="module" src="{$entryFile}"></script>
   </body>
 </html>
 HTML;

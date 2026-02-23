@@ -35,9 +35,10 @@ const deviceWidths: Record<DeviceMode, string> = {
 };
 
 // Preview state for framework output
-type PreviewStatus = 'idle' | 'creating' | 'installing' | 'running' | 'stopped' | 'error';
+type PreviewStatus = 'idle' | 'creating' | 'installing' | 'booting' | 'running' | 'stopped' | 'error';
 const previewStatus = ref<PreviewStatus>('idle');
 const previewUrl = ref<string | null>(null);
+const previewLoadKey = ref(Date.now());
 const previewError = ref<string | null>(null);
 const isSettingUp = ref(false);
 const statusPollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
@@ -55,6 +56,31 @@ const lastLoggedStatus = ref<'none' | PreviewStatus>('none');
 // Whether this is a framework output (needs server-side preview)
 const isFramework = computed(() => {
   return ['react', 'vue', 'angular', 'svelte'].includes(props.outputFormat);
+});
+
+// Effective preview status: uses terminal phase (from log parsing) when it's
+// more advanced than DB session status. This avoids the UI being stuck on
+// "Installing dependencies" while the dev server is already booting.
+const phaseToStatus: Record<string, PreviewStatus> = {
+  prewarming: 'installing',
+  workspace: 'creating',
+  installing: 'installing',
+  booting: 'booting',
+  running: 'running',
+  error: 'error',
+};
+const statusOrder: PreviewStatus[] = ['idle', 'creating', 'installing', 'booting', 'running'];
+
+const effectivePreviewStatus = computed<PreviewStatus>(() => {
+  const dbStatus = previewStatus.value;
+  const mappedPhase = phaseToStatus[terminalPhase.value] || dbStatus;
+  const dbIdx = statusOrder.indexOf(dbStatus);
+  const phaseIdx = statusOrder.indexOf(mappedPhase as PreviewStatus);
+  // Use whichever is further along in the lifecycle
+  if (phaseIdx > dbIdx) {
+    return mappedPhase as PreviewStatus;
+  }
+  return dbStatus;
 });
 
 // Static preview blob URL
@@ -246,7 +272,7 @@ async function checkInitialStatus() {
     if (response.data.status === 'running') {
       previewStatus.value = 'running';
       previewUrl.value = response.data.preview_url || `/generation/${props.generationId}/preview/proxy`;
-    } else if (response.data.status === 'installing' || response.data.status === 'creating') {
+    } else if (response.data.status === 'installing' || response.data.status === 'creating' || response.data.status === 'booting') {
       previewStatus.value = response.data.status as PreviewStatus;
       startStatusPolling();
     } else if (response.data.status === 'idle' || response.data.status === 'none' || !response.data.status) {
@@ -278,7 +304,8 @@ if (isFramework.value) {
 // Computed iframe source for framework preview
 const frameworkIframeSrc = computed(() => {
   if (previewStatus.value === 'running' && previewUrl.value) {
-    return previewUrl.value;
+    // Append cache-buster so the iframe reloads when the preview url is re-set
+    return `${previewUrl.value}?_t=${previewLoadKey.value}`;
   }
   return '';
 });
@@ -302,9 +329,10 @@ const hasPreview = computed(() => {
 // Status labels
 const statusLabel = computed(() => {
   const isEn = currentLang.value === 'en';
-  switch (previewStatus.value) {
+  switch (effectivePreviewStatus.value) {
     case 'creating': return isEn ? 'Creating workspace...' : 'Membuat workspace...';
     case 'installing': return isEn ? 'Installing dependencies...' : 'Menginstall dependensi...';
+    case 'booting': return isEn ? 'Starting dev server...' : 'Menjalankan dev server...';
     case 'running': return isEn ? 'Preview running' : 'Preview berjalan';
     case 'stopped': return isEn ? 'Preview stopped' : 'Preview dihentikan';
     case 'error': return previewError.value || (isEn ? 'Preview error' : 'Error preview');
@@ -313,9 +341,10 @@ const statusLabel = computed(() => {
 });
 
 const statusColor = computed(() => {
-  switch (previewStatus.value) {
+  switch (effectivePreviewStatus.value) {
     case 'creating':
-    case 'installing': return 'text-amber-600 dark:text-amber-400';
+    case 'installing':
+    case 'booting': return 'text-amber-600 dark:text-amber-400';
     case 'running': return 'text-green-600 dark:text-green-400';
     case 'error': return 'text-red-600 dark:text-red-400';
     default: return 'text-slate-500 dark:text-slate-400';
@@ -341,9 +370,9 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
           <div
             :class="[
               'w-2 h-2 rounded-full',
-              previewStatus === 'running' ? 'bg-green-500' :
-              previewStatus === 'creating' || previewStatus === 'installing' ? 'bg-amber-500 animate-pulse' :
-              previewStatus === 'error' ? 'bg-red-500' :
+              effectivePreviewStatus === 'running' ? 'bg-green-500' :
+              effectivePreviewStatus === 'creating' || effectivePreviewStatus === 'installing' || effectivePreviewStatus === 'booting' ? 'bg-amber-500 animate-pulse' :
+              effectivePreviewStatus === 'error' ? 'bg-red-500' :
               'bg-slate-400'
             ]"
           ></div>
@@ -383,12 +412,12 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
 
         <!-- Start/Stop buttons -->
         <button
-          v-if="previewStatus !== 'running' && isCompleted"
+          v-if="effectivePreviewStatus !== 'running' && isCompleted"
           @click="setupPreview"
-          :disabled="isSettingUp || previewStatus === 'creating' || previewStatus === 'installing'"
+          :disabled="isSettingUp || effectivePreviewStatus === 'creating' || effectivePreviewStatus === 'installing' || effectivePreviewStatus === 'booting'"
           class="px-3 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white rounded-md transition-colors flex items-center gap-1.5"
         >
-          <svg v-if="isSettingUp || previewStatus === 'creating' || previewStatus === 'installing'" class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg v-if="isSettingUp || effectivePreviewStatus === 'creating' || effectivePreviewStatus === 'installing' || effectivePreviewStatus === 'booting'" class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -398,7 +427,7 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
           {{ currentLang === 'en' ? 'Start Preview' : 'Mulai Preview' }}
         </button>
         <button
-          v-if="previewStatus === 'running'"
+          v-if="effectivePreviewStatus === 'running'"
           @click="stopPreview"
           class="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center gap-1.5"
         >
@@ -470,7 +499,7 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
       </div>
 
       <!-- Empty state: framework not started -->
-      <div v-else-if="isFramework && isCompleted && previewStatus === 'idle'" class="h-full w-full flex items-center justify-center">
+      <div v-else-if="isFramework && isCompleted && effectivePreviewStatus === 'idle'" class="h-full w-full flex items-center justify-center">
         <div class="text-center max-w-sm">
           <div class="w-16 h-16 mx-auto mb-4 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center">
             <svg class="w-8 h-8 text-slate-400 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -502,26 +531,32 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
       </div>
 
       <!-- Empty state: framework setting up -->
-      <div v-else-if="isFramework && (previewStatus === 'creating' || previewStatus === 'installing')" class="h-full w-full flex items-center justify-center">
+      <div v-else-if="isFramework && (effectivePreviewStatus === 'creating' || effectivePreviewStatus === 'installing' || effectivePreviewStatus === 'booting')" class="h-full w-full flex items-center justify-center">
         <div class="text-center max-w-sm">
           <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <h3 class="text-base font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            {{ previewStatus === 'creating'
+            {{ effectivePreviewStatus === 'creating'
               ? (currentLang === 'en' ? 'Creating workspace...' : 'Membuat workspace...')
-              : (currentLang === 'en' ? 'Installing dependencies...' : 'Menginstall dependensi...')
+              : effectivePreviewStatus === 'booting'
+                ? (currentLang === 'en' ? 'Starting dev server...' : 'Menjalankan dev server...')
+                : (currentLang === 'en' ? 'Installing dependencies...' : 'Menginstall dependensi...')
             }}
           </h3>
           <p class="text-sm text-slate-500 dark:text-slate-400">
-            {{ currentLang === 'en'
-              ? 'This may take a minute. Setting up your project environment.'
-              : 'Ini mungkin memakan waktu satu menit. Menyiapkan lingkungan proyek Anda.'
+            {{ effectivePreviewStatus === 'booting'
+              ? (currentLang === 'en'
+                ? 'Dependencies are ready. Starting the development server...'
+                : 'Dependensi sudah siap. Menjalankan server pengembangan...')
+              : (currentLang === 'en'
+                ? 'This may take a minute. Setting up your project environment.'
+                : 'Ini mungkin memakan waktu satu menit. Menyiapkan lingkungan proyek Anda.')
             }}
           </p>
         </div>
       </div>
 
       <!-- Empty state: error -->
-      <div v-else-if="previewStatus === 'error'" class="h-full w-full flex items-center justify-center">
+      <div v-else-if="effectivePreviewStatus === 'error'" class="h-full w-full flex items-center justify-center">
         <div class="text-center max-w-sm">
           <div class="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center">
             <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

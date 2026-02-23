@@ -8,12 +8,13 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * OpenAI-Compatible API Service
- * 
+ *
  * Supports multiple LLM providers through OpenAI-compatible API format
  */
 class OpenAICompatibleService
 {
     protected ?string $apiKey;
+
     protected ?string $baseUrl;
 
     public function __construct()
@@ -24,17 +25,17 @@ class OpenAICompatibleService
 
     /**
      * Generate template code using specified model type
-     * 
-     * @param string $prompt The MCP prompt to send
-     * @param string $modelType The model type identifier ('satset', 'expert')
+     *
+     * @param  string  $prompt  The MCP prompt to send
+     * @param  string  $modelType  The model type identifier ('satset', 'expert')
      * @return array Response with success status, content, and token usage
      */
     public function generateTemplate(string $prompt, string $modelType): array
     {
         try {
             $model = $this->getModelByType($modelType);
-            
-            if (!$model) {
+
+            if (! $model) {
                 return [
                     'success' => false,
                     'error' => "Model type '{$modelType}' not found or inactive",
@@ -57,7 +58,7 @@ class OpenAICompatibleService
 
             return [
                 'success' => false,
-                'error' => 'Exception occurred: ' . $e->getMessage(),
+                'error' => 'Exception occurred: '.$e->getMessage(),
             ];
         }
     }
@@ -69,21 +70,21 @@ class OpenAICompatibleService
     {
         $baseUrl = $model->base_url ?: 'https://generativelanguage.googleapis.com/v1beta';
         $apiKey = $model->api_key;
-        
+
         $http = Http::timeout(300);
-        
+
         // Disable SSL verification for development environment only
         if (config('app.env') !== 'production') {
             $http = $http->withOptions(['verify' => false]);
         }
-        
+
         $response = $http->post("{$baseUrl}/models/{$model->model_name}:generateContent?key={$apiKey}", [
             'contents' => [
                 [
                     'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
+                        ['text' => $prompt],
+                    ],
+                ],
             ],
             'generationConfig' => [
                 'temperature' => 1.0,
@@ -99,21 +100,21 @@ class OpenAICompatibleService
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
-            
+
             return [
                 'success' => false,
-                'error' => 'Failed to generate template: ' . $response->body(),
+                'error' => 'Failed to generate template: '.$response->body(),
             ];
         }
 
         $data = $response->json();
-        
-        if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+
+        if (! isset($data['candidates'][0]['content']['parts'][0]['text'])) {
             Log::error('Invalid Gemini API Response', [
                 'model' => $model->model_name,
                 'response' => $data,
             ]);
-            
+
             return [
                 'success' => false,
                 'error' => 'Invalid response from Gemini API',
@@ -143,18 +144,22 @@ class OpenAICompatibleService
     {
         $baseUrl = $model->base_url ?: 'https://api.openai.com/v1';
         $apiKey = $model->api_key;
-        
+
         $http = Http::timeout(300)
             ->withHeaders([
                 'Content-Type' => 'application/json',
                 'Authorization' => "Bearer {$apiKey}",
             ]);
-        
+
         // Disable SSL verification for development environment only
         if (config('app.env') !== 'production') {
             $http = $http->withOptions(['verify' => false]);
         }
-        
+
+        // Cap max_tokens at 32768 — a safe ceiling for most OpenAI-compatible models.
+        // Some hosted models (e.g. Kimi) reject values above 32768.
+        $maxTokens = min((int) ($model->max_output_tokens ?? 32768), 32768);
+
         $response = $http->post("{$baseUrl}/chat/completions", [
             'model' => $model->model_name,
             'messages' => [
@@ -163,7 +168,7 @@ class OpenAICompatibleService
                     'content' => $prompt,
                 ],
             ],
-            'max_tokens' => 60000,
+            'max_tokens' => $maxTokens,
             'temperature' => 1.0,
         ]);
 
@@ -173,21 +178,21 @@ class OpenAICompatibleService
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
-            
+
             return [
                 'success' => false,
-                'error' => 'Failed to generate template: ' . $response->body(),
+                'error' => 'Failed to generate template: '.$response->body(),
             ];
         }
 
         $data = $response->json();
-        
-        if (!isset($data['choices'][0]['message']['content'])) {
+
+        if (! isset($data['choices'][0]['message']['content'])) {
             Log::error('Invalid OpenAI API Response', [
                 'model' => $model->model_name,
                 'response' => $data,
             ]);
-            
+
             return [
                 'success' => false,
                 'error' => 'Invalid response from OpenAI API',
@@ -222,7 +227,7 @@ class OpenAICompatibleService
 
     /**
      * Calculate actual credits used based on model's base credits
-     * 
+     *
      * This provides billing after generation completes
      */
     public function calculateActualCredits(
@@ -231,8 +236,8 @@ class OpenAICompatibleService
         int $outputTokens
     ): float {
         $model = $this->getModelByType($modelType);
-        
-        if (!$model) {
+
+        if (! $model) {
             return 0;
         }
 

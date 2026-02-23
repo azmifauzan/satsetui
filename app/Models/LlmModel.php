@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,13 +10,14 @@ use Illuminate\Support\Facades\Crypt;
 
 /**
  * LLM Model
- * 
+ *
  * Represents 2 fixed model types (satset, expert)
  * Each can be configured with different providers (Gemini or OpenAI)
  */
 class LlmModel extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'model_type',
         'provider',
@@ -45,7 +47,16 @@ class LlmModel extends Model
     protected function apiKey(): Attribute
     {
         return Attribute::make(
-            get: fn (?string $value) => $value ? Crypt::decryptString($value) : null,
+            get: function (?string $value) {
+                if (! $value) {
+                    return null;
+                }
+                try {
+                    return Crypt::decryptString($value);
+                } catch (DecryptException) {
+                    return null;
+                }
+            },
             set: fn (?string $value) => $value ? Crypt::encryptString($value) : null,
         );
     }
@@ -56,7 +67,16 @@ class LlmModel extends Model
     protected function baseUrl(): Attribute
     {
         return Attribute::make(
-            get: fn (?string $value) => $value ? Crypt::decryptString($value) : null,
+            get: function (?string $value) {
+                if (! $value) {
+                    return null;
+                }
+                try {
+                    return Crypt::decryptString($value);
+                } catch (DecryptException) {
+                    return null;
+                }
+            },
             set: fn (?string $value) => $value ? Crypt::encryptString($value) : null,
         );
     }
@@ -95,7 +115,7 @@ class LlmModel extends Model
      */
     public function getDisplayNameAttribute(): string
     {
-        return match($this->model_type) {
+        return match ($this->model_type) {
             'satset' => 'Satset',
             'expert' => 'Expert',
             default => ucfirst($this->model_type),
@@ -107,11 +127,10 @@ class LlmModel extends Model
      */
     public function getDescriptionAttribute(): string
     {
-        return match($this->model_type) {
+        return match ($this->model_type) {
             'satset' => 'Fast generation with good quality — perfect for quick builds',
             'expert' => 'Best quality with detailed, production-ready output',
             default => '',
         };
     }
 }
-

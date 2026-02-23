@@ -208,7 +208,7 @@ class WorkspaceService
 
         // Start vite/dev server as a truly detached background process.
         // Using nohup + disown so the process survives after the PHP/Apache request ends.
-        $pid = $this->spawnDaemonDevServer($workspaceDir, $port, $npmBinary);
+        $pid = $this->spawnDaemonDevServer($workspaceDir, $port, $npmBinary, $generation->id);
 
         if (! $pid) {
             return [
@@ -295,7 +295,7 @@ class WorkspaceService
 
         // Stop any running dev servers first
         $activeSessions = $generation->previewSessions()
-            ->whereIn('status', [PreviewSession::STATUS_RUNNING, PreviewSession::STATUS_INSTALLING])
+            ->whereIn('status', [PreviewSession::STATUS_RUNNING, PreviewSession::STATUS_INSTALLING, PreviewSession::STATUS_BOOTING])
             ->get();
 
         foreach ($activeSessions as $session) {
@@ -342,7 +342,7 @@ class WorkspaceService
 
         // Check if there's already a session being set up
         $inProgress = $generation->previewSessions()
-            ->whereIn('status', [PreviewSession::STATUS_CREATING, PreviewSession::STATUS_INSTALLING])
+            ->whereIn('status', [PreviewSession::STATUS_CREATING, PreviewSession::STATUS_INSTALLING, PreviewSession::STATUS_BOOTING])
             ->first();
 
         if ($inProgress) {
@@ -424,16 +424,22 @@ class WorkspaceService
      */
     public function runPreviewSetup(PreviewSession $session, Generation $generation): void
     {
+        $progressLog = storage_path("logs/preview-prewarm-{$generation->id}.log");
+
         try {
             // Step 1: Create workspace (preserves node_modules from prewarm)
+            file_put_contents($progressLog, '['.now()->format('H:i:s')."] [setup] Creating workspace...\n", FILE_APPEND);
             $workspaceDir = $this->createWorkspace($generation);
             $session->update(['workspace_path' => $workspaceDir]);
+            file_put_contents($progressLog, '['.now()->format('H:i:s')."] [setup] Workspace ready: {$workspaceDir}\n", FILE_APPEND);
 
             // Step 2: Install dependencies (skips if already prewarmed)
             $session->update(['status' => PreviewSession::STATUS_INSTALLING]);
-            $installResult = $this->installDependencies($workspaceDir);
+            file_put_contents($progressLog, '['.now()->format('H:i:s')."] [setup] Checking dependencies...\n", FILE_APPEND);
+            $installResult = $this->installDependencies($workspaceDir, $progressLog);
 
             if (! $installResult['success']) {
+                file_put_contents($progressLog, '['.now()->format('H:i:s').'] [setup] ERROR: '.($installResult['error'] ?? 'install failed')."\n", FILE_APPEND);
                 $session->update([
                     'status' => PreviewSession::STATUS_ERROR,
                     'error_message' => $installResult['error'],
@@ -442,7 +448,12 @@ class WorkspaceService
                 return;
             }
 
+            $skipped = $installResult['skipped'] ?? false;
+            file_put_contents($progressLog, '['.now()->format('H:i:s').'] [setup] Dependencies '.($skipped ? 'already installed (skipped)' : 'installed')."\n", FILE_APPEND);
+
             // Step 3: Start dev server
+            $session->update(['status' => PreviewSession::STATUS_BOOTING]);
+            file_put_contents($progressLog, '['.now()->format('H:i:s')."] [setup] Starting dev server...\n", FILE_APPEND);
             $serverResult = $this->startDevServer($workspaceDir, $generation);
 
             if (! $serverResult['success']) {
@@ -459,8 +470,10 @@ class WorkspaceService
                 'preview_port' => $serverResult['port'],
             ]);
 
+            file_put_contents($progressLog, '['.now()->format('H:i:s')."] [setup] Dev server started on port {$serverResult['port']}\n", FILE_APPEND);
             Log::info("Preview session {$session->id} is running on port {$serverResult['port']}");
         } catch (\Exception $e) {
+            file_put_contents($progressLog, '['.now()->format('H:i:s').'] [setup] ERROR: '.$e->getMessage()."\n", FILE_APPEND);
             $session->update([
                 'status' => PreviewSession::STATUS_ERROR,
                 'error_message' => $e->getMessage(),
@@ -681,35 +694,81 @@ class WorkspaceService
     /**
      * Spawn a dev server as a truly detached daemon process.
      *
-     * Uses nohup + bash disown so the Vite process outlives the PHP request.
+     * Uses proc_open + nohup so the Vite process outlives the PHP request.
+     * PID is written to a file to avoid shell_exec pipe-blocking issues.
      * Returns the PID of the spawned process, or null on failure.
      */
-    private function spawnDaemonDevServer(string $workspaceDir, int $port, string $npmBinary): ?int
+    private function spawnDaemonDevServer(string $workspaceDir, int $port, string $npmBinary, int $generationId): ?int
     {
         $logFile = "/tmp/preview-{$port}.log";
+        $pidFile = "/tmp/preview-{$port}.pid";
         $innerCmd = $this->buildDevServerCommand($workspaceDir, $port, $npmBinary);
+
+        // Build the Vite base path so the dev server emits all asset URLs
+        // under the proxy route prefix — eliminates any JS/HTML rewriting.
+        $previewBase = "/generation/{$generationId}/preview/proxy";
 
         if (PHP_OS_FAMILY === 'Windows') {
             // Windows: use START /B to detach
             $command = $this->buildSafeCommand($innerCmd);
-            $process = Process::path($workspaceDir)->timeout(0)->start($command);
+            $process = Process::path($workspaceDir)
+                ->env(['VITE_PREVIEW_BASE' => "{$previewBase}/"])
+                ->timeout(0)
+                ->start($command);
 
             return $process->id() ?: null;
         }
 
-        // Linux/Mac: use bash -c with nohup and disown to fully detach
-        // Prepend NODE path if needed
+        // Linux/Mac: use proc_open with all descriptors pointing to files (not pipes)
+        // This prevents PHP from blocking on pipe reads that shell_exec suffers from
+        // when background processes inherit the stdout pipe.
         $envPrefix = '';
         if ($this->resolvedNodeDir) {
             $nodeDir = $this->resolvedNodeDir;
-            $envPrefix = "PATH=\"${nodeDir}:\$PATH\" ";
+            $envPrefix = "PATH=\"{$nodeDir}:\$PATH\" ";
         }
 
-        $escapedDir = escapeshellarg($workspaceDir);
-        $shellScript = "cd {$escapedDir} && {$envPrefix}nohup {$innerCmd} > ".escapeshellarg($logFile).' 2>&1 & echo $!';
+        // Pass Vite preview base path as env var
+        $envPrefix .= "VITE_PREVIEW_BASE=\"{$previewBase}/\" ";
 
-        $rawPid = shell_exec('bash -c '.escapeshellarg($shellScript));
-        $pid = (int) trim((string) $rawPid);
+        $escapedDir = escapeshellarg($workspaceDir);
+        $escapedLog = escapeshellarg($logFile);
+        $escapedPid = escapeshellarg($pidFile);
+
+        // Clean up stale files
+        @unlink($logFile);
+        @unlink($pidFile);
+
+        // Shell script: cd to workspace, start nohup in background, write PID to file
+        $shellScript = "cd {$escapedDir} && {$envPrefix}nohup {$innerCmd} > {$escapedLog} 2>&1 & echo \$! > {$escapedPid}";
+
+        $descriptors = [
+            0 => ['file', '/dev/null', 'r'],
+            1 => ['file', '/dev/null', 'w'],
+            2 => ['file', '/dev/null', 'w'],
+        ];
+
+        $proc = proc_open(['bash', '-c', $shellScript], $descriptors, $pipes);
+
+        if (! is_resource($proc)) {
+            Log::error('proc_open failed for dev server spawn', ['port' => $port]);
+
+            return null;
+        }
+
+        // Wait for bash to finish — it backgrounds nohup and exits quickly
+        proc_close($proc);
+
+        // Small wait for PID file to be written
+        usleep(500000); // 500ms
+
+        if (! file_exists($pidFile)) {
+            Log::error('Dev server PID file not created', ['pidFile' => $pidFile, 'port' => $port]);
+
+            return null;
+        }
+
+        $pid = (int) trim(file_get_contents($pidFile));
 
         Log::info('Spawned dev server daemon', ['port' => $port, 'pid' => $pid, 'log' => $logFile]);
 

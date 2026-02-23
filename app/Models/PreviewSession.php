@@ -51,6 +51,8 @@ class PreviewSession extends Model
 
     public const STATUS_INSTALLING = 'installing';
 
+    public const STATUS_BOOTING = 'booting';
+
     public const STATUS_RUNNING = 'running';
 
     public const STATUS_STOPPED = 'stopped';
@@ -94,7 +96,7 @@ class PreviewSession extends Model
      */
     public function isSettingUp(): bool
     {
-        return in_array($this->status, [self::STATUS_CREATING, self::STATUS_INSTALLING]);
+        return in_array($this->status, [self::STATUS_CREATING, self::STATUS_INSTALLING, self::STATUS_BOOTING]);
     }
 
     /**

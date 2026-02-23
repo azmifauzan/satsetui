@@ -129,6 +129,10 @@ Route::middleware('auth')->group(function () {
         // Templates list
         Route::get('/templates', [App\Http\Controllers\TemplateController::class, 'index'])
             ->name('templates.index');
+        Route::put('/templates/{generation}/rename', [App\Http\Controllers\TemplateController::class, 'rename'])
+            ->name('templates.rename');
+        Route::delete('/templates/{generation}', [App\Http\Controllers\TemplateController::class, 'destroy'])
+            ->name('templates.destroy');
 
         // Admin Panel - Protected by admin middleware
         Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {

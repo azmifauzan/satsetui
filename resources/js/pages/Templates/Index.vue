@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useI18n } from '@/lib/i18n';
 
@@ -32,6 +32,47 @@ interface Props {
 const props = defineProps<Props>();
 const { t } = useI18n();
 
+// --- Rename ---
+const renameTarget = ref<Template | null>(null);
+const renameForm = useForm({ name: '' });
+
+function openRename(template: Template) {
+  renameTarget.value = template;
+  renameForm.name = template.name;
+}
+
+function closeRename() {
+  renameTarget.value = null;
+  renameForm.reset();
+}
+
+function submitRename() {
+  if (!renameTarget.value) { return; }
+  renameForm.put(`/templates/${renameTarget.value.id}/rename`, {
+    preserveScroll: true,
+    onSuccess: () => closeRename(),
+  });
+}
+
+// --- Delete ---
+const deleteTarget = ref<Template | null>(null);
+
+function openDelete(template: Template) {
+  deleteTarget.value = template;
+}
+
+function closeDelete() {
+  deleteTarget.value = null;
+}
+
+function submitDelete() {
+  if (!deleteTarget.value) { return; }
+  router.delete(`/templates/${deleteTarget.value.id}`, {
+    onSuccess: () => closeDelete(),
+  });
+}
+
+// --- Helpers ---
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'completed':
@@ -93,7 +134,7 @@ const getStatusIcon = (status: string) => {
             :key="template.id"
             class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
           >
-            <!-- Status Badge -->
+            <!-- Status Badge + context menu -->
             <div class="flex items-center justify-between mb-4">
               <span
                 :class="['px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1.5', getStatusColor(template.status)]"
@@ -103,6 +144,30 @@ const getStatusIcon = (status: string) => {
                 </svg>
                 {{ template.status }}
               </span>
+
+              <!-- Edit / Delete icon buttons -->
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  :title="t.templates?.rename || 'Rename'"
+                  @click="openRename(template)"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  :title="t.templates?.delete || 'Delete'"
+                  @click="openDelete(template)"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <!-- Template Name -->
@@ -169,6 +234,26 @@ const getStatusIcon = (status: string) => {
               >
                 {{ t.templates?.viewDetails || 'View Details' }}
               </Link>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                :title="t.templates?.rename || 'Rename'"
+                @click="openRename(template)"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                :title="t.templates?.delete || 'Delete'"
+                @click="openDelete(template)"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -229,5 +314,106 @@ const getStatusIcon = (status: string) => {
         </div>
       </div>
     </div>
+
+    <!-- ── Rename Modal ── -->
+    <Teleport to="body">
+      <div
+        v-if="renameTarget"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        @click.self="closeRename"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeRename" />
+
+        <!-- Dialog -->
+        <div class="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-4">
+            {{ t.templates?.renameTitle || 'Rename Template' }}
+          </h2>
+
+          <form @submit.prevent="submitRename">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              {{ t.templates?.nameLabel || 'Template Name' }}
+            </label>
+            <input
+              v-model="renameForm.name"
+              type="text"
+              autofocus
+              class="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              :placeholder="t.templates?.namePlaceholder || 'Enter template name'"
+            />
+            <p v-if="renameForm.errors.name" class="mt-1.5 text-sm text-red-600 dark:text-red-400">
+              {{ renameForm.errors.name }}
+            </p>
+
+            <div class="flex gap-3 mt-6">
+              <button
+                type="button"
+                class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
+                @click="closeRename"
+              >
+                {{ t.common?.cancel || 'Cancel' }}
+              </button>
+              <button
+                type="submit"
+                :disabled="renameForm.processing || !renameForm.name.trim()"
+                class="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium transition-colors"
+              >
+                {{ renameForm.processing ? (t.common?.saving || 'Saving…') : (t.common?.save || 'Save') }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ── Delete Confirmation Modal ── -->
+    <Teleport to="body">
+      <div
+        v-if="deleteTarget"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        @click.self="closeDelete"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeDelete" />
+
+        <!-- Dialog -->
+        <div class="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="flex-shrink-0 w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">
+              {{ t.templates?.deleteTitle || 'Delete Template' }}
+            </h2>
+          </div>
+
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            {{ t.templates?.deleteConfirm || 'Are you sure you want to delete' }}
+            <strong class="text-slate-900 dark:text-white">{{ deleteTarget.name }}</strong>?
+            {{ t.templates?.deleteWarning || 'This action cannot be undone.' }}
+          </p>
+
+          <div class="flex gap-3">
+            <button
+              type="button"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
+              @click="closeDelete"
+            >
+              {{ t.common?.cancel || 'Cancel' }}
+            </button>
+            <button
+              type="button"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+              @click="submitDelete"
+            >
+              {{ t.templates?.deleteConfirmBtn || 'Delete' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppLayout>
 </template>

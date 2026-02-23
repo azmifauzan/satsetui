@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -100,8 +101,7 @@ class PreviewController extends Controller
             ->first();
 
         $lines[] = sprintf(
-            '[%s] Generation status: %s (%d/%d)',
-            now()->format('H:i:s'),
+            'Generation status: %s (%d/%d)',
             $generation->current_status ?? $generation->status,
             (int) $generation->current_page_index,
             (int) $generation->total_pages
@@ -109,14 +109,13 @@ class PreviewController extends Controller
 
         if ($session) {
             $lines[] = sprintf(
-                '[%s] Preview session: %s%s',
-                now()->format('H:i:s'),
+                'Preview session: %s%s',
                 $session->status,
                 $session->preview_port ? " on :{$session->preview_port}" : ''
             );
 
             if ($session->error_message) {
-                $lines[] = sprintf('[%s] ERROR: %s', now()->format('H:i:s'), $session->error_message);
+                $lines[] = sprintf('ERROR: %s', $session->error_message);
             }
         }
 
@@ -176,6 +175,7 @@ class PreviewController extends Controller
         $percentage = match ($status) {
             'creating' => 15,
             'installing' => 45,
+            'booting' => 85,
             'running' => 100,
             'stopped' => 100,
             'error' => 0,
@@ -229,6 +229,16 @@ class PreviewController extends Controller
             $phase = 'booting';
             $detail = 'npm install completed';
         }
+        if (str_contains($joined, '[install] skipping npm install') || str_contains($joined, 'already installed (skipped)')) {
+            $percentage = max($percentage, 88);
+            $phase = 'booting';
+            $detail = 'Dependencies ready (cached)';
+        }
+        if (str_contains($joined, '[setup] starting dev server')) {
+            $percentage = max($percentage, 90);
+            $phase = 'booting';
+            $detail = 'Starting dev server';
+        }
         if (str_contains($joined, 'dev server started') || str_contains($joined, 'ready in') || str_contains($joined, 'local:')) {
             $percentage = max($percentage, 95);
             $phase = 'booting';
@@ -281,11 +291,16 @@ class PreviewController extends Controller
             ], 500);
         }
 
-        $targetUrl = "http://127.0.0.1:{$port}/{$path}";
+        // Vite is configured with base = /generation/{id}/preview/proxy/
+        // so we forward the full path including that prefix to the Vite server.
+        $base = "/generation/{$generation->id}/preview/proxy";
+        $targetUrl = "http://127.0.0.1:{$port}{$base}/{$path}";
         $queryString = $request->getQueryString();
         if ($queryString) {
             $targetUrl .= '?'.$queryString;
         }
+
+        Log::debug('Preview proxy', ['path' => $path, 'targetUrl' => $targetUrl]);
 
         try {
             $response = Http::timeout(10)
@@ -295,11 +310,23 @@ class PreviewController extends Controller
                 ])
                 ->get($targetUrl);
 
-            $contentType = $response->header('Content-Type') ?? 'text/html';
+            $contentType = $response->header('Content-Type') ?? '';
+            $body = $response->body();
 
-            return response($response->body(), $response->status())
+            // Vite dev server may return incorrect or empty Content-Type for
+            // transformed files (.vue → JS, .css → JS with HMR wrapper, etc.).
+            // Browsers enforce strict MIME checking for ES module scripts and
+            // will reject any module not served as a JavaScript MIME type.
+            $contentType = $this->fixProxyContentType($contentType, $body, $path);
+
+            // No URL rewriting needed — Vite's base config handles all path prefixing
+            // natively, so every import/src/href already points to the proxy route.
+
+            return response($body, $response->status())
                 ->header('Content-Type', $contentType)
-                ->header('X-Preview-Port', $port);
+                ->header('X-Preview-Port', $port)
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('X-Content-Type-Options', 'nosniff');
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to proxy to dev server: '.$e->getMessage(),
@@ -315,7 +342,7 @@ class PreviewController extends Controller
         $this->authorize('view', $generation);
 
         $session = $generation->previewSessions()
-            ->whereIn('status', ['running', 'creating', 'installing', 'error'])
+            ->whereIn('status', ['running', 'creating', 'installing', 'booting', 'error'])
             ->latest()
             ->first();
 
@@ -427,5 +454,47 @@ class PreviewController extends Controller
                 'is_scaffold' => $file->is_scaffold,
             ],
         ]);
+    }
+
+    /**
+     * Fix Content-Type for proxied Vite dev server responses.
+     *
+     * Vite transforms various file types (.vue, .css, .ts, .svelte, etc.)
+     * into JavaScript modules during dev mode but may return incorrect or
+     * empty Content-Type headers. Browsers enforce strict MIME checking for
+     * ES module scripts and reject any module not served as text/javascript.
+     */
+    private function fixProxyContentType(string $contentType, string $body, string $path): string
+    {
+        $trimmedBody = ltrim($body);
+        $isJavaScriptContent = str_starts_with($trimmedBody, 'import ')
+            || str_starts_with($trimmedBody, 'import{')
+            || str_starts_with($trimmedBody, 'import.meta')
+            || str_starts_with($trimmedBody, 'export ')
+            || str_starts_with($trimmedBody, 'export{')
+            || str_starts_with($trimmedBody, 'const ')
+            || str_starts_with($trimmedBody, 'var ')
+            || str_starts_with($trimmedBody, 'let ')
+            || str_starts_with($trimmedBody, '//');
+
+        // Empty or missing Content-Type → detect from content
+        if (empty(trim($contentType))) {
+            if ($isJavaScriptContent) {
+                return 'text/javascript';
+            }
+
+            if (str_starts_with($trimmedBody, '<!DOCTYPE') || str_starts_with($trimmedBody, '<html')) {
+                return 'text/html; charset=utf-8';
+            }
+
+            return 'application/octet-stream';
+        }
+
+        // Vite returns CSS-imported-in-JS as text/css but body is JavaScript
+        if (str_contains($contentType, 'text/css') && $isJavaScriptContent) {
+            return 'text/javascript';
+        }
+
+        return $contentType;
     }
 }
