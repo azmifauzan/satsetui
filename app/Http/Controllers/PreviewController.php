@@ -60,6 +60,24 @@ class PreviewController extends Controller
             ->latest()
             ->first();
 
+        if ($session && $session->status === PreviewSession::STATUS_RUNNING && $session->preview_type === PreviewSession::TYPE_SERVER) {
+            $port = (int) ($session->preview_port ?? 0);
+
+            if ($port <= 0 || ! $this->workspaceService->isDevServerReachable($port)) {
+                $session->update([
+                    'status' => PreviewSession::STATUS_STOPPED,
+                    'error_message' => 'Preview server is unreachable. Starting a new session is required.',
+                    'stopped_at' => now(),
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'status' => 'none',
+                    'message' => 'No active preview session',
+                ]);
+            }
+        }
+
         if (! $session) {
             return response()->json([
                 'success' => true,
@@ -124,7 +142,12 @@ class PreviewController extends Controller
             $lines = array_merge($lines, $this->tailLines($prewarmLog, (int) floor($maxLines / 2)));
         }
 
-        if ($session?->preview_port) {
+        if ($session?->preview_port && in_array($session->status, [
+            PreviewSession::STATUS_CREATING,
+            PreviewSession::STATUS_INSTALLING,
+            PreviewSession::STATUS_BOOTING,
+            PreviewSession::STATUS_RUNNING,
+        ], true)) {
             $runtimeLog = "/tmp/preview-{$session->preview_port}.log";
             if (File::exists($runtimeLog)) {
                 $runtimeLines = $this->tailLines($runtimeLog, (int) floor($maxLines / 2));
@@ -169,6 +192,30 @@ class PreviewController extends Controller
      */
     private function resolveProgress(string $status, array $lines): array
     {
+        if ($status === 'stopped') {
+            return [
+                'phase' => 'stopped',
+                'percentage' => 100,
+                'detail' => 'Preview stopped',
+            ];
+        }
+
+        if ($status === 'error') {
+            return [
+                'phase' => 'error',
+                'percentage' => 0,
+                'detail' => 'Failed to start preview',
+            ];
+        }
+
+        if ($status === 'none') {
+            return [
+                'phase' => 'none',
+                'percentage' => 0,
+                'detail' => 'Waiting',
+            ];
+        }
+
         $phase = $status;
         $detail = 'Waiting';
 
@@ -269,6 +316,14 @@ class PreviewController extends Controller
     {
         $this->authorize('view', $generation);
 
+        if (trim($path, '/') === '@vite/client') {
+            return response($this->viteClientStubModule(), 200)
+                ->header('Content-Type', 'text/javascript; charset=utf-8')
+                ->header('X-Preview-Port', 'stub')
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('X-Content-Type-Options', 'nosniff');
+        }
+
         $session = $generation->previewSessions()
             ->where('status', 'running')
             ->latest()
@@ -294,24 +349,47 @@ class PreviewController extends Controller
         // Vite is configured with base = /generation/{id}/preview/proxy/
         // so we forward the full path including that prefix to the Vite server.
         $base = "/generation/{$generation->id}/preview/proxy";
-        $targetUrl = "http://127.0.0.1:{$port}{$base}/{$path}";
-        $queryString = $request->getQueryString();
-        if ($queryString) {
-            $targetUrl .= '?'.$queryString;
+        $host = $this->workspaceService->resolveReachableDevServerHost((int) $port);
+        if (! $host) {
+            $session->update([
+                'status' => PreviewSession::STATUS_STOPPED,
+                'error_message' => 'Preview server is unreachable. Please start preview again.',
+                'stopped_at' => now(),
+            ]);
+
+            return response()->json([
+                'error' => 'Preview server is unreachable. Please restart preview.',
+            ], 502);
         }
+
+        $queryString = $this->getProxyForwardQueryString($request);
+        $targetUrl = $this->buildProxyTargetUrl($host, (int) $port, $base, $path, $queryString);
 
         Log::debug('Preview proxy', ['path' => $path, 'targetUrl' => $targetUrl]);
 
         try {
-            $response = Http::timeout(10)
+            /** @var \Illuminate\Http\Client\Response $proxyResponse */
+            $proxyResponse = Http::timeout(10)
                 ->withHeaders([
                     'Accept' => $request->header('Accept', '*/*'),
                     'Accept-Encoding' => 'identity', // Don't compress for proxy
                 ])
                 ->get($targetUrl);
 
-            $contentType = $response->header('Content-Type') ?? '';
-            $body = $response->body();
+            if ($this->shouldRetryProxyWithoutBase($proxyResponse, $path)) {
+                $fallbackUrl = $this->buildProxyTargetUrl($host, (int) $port, '', $path, $queryString);
+                Log::debug('Preview proxy fallback without base', ['path' => $path, 'fallbackUrl' => $fallbackUrl]);
+
+                $proxyResponse = Http::timeout(10)
+                    ->withHeaders([
+                        'Accept' => $request->header('Accept', '*/*'),
+                        'Accept-Encoding' => 'identity',
+                    ])
+                    ->get($fallbackUrl);
+            }
+
+            $contentType = $proxyResponse->header('Content-Type') ?? '';
+            $body = $proxyResponse->body();
 
             // Vite dev server may return incorrect or empty Content-Type for
             // transformed files (.vue → JS, .css → JS with HMR wrapper, etc.).
@@ -319,10 +397,21 @@ class PreviewController extends Controller
             // will reject any module not served as a JavaScript MIME type.
             $contentType = $this->fixProxyContentType($contentType, $body, $path);
 
+            if (str_contains($contentType, 'text/html')) {
+                $body = $this->normalizeProxyHtmlEntrypoint($body, (string) $session->workspace_path);
+                $body = $this->removeViteClientScript($body);
+            }
+
+            // Some generated templates do not configure Vite base for dev mode,
+            // causing absolute asset URLs like /@vite/client and /src/main.ts
+            // that bypass our proxy route and fail in the app shell.
+            // Rebase known absolute URLs back to this proxy prefix.
+            $body = $this->rewriteProxyAssetUrls($body, $contentType, $base);
+
             // No URL rewriting needed — Vite's base config handles all path prefixing
             // natively, so every import/src/href already points to the proxy route.
 
-            return response($body, $response->status())
+            return response($body, $proxyResponse->status())
                 ->header('Content-Type', $contentType)
                 ->header('X-Preview-Port', $port)
                 ->header('Access-Control-Allow-Origin', '*')
@@ -496,5 +585,267 @@ class PreviewController extends Controller
         }
 
         return $contentType;
+    }
+
+    /**
+     * Rewrite absolute Vite asset URLs so requests stay under preview proxy.
+     */
+    private function rewriteProxyAssetUrls(string $body, string $contentType, string $base): string
+    {
+        $isHtml = str_contains($contentType, 'text/html');
+
+        if (! $isHtml) {
+            return $body;
+        }
+
+        $normalizedBase = rtrim($base, '/');
+        $prefixMap = [
+            '/@vite/' => $normalizedBase.'/@vite/',
+            '/src/' => $normalizedBase.'/src/',
+            '/node_modules/' => $normalizedBase.'/node_modules/',
+            '/@id/' => $normalizedBase.'/@id/',
+            '/__x00__' => $normalizedBase.'/__x00__',
+            '/@fs/' => $normalizedBase.'/@fs/',
+        ];
+
+        $rewritten = $body;
+
+        foreach ($prefixMap as $from => $to) {
+            $rewritten = str_replace('"'.$from, '"'.$to, $rewritten);
+            $rewritten = str_replace("'".$from, "'".$to, $rewritten);
+            $rewritten = str_replace('('.$from, '('.$to, $rewritten);
+            $rewritten = str_replace('='.$from, '='.$to, $rewritten);
+            $rewritten = str_replace(' '.$from, ' '.$to, $rewritten);
+            $rewritten = str_replace('`'.$from, '`'.$to, $rewritten);
+        }
+
+        return $rewritten;
+    }
+
+    /**
+     * Remove Vite HMR client script in proxied iframe preview.
+     */
+    private function removeViteClientScript(string $html): string
+    {
+        return preg_replace(
+            '/\s*<script[^>]*type=["\']module["\'][^>]*src=["\'][^"\']*\/(@vite\/client|generation\/\d+\/preview\/proxy\/@vite\/client)[^"\']*["\'][^>]*><\/script>\s*/i',
+            PHP_EOL,
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * Build target URL for proxy requests.
+     */
+    private function buildProxyTargetUrl(string $host, int $port, string $base, string $path, ?string $queryString): string
+    {
+        $normalizedBase = trim($base) === '' ? '' : '/'.trim($base, '/');
+        $normalizedPath = trim($path) === '' ? '/' : '/'.ltrim($path, '/');
+
+        $url = "http://{$host}:{$port}{$normalizedBase}{$normalizedPath}";
+
+        if ($queryString) {
+            $url .= '?'.$queryString;
+        }
+
+        return $url;
+    }
+
+    /**
+     * Get query string for proxy forwarding, preserving Vite flag parameters.
+     */
+    private function getProxyForwardQueryString(Request $request): ?string
+    {
+        $rawQuery = (string) $request->server->get('QUERY_STRING', '');
+        if ($rawQuery === '') {
+            $rawQuery = (string) ($request->getQueryString() ?? '');
+        }
+
+        if ($rawQuery === '') {
+            return null;
+        }
+
+        return $this->normalizeViteFlagQueryString($rawQuery);
+    }
+
+    /**
+     * Keep Vite query flags in "bare" form (without trailing '=') so transforms are correct.
+     */
+    private function normalizeViteFlagQueryString(string $queryString): string
+    {
+        $normalized = preg_replace('/(^|&)vue=(?=&|$)/', '$1vue', $queryString) ?? $queryString;
+        $normalized = preg_replace('/(^|&)lang\.(css|scss|sass|less|stylus|styl)=(?=&|$)/', '$1lang.$2', $normalized) ?? $normalized;
+
+        return $normalized;
+    }
+
+    /**
+     * Detect when proxy should retry request without configured base path.
+     */
+    private function shouldRetryProxyWithoutBase(\Illuminate\Http\Client\Response $response, string $path): bool
+    {
+        if (trim($path) === '') {
+            return false;
+        }
+
+        $assetLikePath = preg_match('/\.(ts|tsx|js|jsx|css|vue|mjs)(\?.*)?$/i', $path) === 1
+            || str_starts_with($path, '@vite/')
+            || str_starts_with($path, 'src/')
+            || str_starts_with($path, '@id/')
+            || str_starts_with($path, '__x00__')
+            || str_starts_with($path, 'node_modules/');
+
+        if ($response->status() === 404) {
+            return true;
+        }
+
+        if ($response->status() >= 500 && $assetLikePath) {
+            return true;
+        }
+
+        $contentType = (string) ($response->header('Content-Type') ?? '');
+
+        // Module/style endpoints returning HTML typically indicate incorrect base path.
+        if (str_contains($contentType, 'text/html')) {
+            return $assetLikePath;
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize proxied HTML entry script and mount container to match actual workspace files.
+     */
+    private function normalizeProxyHtmlEntrypoint(string $html, string $workspacePath): string
+    {
+        if (trim($workspacePath) === '' || ! File::isDirectory($workspacePath)) {
+            return $html;
+        }
+
+        $entryCandidates = ['/src/main.tsx', '/src/main.ts', '/src/main.jsx', '/src/main.js'];
+        $existingEntry = null;
+
+        foreach ($entryCandidates as $entry) {
+            $entryPath = $workspacePath.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, ltrim($entry, '/'));
+            if (File::exists($entryPath)) {
+                $existingEntry = $entry;
+                break;
+            }
+        }
+
+        $normalizedHtml = $html;
+
+        if ($existingEntry) {
+            $replacedEntryScript = false;
+
+            $normalizedHtml = preg_replace_callback(
+                '/<script[^>]*type=["\']module["\'][^>]*src=["\']([^"\']+)["\'][^>]*><\/script>/i',
+                function (array $matches) use ($entryCandidates, $existingEntry, &$replacedEntryScript): string {
+                    $fullScriptTag = $matches[0];
+                    $src = $matches[1];
+
+                    $srcPath = parse_url($src, PHP_URL_PATH) ?? $src;
+                    $srcPath = '/'.ltrim($srcPath, '/');
+
+                    if (! in_array($srcPath, $entryCandidates, true)) {
+                        return $fullScriptTag;
+                    }
+
+                    if ($srcPath === $existingEntry) {
+                        $replacedEntryScript = true;
+
+                        return $fullScriptTag;
+                    }
+
+                    $replacedEntryScript = true;
+
+                    return str_replace($src, $existingEntry, $fullScriptTag);
+                },
+                $normalizedHtml
+            ) ?? $normalizedHtml;
+
+            if (! $replacedEntryScript) {
+                if (str_contains($normalizedHtml, '</body>')) {
+                    $normalizedHtml = str_replace(
+                        '</body>',
+                        '    <script type="module" src="'.$existingEntry.'"></script>'.PHP_EOL.'  </body>',
+                        $normalizedHtml
+                    );
+                }
+            }
+        }
+
+        $expectedMountId = $this->detectWorkspaceMountId($workspacePath);
+        if ($expectedMountId !== null && preg_match('/<div[^>]*id=["\']([^"\']+)["\'][^>]*><\/div>/i', $normalizedHtml, $divMatch) === 1) {
+            $currentId = $divMatch[1];
+            if ($currentId !== $expectedMountId) {
+                $normalizedHtml = preg_replace(
+                    '/(<div[^>]*id=["\'])[^"\']+(["\'][^>]*><\/div>)/i',
+                    '$1'.$expectedMountId.'$2',
+                    $normalizedHtml,
+                    1
+                ) ?? $normalizedHtml;
+            }
+        }
+
+        return $normalizedHtml;
+    }
+
+    /**
+     * Detect mount id from workspace main entry files.
+     */
+    private function detectWorkspaceMountId(string $workspacePath): ?string
+    {
+        foreach (['main.tsx', 'main.ts', 'main.jsx', 'main.js'] as $entryFile) {
+            $mainPath = $workspacePath.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.$entryFile;
+            if (! File::exists($mainPath)) {
+                continue;
+            }
+
+            $content = File::get($mainPath);
+
+            if (preg_match('/mount\(\s*["\']#([^"\']+)["\']\s*\)/', $content, $match) === 1) {
+                return $match[1];
+            }
+
+            if (preg_match('/getElementById\(\s*["\']([^"\']+)["\']\s*\)/', $content, $match) === 1) {
+                return $match[1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * No-op Vite client for iframe preview mode (disables HMR websocket).
+     */
+    private function viteClientStubModule(): string
+    {
+        return <<<'JS'
+export function createHotContext() {
+    return {
+        accept() {},
+        acceptExports() {},
+        dispose() {},
+        prune() {},
+        invalidate() {},
+        on() {},
+        off() {},
+        send() {},
+        data: {},
+    }
+}
+
+export function injectQuery(url) {
+    return url
+}
+
+export function updateStyle() {}
+export function removeStyle() {}
+export const ErrorOverlay = class {
+    constructor() {}
+}
+export default {}
+JS;
     }
 }

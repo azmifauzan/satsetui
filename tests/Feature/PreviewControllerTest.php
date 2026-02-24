@@ -2,6 +2,7 @@
 
 use App\Models\Generation;
 use App\Models\GenerationFile;
+use App\Models\PreviewSession;
 use App\Models\Project;
 use App\Models\User;
 
@@ -58,6 +59,31 @@ test('preview status returns no session when none exists', function () {
         ->assertJson([
             'status' => 'none',
         ]);
+});
+
+test('preview status recovers from stale running session with unreachable port', function () {
+    $session = PreviewSession::create([
+        'generation_id' => $this->generation->id,
+        'user_id' => $this->user->id,
+        'workspace_path' => storage_path('app/workspaces/gen-'.$this->generation->id),
+        'preview_port' => 65534,
+        'preview_type' => PreviewSession::TYPE_SERVER,
+        'status' => PreviewSession::STATUS_RUNNING,
+        'started_at' => now()->subMinutes(5),
+        'last_activity_at' => now()->subMinutes(1),
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson("/generation/{$this->generation->id}/preview/status")
+        ->assertOk()
+        ->assertJson([
+            'status' => 'none',
+            'message' => 'No active preview session',
+        ]);
+
+    $session->refresh();
+
+    expect($session->status)->toBe(PreviewSession::STATUS_STOPPED);
 });
 
 test('preview logs endpoint returns terminal lines', function () {

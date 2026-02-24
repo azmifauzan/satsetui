@@ -911,6 +911,7 @@ onMounted(() => {  // Load stored refinement messages first
                 :generation-id="generationData.id"
                 :output-format="outputFormat"
                 :page-content="currentPageContent"
+                :target-page="selectedPage"
                 :is-completed="isCompleted"
                 :is-generating="isGenerating"
               />

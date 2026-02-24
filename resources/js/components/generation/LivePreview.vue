@@ -17,6 +17,7 @@ interface Props {
   generationId: number;
   outputFormat: string;
   pageContent: string;
+  targetPage?: string | null;
   isCompleted: boolean;
   isGenerating: boolean;
 }
@@ -47,6 +48,7 @@ const logsPollingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const terminalOpen = ref(true);
 const terminalLines = ref<string[]>([]);
 const terminalBodyRef = ref<HTMLElement | null>(null);
+const terminalAutoScroll = ref(true);
 const terminalStatus = ref<'none' | PreviewStatus>('none');
 const terminalProgress = ref(0);
 const terminalPhase = ref('idle');
@@ -192,7 +194,7 @@ function appendTerminal(message: string) {
   }
 
   nextTick(() => {
-    if (terminalBodyRef.value) {
+    if (terminalBodyRef.value && terminalAutoScroll.value) {
       terminalBodyRef.value.scrollTop = terminalBodyRef.value.scrollHeight;
     }
   });
@@ -219,7 +221,7 @@ async function pollTerminalLogs() {
     if (Array.isArray(response.data.lines)) {
       terminalLines.value = response.data.lines as string[];
       nextTick(() => {
-        if (terminalBodyRef.value) {
+        if (terminalBodyRef.value && terminalAutoScroll.value) {
           terminalBodyRef.value.scrollTop = terminalBodyRef.value.scrollHeight;
         }
       });
@@ -228,6 +230,25 @@ async function pollTerminalLogs() {
     // Keep current terminal logs, do not interrupt preview flow
   }
 }
+
+function handleTerminalScroll(event: Event) {
+  const target = event.target as HTMLElement;
+  const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+  terminalAutoScroll.value = distanceFromBottom < 24;
+}
+
+const normalizedTargetPagePath = computed(() => {
+  if (!isFramework.value) {
+    return '';
+  }
+
+  const rawPage = String(props.targetPage || '').trim().toLowerCase();
+  if (rawPage === '' || rawPage === 'home') {
+    return '';
+  }
+
+  return `/${encodeURIComponent(rawPage)}`;
+});
 
 const terminalPhaseLabel = computed(() => {
   const isEn = currentLang.value === 'en';
@@ -305,10 +326,19 @@ if (isFramework.value) {
 const frameworkIframeSrc = computed(() => {
   if (previewStatus.value === 'running' && previewUrl.value) {
     // Append cache-buster so the iframe reloads when the preview url is re-set
-    return `${previewUrl.value}?_t=${previewLoadKey.value}`;
+    return `${previewUrl.value}${normalizedTargetPagePath.value}?_t=${previewLoadKey.value}`;
   }
   return '';
 });
+
+watch(
+  () => props.targetPage,
+  () => {
+    if (isFramework.value && previewStatus.value === 'running') {
+      previewLoadKey.value = Date.now();
+    }
+  },
+);
 
 // Effective iframe source
 const effectiveIframeSrc = computed(() => {
@@ -632,7 +662,7 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
         </div>
       </div>
 
-      <div v-show="terminalOpen" ref="terminalBodyRef" class="h-36 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-black/90">
+      <div v-show="terminalOpen" ref="terminalBodyRef" class="h-36 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-black/90" @scroll="handleTerminalScroll">
         <div v-if="terminalLines.length === 0" class="text-slate-500">
           {{ currentLang === 'en' ? 'Waiting for preview logs...' : 'Menunggu log preview...' }}
         </div>

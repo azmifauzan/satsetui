@@ -112,6 +112,17 @@ class WorkspaceService
         // Tailwind v4 cleanup: remove v3-era config files that crash Vite
         $this->cleanupTailwindV3Artifacts($workspaceDir);
 
+        // Normalize entry files so preview keeps working when generated scaffold
+        // mixes framework conventions (e.g. Vue main.ts but index references main.tsx).
+        $this->normalizePreviewEntrypointArtifacts($workspaceDir);
+
+        // Ensure Vite emits URLs under preview proxy base path.
+        $this->normalizeVitePreviewBase($workspaceDir);
+
+        // Normalize Tailwind utility classes that are invalid in Tailwind v4
+        // and can fail dev-server style transforms.
+        $this->normalizeTailwindPreviewUtilities($workspaceDir);
+
         Log::info("Workspace created for generation {$generation->id}", [
             'path' => $workspaceDir,
             'file_count' => $files->count(),
@@ -329,15 +340,39 @@ class WorkspaceService
             ->first();
 
         if ($existing && ! $existing->hasTimedOut()) {
-            $existing->touch();
+            if ($existing->preview_type === PreviewSession::TYPE_STATIC) {
+                $existing->touch();
 
-            return [
-                'success' => true,
-                'session_id' => $existing->id,
-                'port' => $existing->preview_port,
-                'url' => $this->getPreviewUrl($existing->preview_port),
-                'status' => 'already_running',
-            ];
+                return [
+                    'success' => true,
+                    'session_id' => $existing->id,
+                    'port' => $existing->preview_port,
+                    'url' => $this->getPreviewUrl($existing->preview_port),
+                    'status' => 'already_running',
+                ];
+            }
+
+            if ($existing->preview_port && $this->isDevServerReachable($existing->preview_port)) {
+                $existing->touch();
+
+                return [
+                    'success' => true,
+                    'session_id' => $existing->id,
+                    'port' => $existing->preview_port,
+                    'url' => $this->getPreviewUrl($existing->preview_port),
+                    'status' => 'already_running',
+                ];
+            }
+
+            // Session is marked running but server is unreachable: recycle it.
+            $this->stopDevServer($existing);
+            $existing->update([
+                'error_message' => 'Preview server became unreachable and was restarted.',
+            ]);
+        }
+
+        if ($existing && $existing->hasTimedOut()) {
+            $this->stopDevServer($existing);
         }
 
         // Check if there's already a session being set up
@@ -351,11 +386,6 @@ class WorkspaceService
                 'session_id' => $inProgress->id,
                 'status' => $inProgress->status,
             ];
-        }
-
-        // Stop existing timed-out session
-        if ($existing) {
-            $this->stopDevServer($existing);
         }
 
         // Determine preview type
@@ -620,6 +650,149 @@ class WorkspaceService
         }
     }
 
+    /**
+     * Auto-fix common generated entrypoint mismatches in index.html.
+     */
+    private function normalizePreviewEntrypointArtifacts(string $workspaceDir): void
+    {
+        $indexPath = $workspaceDir.DIRECTORY_SEPARATOR.'index.html';
+        if (! File::exists($indexPath)) {
+            return;
+        }
+
+        $indexContent = File::get($indexPath);
+        $updatedContent = $indexContent;
+
+        $entryCandidates = [
+            '/src/main.tsx',
+            '/src/main.ts',
+            '/src/main.jsx',
+            '/src/main.js',
+        ];
+
+        $existingEntries = array_values(array_filter($entryCandidates, function (string $entry) use ($workspaceDir): bool {
+            $relativePath = ltrim($entry, '/');
+
+            return File::exists($workspaceDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relativePath));
+        }));
+
+        if (preg_match('/<script[^>]*type=["\']module["\'][^>]*src=["\']([^"\']+)["\'][^>]*><\/script>/i', $updatedContent, $match) === 1) {
+            $currentEntry = trim($match[1]);
+            $currentRelativePath = ltrim(parse_url($currentEntry, PHP_URL_PATH) ?? $currentEntry, '/');
+            $currentEntryExists = File::exists($workspaceDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $currentRelativePath));
+
+            if (! $currentEntryExists && ! empty($existingEntries)) {
+                $updatedContent = str_replace($currentEntry, $existingEntries[0], $updatedContent);
+            }
+        } elseif (! empty($existingEntries)) {
+            $injectedScript = '    <script type="module" src="'.$existingEntries[0].'"></script>';
+            if (str_contains($updatedContent, '</body>')) {
+                $updatedContent = str_replace('</body>', $injectedScript.PHP_EOL.'  </body>', $updatedContent);
+            }
+        }
+
+        $expectedMountId = $this->detectExpectedMountId($workspaceDir);
+        if ($expectedMountId !== null) {
+            if (preg_match('/<div[^>]*id=["\']([^"\']+)["\'][^>]*><\/div>/i', $updatedContent, $divMatch) === 1) {
+                $currentId = $divMatch[1];
+                if ($currentId !== $expectedMountId) {
+                    $updatedContent = str_replace('id="'.$currentId.'"', 'id="'.$expectedMountId.'"', $updatedContent);
+                    $updatedContent = str_replace("id='".$currentId."'", "id='".$expectedMountId."'", $updatedContent);
+                }
+            } elseif (str_contains($updatedContent, '</body>')) {
+                $container = '    <div id="'.$expectedMountId.'"></div>';
+                $updatedContent = str_replace('</body>', $container.PHP_EOL.'  </body>', $updatedContent);
+            }
+        }
+
+        if ($updatedContent !== $indexContent) {
+            File::put($indexPath, $updatedContent);
+            Log::info("Normalized preview entry artifacts in {$workspaceDir}");
+        }
+    }
+
+    /**
+     * Detect expected mount container id from available main entry file.
+     */
+    private function detectExpectedMountId(string $workspaceDir): ?string
+    {
+        $entryFiles = ['main.tsx', 'main.ts', 'main.jsx', 'main.js'];
+
+        foreach ($entryFiles as $entryFile) {
+            $mainPath = $workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.$entryFile;
+            if (! File::exists($mainPath)) {
+                continue;
+            }
+
+            $content = File::get($mainPath);
+            if (preg_match('/mount\(\s*["\']#([^"\']+)["\']\s*\)/', $content, $match) === 1) {
+                return $match[1];
+            }
+
+            if (preg_match('/getElementById\(\s*["\']([^"\']+)["\']\s*\)/', $content, $match) === 1) {
+                return $match[1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Ensure generated Vite config sets `base` from VITE_PREVIEW_BASE.
+     */
+    private function normalizeVitePreviewBase(string $workspaceDir): void
+    {
+        foreach (['vite.config.ts', 'vite.config.js'] as $viteFile) {
+            $vitePath = $workspaceDir.DIRECTORY_SEPARATOR.$viteFile;
+            if (! File::exists($vitePath)) {
+                continue;
+            }
+
+            $content = File::get($vitePath);
+            if (preg_match('/\bbase\s*:/', $content) === 1) {
+                continue;
+            }
+
+            $updated = preg_replace(
+                '/defineConfig\s*\(\s*\{/',
+                "defineConfig({\n  base: process.env.VITE_PREVIEW_BASE || '/',",
+                $content,
+                1
+            );
+
+            if (is_string($updated) && $updated !== $content) {
+                File::put($vitePath, $updated);
+                Log::info("Normalized {$viteFile} with preview base in {$workspaceDir}");
+            }
+        }
+    }
+
+    /**
+     * Replace Tailwind v4-invalid ring-primary apply usage in generated Vue files.
+     */
+    private function normalizeTailwindPreviewUtilities(string $workspaceDir): void
+    {
+        $srcDir = $workspaceDir.DIRECTORY_SEPARATOR.'src';
+        if (! File::isDirectory($srcDir)) {
+            return;
+        }
+
+        foreach (File::allFiles($srcDir) as $file) {
+            $path = $file->getPathname();
+            if (! str_ends_with($path, '.vue') && ! str_ends_with($path, '.css')) {
+                continue;
+            }
+
+            $content = File::get($path);
+            $updated = str_replace('ring-primary', 'ring-red-500', $content);
+            $updated = str_replace('ring-opacity-50', 'ring-red-500/50', $updated);
+
+            if ($updated !== $content) {
+                File::put($path, $updated);
+            }
+        }
+    }
+
     private function getWorkspaceDir(Generation $generation): string
     {
         return $this->baseDir.DIRECTORY_SEPARATOR.'gen-'.$generation->id;
@@ -651,6 +824,41 @@ class WorkspaceService
         }
 
         return false;
+    }
+
+    /**
+     * Resolve a reachable host for the preview dev server port.
+     */
+    public function resolveReachableDevServerHost(int $port): ?string
+    {
+        $configuredHosts = config('app.preview_proxy_hosts');
+        $hosts = is_array($configuredHosts)
+            ? $configuredHosts
+            : explode(',', (string) $configuredHosts);
+
+        foreach ($hosts as $host) {
+            $candidate = trim((string) $host);
+            if ($candidate === '') {
+                continue;
+            }
+
+            $connection = @fsockopen($candidate, $port, $errno, $errstr, 1);
+            if ($connection) {
+                fclose($connection);
+
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check whether a dev server is reachable on any configured preview host.
+     */
+    public function isDevServerReachable(int $port): bool
+    {
+        return $this->resolveReachableDevServerHost($port) !== null;
     }
 
     private function isProcessRunning(int $pid): bool

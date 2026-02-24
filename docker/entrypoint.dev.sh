@@ -37,13 +37,26 @@ php artisan cache:clear 2>/dev/null || true
 # ---------- Run migrations ----------
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     echo ">>> Running database migrations..."
-    php artisan migrate --force
+    migration_success=0
+    for attempt in $(seq 1 20); do
+        if php artisan migrate --force; then
+            migration_success=1
+            break
+        fi
+
+        echo "WARN: migration attempt ${attempt}/20 failed; retrying in 3s..."
+        sleep 3
+    done
+
+    if [ "$migration_success" -ne 1 ]; then
+        echo "WARN: migrations did not complete; continuing startup to avoid app downtime"
+    fi
 fi
 
 # ---------- Run seeders ----------
 if [ "${RUN_SEEDERS:-false}" = "true" ]; then
     echo ">>> Running database seeders..."
-    php artisan db:seed --force
+    php artisan db:seed --force || echo "WARN: seeding failed; continuing startup"
 fi
 
 # ---------- Storage link ----------

@@ -54,6 +54,11 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'preview_proxy_hosts' => array_values(array_filter(array_map(
+        static fn (string $host): string => trim($host),
+        explode(',', (string) env('PREVIEW_PROXY_HOSTS', '127.0.0.1,host.docker.internal,localhost'))
+    ))),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
