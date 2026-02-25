@@ -2,8 +2,8 @@
 
 Dokumentasi lengkap untuk sistem Large Language Model (LLM) dan perhitungan kredit di SatsetUI.
 
-**Tanggal Update:** 16 Februari 2026  
-**Versi:** 2.2 (Updated untuk 2-model system)
+**Tanggal Update:** 25 Februari 2026  
+**Versi:** 2.3 (Updated untuk 2-model system)
 
 ---
 
@@ -271,17 +271,16 @@ estimated_tokens = weighted_average(
 ```sql
 CREATE TABLE llm_models (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) UNIQUE NOT NULL,
-    display_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    input_price_per_million DECIMAL(10,7) NOT NULL,
-    output_price_per_million DECIMAL(10,7) NOT NULL,
-    estimated_credits_per_generation INT NOT NULL,
-    is_free BOOLEAN DEFAULT FALSE,
+    model_type ENUM('satset', 'expert') NOT NULL UNIQUE,
+    provider ENUM('gemini', 'openai') NOT NULL DEFAULT 'gemini',
+    model_name VARCHAR(255) NOT NULL,
+    api_key TEXT NULL,           -- encrypted
+    base_url TEXT NULL,          -- encrypted
+    base_credits INT NOT NULL DEFAULT 1,
     is_active BOOLEAN DEFAULT TRUE,
-    sort_order INT DEFAULT 0,
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    INDEX idx_model_type_active (model_type, is_active)
 );
 ```
 
@@ -300,6 +299,10 @@ CREATE TABLE page_generations (
     processing_time_ms INT DEFAULT 0,
     status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
     error_message TEXT,
+    file_path VARCHAR(255) NULL,
+    file_type VARCHAR(50) DEFAULT 'html',
+    raw_prompt TEXT NULL,
+    raw_response TEXT NULL,
     created_at TIMESTAMP,
     completed_at TIMESTAMP,
     FOREIGN KEY (generation_id) REFERENCES generations(id) ON DELETE CASCADE
@@ -417,6 +420,13 @@ LLM_BASE_URL=https://ai.sumopod.com/v1
 ---
 
 ## Changelog
+
+### v2.3 (25 Februari 2026)
+- ✅ Live Preview workspace (WorkspaceService, PreviewController)
+- ✅ Multi-file generation output (GenerationFile model)
+- ✅ ScaffoldGeneratorService for framework project scaffolding
+- ✅ PreviewSession model for preview lifecycle tracking
+- ✅ Updated documentation to match current codebase state
 
 ### v2.1 (25 Januari 2026)
 - ✅ Rebranding ke SatsetUI
