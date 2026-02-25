@@ -32,7 +32,7 @@ SatsetUI takes a fundamentally different approach:
 **Prompt-based**: "Create a modern admin dashboard with charts and a clean design"
 → Results vary, unpredictable, not reproducible
 
-**Wizard-based**: Framework=Tailwind, Category=Admin Dashboard, Pages=[Dashboard,Charts], Layout=Sidebar+Topbar, Theme=Blue/Indigo/Dark, Density=Comfortable, Components=[Charts], OutputFormat=Vue, LlmModel=Gemini-Flash
+**Wizard-based**: Framework=Tailwind, Category=Admin Dashboard, Pages=[Dashboard,Charts], Layout=Sidebar+Topbar, Theme=Blue/Indigo/Dark, Density=Comfortable, Components=[Charts], OutputFormat=Vue, LlmModel=Satset
 → Results identical every time
 
 ---
@@ -222,25 +222,26 @@ Users can add custom UI components beyond the predefined options. Each custom co
 
 ### Step 3: LLM Model Selection
 
-**Purpose**: Choose the AI model for generation
+**Purpose**: Choose the AI model type for generation
 
-#### LLM Model Selection:
+#### LLM Model Types (2-Model System):
 
-**Free Models** (No credits required):
-- **Gemini 2.5 Flash**: Fast generation, free for all users (3 credits equivalent value)
+SatsetUI uses a **2-model type system**. Users choose between two model types, each backed by an admin-configurable underlying model:
 
-**Premium Models** (Requires credits):
-- **GPT-5.1 Codex Mini**: Lightweight code generation (2 credits)
-- **Claude Haiku 4.5**: Balance speed and quality (6 credits)
-- **GPT-5.1 Codex**: High quality code generation (10 credits)
-- **Gemini 3 Pro Preview**: Advanced Google model (12 credits)
-- **Claude Sonnet 4.5**: Premium output quality (15 credits)
+- **Satset** (default: `gemini-2.0-flash-exp`): Fast generation with good quality — perfect for quick builds (6 credits per generation)
+- **Expert** (default: `gemini-2.5-pro-preview`): Best quality with detailed, production-ready output (15 credits per generation)
+
+**Admin Configuration**:
+- Model name, provider (`gemini` or `openai`), API key, and base URL are admin-configurable per model type
+- API keys and base URLs are stored encrypted in the database (`llm_models` table)
+- Base credits per model type are admin-configurable (minimum 1 credit)
+- Each model type can be independently activated or deactivated
 
 **Credit System**:
-- Free users can only use Gemini 2.5 Flash
-- Premium users can choose any model if they have sufficient credits
-- Premium model selection is disabled when user credits = 0
-- Each generation consumes credits based on the selected model
+- All users start with **100 credits** at registration
+- Users choose between Satset (6 credits) or Expert (15 credits) model types
+- Model selection is disabled when user has insufficient credits for the chosen model
+- Each generation consumes credits based on the selected model type
 - **Extra Page Credits**: +1 credit per page beyond base quota of 5
 - **Extra Component Credits**: +0.5 credit per component beyond base quota of 6
 - **Error Margin**: +10% (configurable in admin) to account for token estimation variance
@@ -248,12 +249,12 @@ Users can add custom UI components beyond the predefined options. Each custom co
 - Total cost = (Model cost + Extra page credits + Extra component credits) × (1 + Error Margin) × (1 + Profit Margin)
 
 **Blueprint fields**:
-- `llmModel`: string (model ID from API, e.g., "gemini-2.5-flash")
-- `modelCredits`: number (base model cost)
+- `llmModel`: string (model type: `"satset"` or `"expert"`)
+- `modelCredits`: number (base model cost: 6 or 15)
 - `calculatedCredits`: number (total cost including extras and margins)
-- `creditBreakdown`: object with detailed cost breakdown
+- `creditBreakdown`: object with detailed cost breakdown (baseCredits, extraPageCredits, extraComponentCredits, subtotal, errorMargin, profitMargin, total)
 
-**Default**: Gemini 2.5 Flash (free tier)
+**Default**: Satset (fast & affordable)
 
 ---
 
@@ -382,7 +383,7 @@ totalCredits = CEIL(withErrorMargin × (1 + profitMarginPercent))
 ### Example Calculation
 
 ```
-Model: Claude Sonnet 4.5 (15 credits)
+Model: Expert (15 credits)
 Pages: 8 (3 extra beyond quota of 5)
 Components: 10 (4 extra beyond quota of 6)
 
@@ -442,7 +443,7 @@ When a custom page reaches threshold (e.g., 100 uses), admin can:
    - Theme: Primary=#10B981 (green), Secondary=#3B82F6 (blue), Dark mode, Solid
    - Density: Comfortable, Rounded borders
    - Components: Buttons, Forms, Modals, Alerts, Cards, Tabs, Charts (Chart.js)
-3. **LLM Model**: Gemini 3 Pro Preview (12 credits)
+3. **LLM Model**: Expert (15 credits)
 
 **Result**: SatsetUI generates:
 - Blueprint JSON (stored in database)
@@ -500,21 +501,18 @@ The following requirements apply to the SatsetUI application itself (not the gen
 
 ### Membership Tiers
 
-- **Free member**:
-  - Uses **Gemini 2.5 Flash** model only.
-  - No model choice.
-  - Generation rate limiting enforced.
-- **Premium member**:
-  - Can choose from model options configured by admin.
-  - Uses a **credit** system.
+- All users start with **100 credits** at registration.
+- Users choose between **Satset** (6 credits, fast) or **Expert** (15 credits, premium) model types for each generation.
+- Admin can change the underlying model configuration (provider, model name, API key, base URL, credits) for each model type.
+- Admin can toggle user premium status and adjust credits manually.
 
-### Premium Credits & Top-Up
+### Credits & Top-Up
 
-- Premium users can top up credits.
-- Each premium generation consumes credits based on cost calculation.
-- 25 credits given at registration.
+- Users can top up credits.
+- Each generation consumes credits based on the selected model type and cost calculation.
+- 100 credits given at registration.
 
-### Premium Cost Margins
+### Cost Margins
 
 - **Error Margin**: Default 10%, configurable by admin. Accounts for token estimation variance.
 - **Profit Margin**: Default 5%, configurable by admin. For operational costs.
@@ -526,7 +524,7 @@ Admin must be able to:
 - View usage statistics (generations, cost, revenue, users)
 - View custom page statistics (popular custom pages, candidates for promotion)
 - Configure:
-  - Available premium models
+  - Satset and Expert model settings (provider, model name, API key, base URL, credits)
   - Error margin percentage
   - Profit margin percentage
 - View generation history with prompts and responses
@@ -569,8 +567,8 @@ BLUEPRINT JSON (Laravel validation)
      "interaction": "moderate",        // auto-selected
      "responsiveness": "fully-responsive", // auto-selected
      "codeStyle": "documented",        // auto-selected
-     "llmModel": "gemini-2.5-flash",
-     "modelCredits": 0
+     "llmModel": "satset",
+     "modelCredits": 6
    }
    ↓
 MCP PROMPT BUILDER (McpPromptBuilder.php) - PER PAGE

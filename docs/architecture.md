@@ -33,7 +33,7 @@ No AI decision-making. No prompt interpretation. Pure translation.
 ### Backend (Laravel)
 
 - **Framework**: Laravel 12.x
-- **PHP Version**: 8.2+
+- **PHP Version**: 8.4
 - **Database**: MySQL/PostgreSQL
 - **Validation**: Form Requests, JSON Schema validation
 - **Testing**: Pest
@@ -51,9 +51,10 @@ No AI decision-making. No prompt interpretation. Pure translation.
 ### External Services
 
 - **LLM API**: OpenAI-compatible API via Sumopod (https://ai.sumopod.com/v1)
-- **Models**: 2 model types (admin-configurable)
-  - Satset (default: `gemini-2.0-flash-exp`) — 6 credits/generation
-  - Expert (default: `gemini-2.5-pro-preview`) — 15 credits/generation
+- **Models**: 2 model types (admin-configurable via Admin Panel)
+  - **Satset** — fast generation, 6 credits (default: `gemini-2.0-flash-exp`)
+  - **Expert** — premium quality, 15 credits (default: `gemini-2.5-pro-preview`)
+- Model name, provider, API key, and base URL stored encrypted in database
 - **Telegram**: Admin notifications (new user registration)
 - **SMTP**: Email verification
 - **Storage**: Local filesystem for generated templates
@@ -124,13 +125,12 @@ No AI decision-making. No prompt interpretation. Pure translation.
 │ 5. MODEL SELECTION + BILLING (Platform Logic)               │
 │                                                              │
 │  Service: CreditService + CreditEstimationService           │
-│  ├─ Determine membership tier (free/premium)                │
-│  ├─ Free: force Gemini 2.5 Flash                            │
-│  ├─ Premium: allow admin-defined model choices              │
-│  ├─ Calculate base cost (model + extras)                    │
+│  ├─ User selects model type (satset or expert)              │
+│  ├─ Look up model config from llm_models table              │
+│  ├─ Calculate base cost (model credits + extras)            │
 │  ├─ Apply error margin (default 10%, admin configurable)    │
 │  ├─ Apply profit margin (default 5%, admin configurable)    │
-│  ├─ Validate premium credit balance                         │
+│  ├─ Validate user credit balance                            │
 │  └─ Reserve/charge credits atomically                       │
 └──────────────────────┬───────────────────────────────────────┘
                        │
@@ -199,6 +199,8 @@ No AI decision-making. No prompt interpretation. Pure translation.
 - `Admin/LlmModelController`: LLM model CRUD
 - `Admin/SettingsController`: Admin settings
 - `Admin/GenerationHistoryController`: Generation history
+- `PreviewController`: Live preview workspace management
+- `LanguageController`: Language preference switching
 
 **Form Requests** (Validation)
 - Located in `app/Http/Requests`
@@ -276,6 +278,30 @@ class AdminStatisticsService
 }
 ```
 
+**WorkspaceService.php**
+```php
+class WorkspaceService
+{
+    // Manage live preview workspaces (npm install, dev server lifecycle)
+}
+```
+
+**ScaffoldGeneratorService.php**
+```php
+class ScaffoldGeneratorService
+{
+    // Generate deterministic project scaffold (package.json, vite config, router, etc.)
+}
+```
+
+**TelegramService.php**
+```php
+class TelegramService
+{
+    // Telegram bot messaging for admin notifications
+}
+```
+
 #### 3. Data Layer (Models)
 
 | Model | Purpose |
@@ -290,12 +316,20 @@ class AdminStatisticsService
 | `CustomPageStatistic` | Custom page usage tracking |
 | `GenerationCost` | LLM cost tracking |
 | `GenerationFailure` | Failure records for debugging |
+| `GenerationFile` | Generated file storage (per page/scaffold) |
+| `PreviewSession` | Live preview session lifecycle tracking |
+| `RefinementMessage` | Chat refinement conversation messages |
+| `Project` | User projects |
+| `Template` | User template records |
 
 **Relationships**
 - User → hasMany(Generation)
 - Generation → hasMany(PageGeneration)
 - Generation → belongsTo(LlmModel)
 - Generation → hasMany(GenerationCost)
+- Generation → hasMany(GenerationFile)
+- Generation → hasMany(RefinementMessage)
+- Generation → hasOne(PreviewSession)
 
 ---
 
@@ -309,7 +343,8 @@ resources/js/
 │   ├── Home.vue                 # Landing page
 │   ├── Auth/
 │   │   ├── Login.vue
-│   │   └── Register.vue
+│   │   ├── Register.vue
+│   │   └── VerifyEmail.vue         # Email verification page
 │   ├── Dashboard/
 │   │   └── Index.vue            # User dashboard
 │   ├── Wizard/
@@ -320,8 +355,18 @@ resources/js/
 │   │   └── Index.vue            # User templates list
 │   └── Admin/
 │       ├── Index.vue            # Admin dashboard
-│       ├── Users/               # User management
-│       └── Models/              # LLM model management
+│       ├── Users/
+│       │   ├── Show.vue
+│       │   └── Edit.vue
+│       ├── Generations/
+│       │   ├── Index.vue
+│       │   └── Show.vue
+│       ├── Models/
+│       │   ├── Create.vue
+│       │   ├── Show.vue
+│       │   └── Edit.vue
+│       └── Settings/
+│           └── Index.vue
 ├── wizard/
 │   ├── wizardState.ts           # Reactive state management
 │   ├── types.ts                 # TypeScript interfaces
@@ -330,12 +375,27 @@ resources/js/
 │       ├── Step2VisualDesignContent.vue
 │       └── Step3LlmModel.vue
 ├── components/
-│   └── (shared components)
+│   ├── generation/
+│   │   ├── LivePreview.vue      # Live preview iframe
+│   │   └── FileTree.vue         # File tree navigation
+│   ├── landing/
+│   │   ├── Navbar.vue
+│   │   ├── HeroSection.vue
+│   │   ├── FeaturesSection.vue
+│   │   ├── HowItWorksSection.vue
+│   │   ├── FaqSection.vue
+│   │   ├── CtaSection.vue
+│   │   └── Footer.vue
+│   └── (other shared components)
 ├── layouts/
 │   ├── AppLayout.vue            # Main layout with sidebar
+│   ├── AdminLayout.vue          # Admin panel layout
 │   └── GuestLayout.vue          # Auth pages layout
 └── lib/
     ├── i18n.ts                  # Internationalization
+    ├── i18n/
+    │   ├── en/                  # English translations
+    │   └── id/                  # Indonesian translations
     ├── theme.ts                 # Theme management
     └── utils.ts                 # Utility functions
 ```
@@ -405,10 +465,12 @@ CREATE TABLE users (
     name VARCHAR(255),
     email VARCHAR(255) UNIQUE,
     password VARCHAR(255),
-    credits INT DEFAULT 25,
+    credits INT DEFAULT 100,
     is_premium BOOLEAN DEFAULT FALSE,
     is_admin BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    language VARCHAR(5) DEFAULT 'id',
+    suspended_at TIMESTAMP NULL
 );
 
 -- Main generation record
@@ -448,19 +510,17 @@ CREATE TABLE page_generations (
     status ENUM('pending', 'processing', 'completed', 'failed')
 );
 
--- LLM models configuration
+-- LLM models configuration (2 model types, admin-configurable)
 CREATE TABLE llm_models (
     id BIGINT PRIMARY KEY,
-    name VARCHAR(255) UNIQUE,
-    display_name VARCHAR(255),
-    description TEXT,
-    input_price_per_million DECIMAL(10,7),
-    output_price_per_million DECIMAL(10,7),
-    estimated_credits_per_generation INT,
-    context_length INT,
-    is_free BOOLEAN DEFAULT FALSE,
+    model_type ENUM('satset', 'expert') UNIQUE,
+    provider ENUM('gemini', 'openai'),
+    model_name VARCHAR(255),
+    api_key TEXT,           -- encrypted
+    base_url TEXT,          -- encrypted, nullable
+    base_credits INT DEFAULT 1,
     is_active BOOLEAN DEFAULT TRUE,
-    sort_order INT DEFAULT 0
+    timestamps
 );
 
 -- Admin settings
@@ -553,7 +613,27 @@ npm run test
 - `GET /generation/{id}` - View generation
 - `GET /generation/{id}/progress` - Get progress
 - `POST /generation/{id}/next` - Generate next page
+- `POST /generation/{id}/retry-failed` - Retry failed pages
+- `POST /generation/{id}/background` - Continue in background queue
+- `GET /generation/{id}/stream` - SSE streaming progress
+- `POST /generation/{id}/refine` - Refinement chat
+- `PATCH /generation/{id}/name` - Update template name
 - `GET /templates` - User templates
+
+### Preview Routes
+- `POST /generation/{id}/preview/setup` - Setup workspace
+- `GET /generation/{id}/preview/status` - Get preview status
+- `GET /generation/{id}/preview/logs` - Get preview logs
+- `GET /generation/{id}/preview/proxy` - Proxy requests to dev server
+- `POST /generation/{id}/preview/stop` - Stop preview
+- `GET /generation/{id}/preview/static` - Serve static preview
+
+### File Routes
+- `GET /generation/{id}/files/{fileId}` - Download generation file
+
+### Utility Routes
+- `POST /language` - Language switching
+- `GET /api/llm/models` - Get available LLM models
 
 ### Admin Routes (`/admin/*`)
 - `GET /admin` - Admin dashboard

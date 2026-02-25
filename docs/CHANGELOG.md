@@ -2,6 +2,43 @@
 
 All notable changes to SatsetUI will be documented in this file.
 
+## [2.3.0] - 2026-02-25
+
+### Added
+- **Live Preview Workspace**: Server-side workspace with Vite dev server for live preview
+  - `WorkspaceService` manages workspace lifecycle (create, install deps, start dev server, cleanup)
+  - `PreviewController` with setup, status, logs, proxy, stop, static serving endpoints
+  - `PreviewSession` model tracking preview lifecycle (creating → installing → booting → running → stopped)
+  - Preview proxy rewrites for assets, Vite client stub for HMR compatibility
+  - Device switcher (desktop/tablet/mobile) in preview UI
+- **Multi-File Framework Output**: Generate full project structures for JS frameworks
+  - `ScaffoldGeneratorService` generates deterministic scaffold (package.json, vite config, router, layout)
+  - `GenerationFile` model stores individual files per generation
+  - Support for React (TSX), Vue (SFC), Svelte, Angular output formats
+  - HTML+CSS static preview via iframe
+- **File Management**: File tree navigation and per-file content viewing
+  - `FileTree.vue` component for project file navigation
+  - `LivePreview.vue` component for embedded preview
+  - File download endpoints per generation
+- **Admin Panel Complete**: All admin frontend pages implemented
+  - `Admin/Models/Index.vue`, `Create.vue`, `Show.vue`, `Edit.vue`
+  - `Admin/Settings/Index.vue` with grouped settings (billing, generation, email, notification)
+  - `Admin/Generations/Index.vue`, `Show.vue` with filtering and detail view
+  - `Admin/Users/Show.vue` user detail page
+  - `AdminLayout.vue` dedicated admin panel layout
+- **Landing Page**: Full component-based landing page
+  - Navbar, HeroSection, FeaturesSection, HowItWorksSection, FaqSection, CtaSection, Footer
+
+### Changed
+- Database: Added `generation_files` table for multi-file storage
+- Database: Added `preview_sessions` table with booting status
+- Database: Added `file_path` and `file_type` columns to `page_generations`
+
+### Documentation
+- Updated all docs to match current codebase state
+- Removed outdated references to old 6-model system
+- Fixed admin email references to admin@satsetui.com
+
 ## [2.2.0] - 2026-02-16
 
 ### Changed

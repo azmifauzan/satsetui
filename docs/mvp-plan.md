@@ -111,7 +111,7 @@
 
 ❌ **Version History**: No blueprint versioning
 
-❌ **Advanced Preview**: No live interactive preview (code view only)
+✅ **Live Preview**: Server-side workspace with Vite dev server, static HTML preview, device switcher (Implemented)
 
 ❌ **Export Formats**: ZIP download only (no Git repo, Docker)
 
@@ -119,7 +119,7 @@
 
 ✅ **Refinement Chat**: Post-generation editing via conversational refinement (implemented)
 
-❌ **JS Framework Live Preview**: No live preview with framework-specific rendering
+✅ **JS Framework Output & Live Preview**: Multi-file output with framework-specific scaffolding (React, Vue, Svelte, Angular) and live preview workspace (Implemented)
 
 ❌ **Payment System**: No credit purchase/topup flow
 
@@ -130,7 +130,7 @@
 ### Completed ✅
 
 1. ✅ Laravel 12 + Vue 3 + Inertia v2 setup with Vite 7
-2. ✅ Database migrations (17 files)
+2. ✅ Database migrations (21 migration files)
 3. ✅ Authentication (login, register, email verification)
 4. ✅ 3-step wizard UI with state management (wizardState.ts)
 5. ✅ McpPromptBuilder with per-page generation (1236 lines)
@@ -153,7 +153,13 @@
 22. ✅ Generation policy (user access control)
 23. ✅ Generation naming
 24. ✅ Docker deployment setup
-25. ✅ Test suite (13 files: 9 Feature + 4 Unit)
+25. ✅ Test suite (26 files: ~19 Feature + ~7 Unit)
+26. ✅ Live Preview workspace (WorkspaceService, PreviewController, PreviewSession)
+27. ✅ ScaffoldGeneratorService for deterministic project scaffolding
+28. ✅ GenerationFile model for multi-file output storage
+29. ✅ Landing page with full component sections (Hero, Features, HowItWorks, FAQ, CTA)
+30. ✅ AdminLayout for admin panel
+31. ✅ All admin frontend pages (Users CRUD, Models CRUD, Settings, Generations, Show/Edit pages)
 
 ### Known Issues / TODO 🔄
 
@@ -169,9 +175,8 @@
 1. ❌ Payment/topup flow (CreditTransaction::TYPE_TOPUP exists, no controller)
 2. ❌ Rate limiting for generation endpoint
 3. ❌ Bulk admin actions (CSV export, bulk credit adjustment)
-4. ❌ JS framework live preview in workspace
-5. ❌ Blueprint presets / template library
-6. ❌ Team collaboration
+4. ❌ Blueprint presets / template library
+5. ❌ Team collaboration
 
 ---
 
@@ -237,9 +242,9 @@ CREATE TABLE llm_models (
     model_type ENUM('satset', 'expert') UNIQUE,
     provider ENUM('gemini', 'openai'),
     model_name VARCHAR(255),
-    api_key TEXT, -- encrypted
-    base_url TEXT, -- encrypted
-    base_credits INT DEFAULT 6,
+    api_key TEXT,           -- encrypted
+    base_url TEXT,          -- encrypted, nullable
+    base_credits INT DEFAULT 1,
     is_active BOOLEAN DEFAULT TRUE
 );
 
@@ -261,6 +266,41 @@ CREATE TABLE admin_settings (
     type ENUM('string', 'integer', 'float', 'boolean', 'json'),
     description TEXT
 );
+
+-- Multi-file output storage
+CREATE TABLE generation_files (
+    id BIGINT PRIMARY KEY,
+    generation_id BIGINT,
+    file_path VARCHAR(500),
+    file_content LONGTEXT,
+    file_type VARCHAR(50),
+    page_generation_id BIGINT NULL,
+    timestamps
+);
+
+-- Live preview sessions
+CREATE TABLE preview_sessions (
+    id BIGINT PRIMARY KEY,
+    generation_id BIGINT,
+    user_id BIGINT,
+    workspace_path VARCHAR(500),
+    status ENUM('pending', 'setting_up', 'running', 'stopped', 'failed', 'expired'),
+    port INT NULL,
+    pid INT NULL,
+    preview_type ENUM('static', 'vite'),
+    started_at TIMESTAMP NULL,
+    expires_at TIMESTAMP NULL,
+    timestamps
+);
+
+-- Saved templates
+CREATE TABLE templates (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    generation_id BIGINT,
+    name VARCHAR(255),
+    timestamps
+);
 ```
 
 ---
@@ -276,15 +316,27 @@ CREATE TABLE admin_settings (
 - `GET /generation/{id}/progress` - Get progress (polling)
 - `GET /generation/{id}/stream` - SSE streaming progress
 - `POST /generation/{id}/next` - Generate next page
+- `POST /generation/{id}/retry-failed` - Retry failed pages
 - `POST /generation/{id}/background` - Continue in background
 - `POST /generation/{id}/refine` - Refinement chat
 - `PATCH /generation/{id}/name` - Update template name
 
+### Preview
+- `POST /generation/{id}/preview/setup` - Setup workspace
+- `GET /generation/{id}/preview/status` - Preview status
+- `GET /generation/{id}/preview/proxy` - Proxy to dev server
+- `POST /generation/{id}/preview/stop` - Stop preview
+
 ### Templates
 - `GET /templates` - User templates list
+- `PATCH /templates/{id}` - Rename template
+- `DELETE /templates/{id}` - Delete template
 
 ### LLM Models
 - `GET /api/llm/models` - Get available models
+
+### Language
+- `POST /language` - Language switching
 
 ### Admin
 - `GET /admin` - Admin dashboard

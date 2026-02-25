@@ -90,28 +90,27 @@ Halaman admin SatsetUI dirancang untuk memberikan kontrol penuh kepada administr
 - Actions
 
 ### 3. LLM Models Management (`/admin/models`)
-**Tujuan**: Mengelola konfigurasi model LLM
+**Tujuan**: Mengelola konfigurasi 2 tipe model LLM yang fixed
+
+**Konsep**:
+- Sistem memiliki **tepat 2 tipe model** yang tidak bisa ditambah atau dihapus:
+  - **satset** — Model cepat (default: `gemini-2.0-flash-exp`, 6 credits)
+  - **expert** — Model berkualitas tinggi (default: `gemini-2.5-pro-preview`, 15 credits)
+- Admin hanya bisa **mengedit konfigurasi** dan **toggle active/inactive**
 
 **Fitur**:
-- List semua LLM models
-- Add new model
-- Edit model configuration
-- Toggle active/inactive
-- Reorder models (sort_order)
-- Delete model
-- Bulk actions
+- List 2 model types dengan status aktif/nonaktif
+- Edit konfigurasi model (provider, model_name, API key, dll)
+- Toggle active/inactive per model
+- **TIDAK bisa** menambah atau menghapus tipe model
 
-**Data per model**:
-- Name (identifier)
-- Display name (user-facing)
-- Description
-- Input price per million tokens
-- Output price per million tokens
-- Estimated credits per generation
-- Context length
-- Is free (for non-premium users)
+**Data per model (editable oleh admin)**:
+- Provider (`gemini` / `openai`)
+- Model name (identifier model aktual, e.g., `gemini-2.5-flash`, `gpt-4`)
+- API key (encrypted)
+- Base URL (encrypted, optional)
+- Base credits (credit cost per generation)
 - Is active
-- Sort order
 
 ### 4. Settings Management (`/admin/settings`)
 **Tujuan**: Konfigurasi platform secara keseluruhan
@@ -119,32 +118,31 @@ Halaman admin SatsetUI dirancang untuk memberikan kontrol penuh kepada administr
 **Sections**:
 
 #### a. Billing Settings
-- Error margin (%) - default: 10%
-- Profit margin (%) - default: 5%
-- Base credits per generation
-- Extra page credits multiplier
-- Extra component credits multiplier
-- USD to IDR exchange rate
+- `error_margin` — Error margin (%) - default: 10%
+- `profit_margin` — Profit margin (%) - default: 5%
+- `base_credits` — Base credits per generation - default: 50
+- `extra_page_multiplier` — Multiplier per extra page - default: 1.5
+- `extra_component_multiplier` — Multiplier per extra component - default: 1.2
 
 #### b. Generation Settings
-- Max concurrent generations per user
-- Max pages per generation
-- Max components per page
-- Generation timeout (seconds)
-- Queue driver preference
+- `max_concurrent` — Max concurrent generations per user - default: 3
+- `max_pages` — Max pages per template - default: 20
+- `max_components` — Max components per template - default: 50
+- `timeout` — Generation timeout in seconds - default: 300
 
-#### c. LLM API Settings
-- LLM API key
-- LLM base URL
-- Default model for free users
-- API timeout settings
+#### c. Email SMTP Settings
+- `smtp_host` — SMTP server host (e.g., smtp.gmail.com)
+- `smtp_port` — SMTP server port - default: 587
+- `smtp_username` — SMTP username
+- `smtp_password` — SMTP password
+- `smtp_encryption` — Encryption type (tls/ssl) - default: tls
+- `from_address` — Email from address - default: noreply@satsetui.com
+- `from_name` — Email from name - default: SatSetUI
 
-#### d. General Settings
-- Platform name (SatsetUI)
-- Platform description
-- Support email
-- Maintenance mode
-- Registration enabled
+#### d. Notification Settings
+- `telegram_enabled` — Enable Telegram notifications - default: false
+- `telegram_bot_token` — Telegram Bot Token (dari @BotFather)
+- `telegram_chat_id` — Telegram Chat ID (admin chat untuk notifikasi)
 
 ### 5. Generation History (`/admin/generations`)
 **Tujuan**: Monitoring semua generation yang terjadi
@@ -209,13 +207,24 @@ resources/js/
 │   └── Admin/
 │       ├── Index.vue              # Dashboard
 │       ├── Users/
-│       │   └── Index.vue          # Users list
-│       └── Models/
-│           ├── Index.vue          # LLM models list
-│           └── Edit.vue           # Edit model
+│       │   ├── Index.vue          # Users list
+│       │   ├── Show.vue           # User detail
+│       │   └── Edit.vue           # Edit user
+│       ├── Models/
+│       │   ├── Index.vue          # LLM models list (2 types)
+│       │   ├── Create.vue         # Create model config
+│       │   ├── Show.vue           # Model detail
+│       │   └── Edit.vue           # Edit model
+│       ├── Generations/
+│       │   ├── Index.vue          # Generation history list
+│       │   └── Show.vue           # Generation detail
+│       └── Settings/
+│           └── Index.vue          # Platform settings
+├── layouts/
+│   └── AdminLayout.vue            # Admin panel layout
 └── components/
     └── admin/
-        └── (admin components)
+        └── StatCard.vue           # Statistics card
 ```
 
 ### Routes Structure
@@ -233,9 +242,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('users/{user}/toggle-premium', [Admin\UserManagementController::class, 'togglePremium'])->name('users.toggle-premium');
     Route::post('users/{user}/toggle-status', [Admin\UserManagementController::class, 'toggleStatus'])->name('users.toggle-status');
     
-    // LLM Models Management
-    Route::resource('models', Admin\LlmModelController::class);
-    Route::post('models/reorder', [Admin\LlmModelController::class, 'reorder'])->name('models.reorder');
+    // LLM Models Management (2 Fixed Models: Satset & Expert)
+    Route::get('models', [Admin\LlmModelController::class, 'index'])->name('models.index');
+    Route::get('models/{model}/edit', [Admin\LlmModelController::class, 'edit'])->name('models.edit');
+    Route::put('models/{model}', [Admin\LlmModelController::class, 'update'])->name('models.update');
+    Route::post('models/{model}/toggle-active', [Admin\LlmModelController::class, 'toggleActive'])->name('models.toggle-active');
     
     // Settings
     Route::get('settings', [Admin\SettingsController::class, 'index'])->name('settings.index');
@@ -278,12 +289,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 1. ✅ Middleware admin
 2. ✅ Dashboard admin (basic stats)
 3. ✅ User management (view, edit credits)
-4. ✅ LLM models management (CRUD)
-5. ✅ Settings management (billing & generation)
+4. ✅ LLM models management (2 fixed types: satset & expert)
+5. ✅ Settings management (billing, generation, email, notification)
 6. ✅ Generation history
 
 ### Phase 2 - Pending ⏳
-7. ⏳ Custom pages statistics
+7. ⏳ Custom pages statistics (belum ada di admin UI)
 8. ⏳ Advanced charts & visualizations
 9. ⏳ Bulk actions
 10. ⏳ Export functionality

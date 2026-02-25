@@ -2,7 +2,7 @@
 
 Panduan singkat untuk developer yang bekerja dengan sistem LLM dan kredit di SatsetUI.
 
-**Last Updated:** 16 Februari 2026
+**Last Updated:** 25 Februari 2026
 
 ## 🎯 Model LLM (2-Model System)
 
@@ -55,7 +55,7 @@ $service = app(GenerationService::class);
 $result = $service->startGeneration(
     blueprint: $blueprint,
     user: $user,
-    modelName: 'satset', // or 'expert'
+    modelType: 'satset', // or 'expert'
     projectName: 'My Template'
 );
 
@@ -63,7 +63,8 @@ $result = $service->startGeneration(
 [
     'success' => true,
     'generation_id' => 123,
-    'model' => 'gemini-2.0-flash-exp',
+    'total_pages' => 5,
+    'model' => 'satset',
     'credits_charged' => 7
 ]
 ```
@@ -93,14 +94,14 @@ $creditService = app(CreditService::class);
 // Charge credits
 $creditService->charge($user, $amount, $generation, 'Template generation');
 
-// Refund credits
-$creditService->refund($user, $amount, $generation, 'Generation failed');
+// Refund credits (requires GenerationFailure record)
+$creditService->refund($user, $amount, $generation, $failure, 'Generation failed');
+
+// Add credits (topup, bonus, etc.)
+$creditService->addCredits($user, $amount, CreditTransaction::TYPE_TOPUP, 'Credit topup', ['invoice' => '...']);
 
 // Admin adjustment
-$creditService->adminAdjustment($user, $amount, $admin, 'Bonus credits');
-
-// Get statistics
-$stats = $creditService->getStatistics($user);
+$creditService->adminAdjustment($user, $amount, $admin, 'Bonus credits', ['reason' => '...']);
 ```
 
 ### Cost Tracking
@@ -111,12 +112,19 @@ use App\Services\CostTrackingService;
 $costService = app(CostTrackingService::class);
 
 // Record actual LLM costs
-$costService->recordCost($generation, $pageGeneration, [
-    'input_tokens' => 12500,
-    'output_tokens' => 52300,
-    'model_name' => 'gemini-2.0-flash-exp',
-    'provider' => 'gemini',
-]);
+$costService->recordCost(
+    pageGeneration: $pageGeneration,
+    generation: $generation,
+    user: $user,
+    modelName: 'gemini-2.0-flash-exp',
+    provider: 'gemini',
+    inputTokens: 12500,
+    outputTokens: 52300,
+    creditsCharged: 7,
+    processingTimeMs: 3200,
+    rawRequest: $requestPayload,
+    rawResponse: $responsePayload
+);
 ```
 
 ## 📊 Database Queries
@@ -158,6 +166,15 @@ php artisan test --compact --filter=OpenAICompatibleService
 php artisan test --compact --filter=McpPromptBuilder
 php artisan test --compact --filter=GenerationController
 php artisan test --compact --filter=CreditEstimationService
+
+# Preview tests
+php artisan test --compact --filter=Preview
+
+# Scaffold tests
+php artisan test --compact --filter=ScaffoldGenerator
+
+# Workspace tests
+php artisan test --compact --filter=WorkspaceService
 ```
 
 ## 🗄️ Seeders
@@ -167,7 +184,7 @@ php artisan test --compact --filter=CreditEstimationService
 php artisan db:seed
 
 # Individual seeders
-php artisan db:seed --class=AdminUserSeeder     # admin@templategen.com / admin123
+php artisan db:seed --class=AdminUserSeeder     # admin@satsetui.com / admin123
 php artisan db:seed --class=LlmModelSeeder      # 2 model types
 php artisan db:seed --class=AdminSettingSeeder   # platform settings
 ```
@@ -241,6 +258,10 @@ es.onmessage = (e) => { /* update progress UI */ };
 | Cost tracking (USD + IDR) | ✅ Done |
 | Retry mechanism (3x + backoff) | ✅ Done |
 | Background queue generation | ✅ Done |
+| Live preview workspace | ✅ Done |
+| Multi-file output (React/Vue/Svelte/Angular) | ✅ Done |
+| Scaffold generation | ✅ Done |
+| File tree navigation | ✅ Done |
 | Admin model management | ✅ Done |
 | Payment/topup flow | ❌ Not implemented |
 | Rate limiting for generation | ❌ Not implemented |

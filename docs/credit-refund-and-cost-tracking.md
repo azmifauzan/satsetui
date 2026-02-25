@@ -105,14 +105,12 @@ $stats = $costTrackingService->getStatistics(30);
 #### Automatic Credit Charging
 ```php
 // In startGeneration()
-if (!$model->is_free) {
-    $this->creditService->charge(
-        $user,
-        $model->estimated_credits_per_generation,
-        $generation,
-        "Template generation: {$projectName}"
-    );
-}
+$this->creditService->charge(
+    $user,
+    $requiredCredits,
+    $generation,
+    "Template generation: {$projectName}"
+);
 ```
 
 #### Automatic Cost Recording
@@ -142,7 +140,7 @@ $failure = GenerationFailure::create([
     // ... other fields
 ]);
 
-if ($model && !$model->is_free && $generation->credits_used > 0) {
+if ($generation->credits_used > 0) {
     $this->creditService->refund(
         $generation->user,
         $generation->credits_used,
@@ -158,10 +156,8 @@ if ($model && !$model->is_free && $generation->credits_used > 0) {
 ### Statistics Routes
 
 ```
-GET /admin/statistics           - Main dashboard
-GET /admin/statistics/costs     - Cost analysis
-GET /admin/statistics/credits   - Credit transactions
-GET /admin/statistics/failures  - Failure analysis
+GET /admin              - Admin dashboard (uses AdminStatisticsService for credit, cost, and failure stats)
+GET /admin/generations  - Generation history (includes cost, failure, and refund info)
 ```
 
 ### Available Metrics
@@ -194,25 +190,24 @@ GET /admin/statistics/failures  - Failure analysis
 
 ### LLM Provider Pricing
 
-Pricing dikonfigurasi di `CostTrackingService`:
+SatsetUI menggunakan 2 model types (satset & expert) yang dikonfigurasi admin via LLM Models panel. Pricing di `CostTrackingService` memiliki fallback defaults per provider/model, namun admin dapat override via database. Actual model yang digunakan tergantung konfigurasi admin (`LlmModel` fields: `model_type`, `provider`, `model_name`, `api_key`, `base_url`, `base_credits`, `is_active`).
+
+Fallback pricing contoh di `CostTrackingService`:
 
 ```php
 $pricing = [
     'openai' => [
-        'gpt-4' => [
-            'input_price_per_million' => 30.00,
-            'output_price_per_million' => 60.00,
-        ],
-        'gpt-4-turbo' => [
-            'input_price_per_million' => 10.00,
-            'output_price_per_million' => 30.00,
-        ],
+        'gpt-4' => ['input_price_per_million' => 30.00, 'output_price_per_million' => 60.00],
+        'gpt-4-turbo' => ['input_price_per_million' => 10.00, 'output_price_per_million' => 30.00],
+        'gpt-3.5-turbo' => ['input_price_per_million' => 0.50, 'output_price_per_million' => 1.50],
+    ],
+    'anthropic' => [
+        'claude-3-opus' => ['input_price_per_million' => 15.00, 'output_price_per_million' => 75.00],
+        'claude-3-sonnet' => ['input_price_per_million' => 3.00, 'output_price_per_million' => 15.00],
     ],
     'google' => [
-        'gemini-2.0-flash-exp' => [
-            'input_price_per_million' => 0.075,
-            'output_price_per_million' => 0.30,
-        ],
+        'gemini-2.0-flash-exp' => ['input_price_per_million' => 0.075, 'output_price_per_million' => 0.30],
+        'gemini-1.5-pro' => ['input_price_per_million' => 1.25, 'output_price_per_million' => 5.00],
     ],
 ];
 ```
