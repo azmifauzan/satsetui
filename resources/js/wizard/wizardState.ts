@@ -153,6 +153,8 @@ export interface ProjectInfo {
   appName?: string;
   storeName?: string;
   storeDescription?: string;
+  blogName?: string;
+  blogTopic?: string;
 }
 
 /**
@@ -433,6 +435,8 @@ export const wizardState = reactive<WizardState>({
     appName: '',
     storeName: '',
     storeDescription: '',
+    blogName: '',
+    blogTopic: '',
   },
 
   // Step 2: Visual Design & Content
@@ -1149,6 +1153,13 @@ const SATSET_CATEGORY_DEFAULTS: Record<string, { pages: string[]; navStyle: stri
     stylePreset: 'modern',
     components: ['charts', 'tables', 'cards', 'forms'],
   },
+  'blog-content-site': {
+    pages: ['home', 'blog', 'post-detail', 'about', 'contact'],
+    navStyle: 'top',
+    colorScheme: 'amber',
+    stylePreset: 'minimal',
+    components: [],
+  },
 };
 
 /**
@@ -1202,10 +1213,10 @@ export function applySatsetDefaults(): void {
   wizardState.ui.density = 'comfortable';
   wizardState.ui.borderRadius = 'rounded';
 
-  // Components (category defaults only, no custom)
-  wizardState.components = [...defaults.components];
+  // Components: always empty in satset mode (no pre-selected components)
+  wizardState.components = [];
   wizardState.customComponents = [];
-  wizardState.chartLibrary = defaults.components.includes('charts') ? 'chartjs' : undefined;
+  wizardState.chartLibrary = undefined;
 
   // Clear custom instructions
   wizardState.customInstructions = '';
@@ -1236,7 +1247,9 @@ export function switchWizardMode(mode: WizardMode): void {
   if (mode === 'satset') {
     applySatsetDefaults();
   } else {
-    // Switching to expert: keep current state, just change model default
+    // Switching to expert: clear components so all start unselected
+    wizardState.components = [];
+    wizardState.customComponents = [];
     wizardState.llmModel = 'expert';
   }
 }

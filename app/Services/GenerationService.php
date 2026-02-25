@@ -8,6 +8,7 @@ use App\Models\GenerationFile;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -141,9 +142,12 @@ class GenerationService
                     PrepareWorkspaceDependencies::dispatch($generation->id);
                 });
             } else {
-                // HTML+CSS output: pre-generate shared layout components
-                // This ensures sidebar/navbar/footer are identical across all pages
-                $this->generateSharedLayout($generation, $blueprint, $modelType);
+                // HTML+CSS output: dispatch shared layout generation as async job
+                // so the HTTP response is not blocked by the LLM API call.
+                // Pages will generate independently if shared layout isn't ready yet.
+                DB::afterCommit(function () use ($generation, $blueprint, $modelType): void {
+                    \App\Jobs\GenerateSharedLayout::dispatch($generation->id, $blueprint, $modelType);
+                });
             }
 
             DB::commit();
@@ -366,6 +370,18 @@ class GenerationService
                     'file_type' => $pageFileType,
                     'is_scaffold' => false,
                 ]);
+
+                // Also write directly to the workspace so live preview picks up new pages
+                // immediately (Vite dev server watches the filesystem in dev mode).
+                $workspaceDir = storage_path('app/workspaces/gen-'.$generation->id);
+                if (File::isDirectory($workspaceDir)) {
+                    $destPath = $workspaceDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $pageFilePath);
+                    $destDir = dirname($destPath);
+                    if (! File::isDirectory($destDir)) {
+                        File::makeDirectory($destDir, 0755, true);
+                    }
+                    File::put($destPath, $result['content']);
+                }
             }
 
             // Append to generated_content
@@ -623,6 +639,14 @@ class GenerationService
      *
      * The layout is stored in the Generation's mcp_prompt field as JSON.
      */
+    /**
+     * Public alias so the GenerateSharedLayout job can call this without reflection.
+     */
+    public function runSharedLayoutGeneration(Generation $generation, array $blueprint, string $modelType): void
+    {
+        $this->generateSharedLayout($generation, $blueprint, $modelType);
+    }
+
     private function generateSharedLayout(Generation $generation, array $blueprint, string $modelType): void
     {
         try {

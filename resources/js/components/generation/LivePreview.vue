@@ -287,7 +287,9 @@ function stopStatusPolling() {
 
 // Check initial status on mount for framework output
 async function checkInitialStatus() {
-  if (!isFramework.value || !props.isCompleted) return;
+  if (!isFramework.value) return;
+  // Allow status check both when completed and when generation is in progress
+  if (!props.isCompleted && !props.isGenerating) return;
   try {
     const response = await axios.get(`/generation/${props.generationId}/preview/status`);
     if (response.data.status === 'running') {
@@ -297,12 +299,16 @@ async function checkInitialStatus() {
       previewStatus.value = response.data.status as PreviewStatus;
       startStatusPolling();
     } else if (response.data.status === 'idle' || response.data.status === 'none' || !response.data.status) {
-      // No active session — auto-start preview
-      setupPreview();
+      // No active session — auto-start preview only if already completed
+      if (props.isCompleted) {
+        setupPreview();
+      }
     }
   } catch {
-    // No active session — auto-start preview
-    setupPreview();
+    // No active session — auto-start preview only if already completed
+    if (props.isCompleted) {
+      setupPreview();
+    }
   }
 }
 
@@ -314,7 +320,7 @@ watch(() => props.isCompleted, (completed, wasCompleted) => {
 });
 
 // Auto-check status on mount
-if (isFramework.value && props.isCompleted) {
+if (isFramework.value && (props.isCompleted || props.isGenerating)) {
   checkInitialStatus();
 }
 

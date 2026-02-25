@@ -37,11 +37,25 @@ class PreviewController extends Controller
     {
         $this->authorize('view', $generation);
 
-        if ($generation->status !== 'completed') {
+        $previewableStatuses = ['completed', 'generating', 'processing'];
+        if (! in_array($generation->status, $previewableStatuses, true)) {
             return response()->json([
                 'success' => false,
-                'error' => 'Generation must be completed before preview',
+                'error' => 'Generation must be started before preview can be set up',
             ], 422);
+        }
+
+        // For in-progress generations, require at least one completed page
+        if ($generation->status !== 'completed') {
+            $hasCompleted = collect($generation->progress_data ?? [])
+                ->contains(fn ($p) => ($p['status'] ?? '') === 'completed');
+
+            if (! $hasCompleted) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Wait for the first page to complete before starting preview',
+                ], 422);
+            }
         }
 
         $result = $this->workspaceService->setupPreview($generation);
@@ -822,6 +836,9 @@ class PreviewController extends Controller
     private function viteClientStubModule(): string
     {
         return <<<'JS'
+// Vite HMR client stub for proxy preview (HMR disabled, but CSS injection must work)
+const __sheetsMap = new Map()
+
 export function createHotContext() {
     return {
         accept() {},
@@ -840,8 +857,27 @@ export function injectQuery(url) {
     return url
 }
 
-export function updateStyle() {}
-export function removeStyle() {}
+// updateStyle / removeStyle must work — Vite CSS modules call these to inject styles
+export function updateStyle(id, css) {
+    let style = __sheetsMap.get(id)
+    if (!style) {
+        style = document.createElement('style')
+        style.setAttribute('type', 'text/css')
+        style.setAttribute('data-vite-dev-id', id)
+        document.head.appendChild(style)
+        __sheetsMap.set(id, style)
+    }
+    style.textContent = css
+}
+
+export function removeStyle(id) {
+    const style = __sheetsMap.get(id)
+    if (style) {
+        document.head.removeChild(style)
+        __sheetsMap.delete(id)
+    }
+}
+
 export const ErrorOverlay = class {
     constructor() {}
 }

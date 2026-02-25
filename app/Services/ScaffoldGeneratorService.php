@@ -151,7 +151,10 @@ class ScaffoldGeneratorService
         // Global CSS
         $files['src/styles/globals.css'] = $this->generateGlobalCss($styling, $theme);
 
-        // Tailwind v4 uses @tailwindcss/vite plugin — no config files needed
+        if ($styling === 'tailwind') {
+            $files['tailwind.config.js'] = $this->generateTailwindConfig($isTs);
+            $files['postcss.config.js'] = $this->generatePostcssConfig();
+        }
 
         return $files;
     }
@@ -187,8 +190,9 @@ class ScaffoldGeneratorService
 
         $styling = $config['styling'] ?? 'tailwind';
         if ($styling === 'tailwind') {
-            $devDeps['tailwindcss'] = '^4.0.0';
-            $devDeps['@tailwindcss/vite'] = '^4.0.0';
+            $devDeps['tailwindcss'] = '^3.4.0';
+            $devDeps['postcss'] = '^8.4.0';
+            $devDeps['autoprefixer'] = '^10.4.0';
         } elseif ($styling === 'bootstrap') {
             $deps['bootstrap'] = '^5.3.3';
             $deps['@popperjs/core'] = '^2.11.8';
@@ -220,13 +224,12 @@ class ScaffoldGeneratorService
         return <<<'VITE'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 
 const previewBase = process.env.VITE_PREVIEW_BASE
 
 export default defineConfig({
   base: previewBase || '/',
-  plugins: [react(), tailwindcss()],
+  plugins: [react()],
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -503,7 +506,10 @@ LAYOUT;
         $files['src/layouts/MainLayout.vue'] = $this->generateVueLayout($pages, $layout, $theme);
         $files['src/assets/main.css'] = $this->generateGlobalCss($styling, $theme);
 
-        // Tailwind v4 uses @tailwindcss/vite plugin — no config files needed
+        if ($styling === 'tailwind') {
+            $files['tailwind.config.js'] = $this->generateTailwindConfig($isTs);
+            $files['postcss.config.js'] = $this->generatePostcssConfig();
+        }
 
         return $files;
     }
@@ -534,8 +540,9 @@ LAYOUT;
 
         $styling = $config['styling'] ?? 'tailwind';
         if ($styling === 'tailwind') {
-            $devDeps['tailwindcss'] = '^4.0.0';
-            $devDeps['@tailwindcss/vite'] = '^4.0.0';
+            $devDeps['tailwindcss'] = '^3.4.0';
+            $devDeps['postcss'] = '^8.4.0';
+            $devDeps['autoprefixer'] = '^10.4.0';
         } elseif ($styling === 'bootstrap') {
             $deps['bootstrap'] = '^5.3.3';
             $deps['@popperjs/core'] = '^2.11.8';
@@ -563,14 +570,13 @@ LAYOUT;
         return <<<'VITE'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
 const previewBase = process.env.VITE_PREVIEW_BASE
 
 export default defineConfig({
   base: previewBase || '/',
-  plugins: [vue(), tailwindcss()],
+  plugins: [vue()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -668,7 +674,7 @@ APP;
         foreach ($pages as $page) {
             $componentName = $this->toComponentName($page);
             $routePath = $this->toRoutePath($page);
-            $routes[] = "    {\n      path: '/{$routePath}',\n      name: '{$routePath}',\n      component: () => import('@/pages/{$componentName}.vue'),\n      meta: { layout: 'main' },\n    },";
+            $routes[] = "    {\n      path: '{$routePath}',\n      name: '{$routePath}',\n      component: () => import('@/pages/{$componentName}.vue'),\n      meta: { layout: 'main' },\n    },";
         }
 
         $routesStr = implode("\n", $routes);
@@ -850,7 +856,10 @@ LAYOUT;
         // Layout component
         $files['src/lib/layouts/MainLayout.svelte'] = $this->generateSvelteLayoutComponent($pages, $layout, $theme);
 
-        // Tailwind v4 uses @tailwindcss/vite plugin — no config files needed
+        if ($styling === 'tailwind') {
+            $files['tailwind.config.js'] = $this->generateTailwindConfig(false);
+            $files['postcss.config.js'] = $this->generatePostcssConfig();
+        }
 
         return $files;
     }
@@ -872,8 +881,9 @@ LAYOUT;
 
         $styling = $config['styling'] ?? 'tailwind';
         if ($styling === 'tailwind') {
-            $devDeps['tailwindcss'] = '^4.0.0';
-            $devDeps['@tailwindcss/vite'] = '^4.0.0';
+            $devDeps['tailwindcss'] = '^3.4.0';
+            $devDeps['postcss'] = '^8.4.0';
+            $devDeps['autoprefixer'] = '^10.4.0';
         } elseif ($styling === 'bootstrap') {
             $deps['bootstrap'] = '^5.3.3';
             $deps['@popperjs/core'] = '^2.11.8';
@@ -912,13 +922,12 @@ CONFIG;
         return <<<'VITE'
 import { defineConfig } from 'vite'
 import { sveltekit } from '@sveltejs/kit/vite'
-import tailwindcss from '@tailwindcss/vite'
 
 const previewBase = process.env.VITE_PREVIEW_BASE
 
 export default defineConfig({
   base: previewBase || '/',
-  plugins: [sveltekit(), tailwindcss()],
+  plugins: [sveltekit()],
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -1102,7 +1111,9 @@ LAYOUT;
 
         $styling = $config['styling'] ?? 'tailwind';
         if ($styling === 'tailwind') {
-            $devDeps['tailwindcss'] = '^4.0.0';
+            $devDeps['tailwindcss'] = '^3.4.0';
+            $devDeps['postcss'] = '^8.4.0';
+            $devDeps['autoprefixer'] = '^10.4.0';
         } elseif ($styling === 'bootstrap') {
             $deps['bootstrap'] = '^5.3.3';
             $deps['@popperjs/core'] = '^2.11.8';
@@ -1343,7 +1354,9 @@ HTML;
 
         if ($styling === 'tailwind') {
             return <<<CSS
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --color-primary: {$primary};

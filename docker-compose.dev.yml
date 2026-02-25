@@ -35,6 +35,10 @@ services:
       - RUNNING_IN_DOCKER=true
       - RUN_MIGRATIONS=${RUN_MIGRATIONS:-true}
       - RUN_SEEDERS=${RUN_SEEDERS:-false}
+      # Force Vite/chokidar to use polling on Windows Docker volume mounts
+      # (inotify/FSEvents do not fire across bind mounts on Windows)
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=300
     networks:
       - postgre
 

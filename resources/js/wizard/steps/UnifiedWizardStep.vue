@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { wizardState, type Category, type Framework, type OutputFormat, type WizardMode, isFrameworkOutput, frameworkCreditMultiplier, COMPATIBLE_STYLING_OPTIONS, DEFAULT_STYLING_FOR_FRAMEWORK, isStylingCompatible, STATE_MANAGEMENT_OPTIONS, type FrameworkStyling, type BuildTool, switchWizardMode, applySatsetDefaults } from '../wizardState';
+import { wizardState, type Category, type Framework, type OutputFormat, type WizardMode, isFrameworkOutput, frameworkCreditMultiplier, COMPATIBLE_STYLING_OPTIONS, DEFAULT_STYLING_FOR_FRAMEWORK, isStylingCompatible, STATE_MANAGEMENT_OPTIONS, type FrameworkStyling, type BuildTool, switchWizardMode, applySatsetDefaults, addCustomComponent, removeCustomComponent, updateCreditBreakdown } from '../wizardState';
 import { useI18n } from '@/lib/i18n';
 
 const { currentLang } = useI18n();
@@ -23,6 +23,7 @@ const categories = [
     descEn: 'Modern landing page with hero, features, testimonials, CTA sections',
     descId: 'Landing page modern dengan hero, fitur, testimonial, CTA',
     color: 'from-orange-500 to-red-500',
+    filledIcon: true,
   },
   { 
     id: 'company-profile', 
@@ -59,6 +60,15 @@ const categories = [
     descEn: 'Admin dashboard with charts, tables, stats cards, and sidebar navigation',
     descId: 'Dashboard admin dengan grafik, tabel, kartu statistik, dan navigasi sidebar',
     color: 'from-blue-500 to-indigo-500',
+  },
+  { 
+    id: 'blog-content-site', 
+    icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+    labelEn: 'Blog / Content Site',
+    labelId: 'Blog / Konten',
+    descEn: 'Personal blog or content site with article listing, posts, and about page',
+    descId: 'Blog pribadi atau situs konten dengan daftar artikel, postingan, dan halaman tentang',
+    color: 'from-amber-500 to-orange-500',
   },
 ];
 
@@ -99,6 +109,13 @@ const categoryDefaultPages: Record<string, { id: string; labelEn: string; labelI
     { id: 'charts', labelEn: 'Charts', labelId: 'Grafik' },
     { id: 'settings', labelEn: 'Settings', labelId: 'Pengaturan' },
   ],
+  'blog-content-site': [
+    { id: 'home', labelEn: 'Home', labelId: 'Beranda' },
+    { id: 'blog', labelEn: 'Blog', labelId: 'Blog' },
+    { id: 'post-detail', labelEn: 'Post Detail', labelId: 'Detail Postingan' },
+    { id: 'about', labelEn: 'About', labelId: 'Tentang' },
+    { id: 'contact', labelEn: 'Contact', labelId: 'Kontak' },
+  ],
 };
 
 const currentDefaultPages = computed(() => categoryDefaultPages[wizardState.category] || []);
@@ -132,6 +149,7 @@ const togglePage = (id: string) => {
   } else {
     wizardState.pages.push(id);
   }
+  updateCreditBreakdown();
 };
 
 // Custom pages (expert mode)
@@ -141,11 +159,15 @@ const addCustomPageHandler = () => {
   if (name && name.length >= 2) {
     wizardState.pages.push(`custom:${name}`);
     customPageName.value = '';
+    updateCreditBreakdown();
   }
 };
 const removeCustomPage = (page: string) => {
   const idx = wizardState.pages.indexOf(page);
-  if (idx > -1) wizardState.pages.splice(idx, 1);
+  if (idx > -1) {
+    wizardState.pages.splice(idx, 1);
+    updateCreditBreakdown();
+  }
 };
 
 // ========== Category-Specific Inputs (expert mode) ==========
@@ -154,6 +176,8 @@ const companyDescription = ref('');
 const appName = ref('');
 const storeName = ref('');
 const storeDescription = ref('');
+const blogName = ref('');
+const blogTopic = ref('');
 
 // ========== SECTION 2: Theme & Colors ==========
 const fontOptions = [
@@ -227,7 +251,7 @@ const selectFont = (fontId: string) => {
 };
 
 // Watch category-specific inputs -> projectInfo & customInstructions (expert mode only)
-watch([companyName, companyDescription, appName, storeName, storeDescription, useCustomStyle, customStyleName, useCustomFont, customFontName], () => {
+watch([companyName, companyDescription, appName, storeName, storeDescription, blogName, blogTopic, useCustomStyle, customStyleName, useCustomFont, customFontName], () => {
   if (wizardState.category === 'company-profile') {
     wizardState.projectInfo.companyName = companyName.value.trim();
     wizardState.projectInfo.companyDescription = companyDescription.value.trim();
@@ -240,6 +264,9 @@ watch([companyName, companyDescription, appName, storeName, storeDescription, us
     wizardState.projectInfo.appName = appName.value.trim();
   } else if (wizardState.category === 'dashboard') {
     wizardState.projectInfo.appName = appName.value.trim();
+  } else if (wizardState.category === 'blog-content-site') {
+    wizardState.projectInfo.blogName = blogName.value.trim();
+    wizardState.projectInfo.blogTopic = blogTopic.value.trim();
   }
 
   let contextInfo = '';
@@ -255,6 +282,9 @@ watch([companyName, companyDescription, appName, storeName, storeDescription, us
     if (appName.value) contextInfo += `App Name: ${appName.value}. `;
   } else if (wizardState.category === 'dashboard') {
     if (appName.value) contextInfo += `Dashboard Name: ${appName.value}. `;
+  } else if (wizardState.category === 'blog-content-site') {
+    if (blogName.value) contextInfo += `Blog Name: ${blogName.value}. `;
+    if (blogTopic.value) contextInfo += `Blog Topic/Niche: ${blogTopic.value}. `;
   }
   if (isExpert.value) {
     if (useCustomStyle.value && customStyleName.value.trim()) {
@@ -310,6 +340,16 @@ const removeLogo = () => {
 };
 
 // ========== SECTION 3: Custom Modifications (Expert mode only) ==========
+const customModificationInput = ref('');
+
+const addCustomModificationHandler = () => {
+  const val = customModificationInput.value.trim();
+  if (val.length >= 2) {
+    addCustomComponent(val, val);
+    customModificationInput.value = '';
+  }
+};
+
 const availableComponents = [
   { id: 'hero', labelEn: 'Hero Section', labelId: 'Bagian Hero', icon: '🏠' },
   { id: 'features', labelEn: 'Features Grid', labelId: 'Grid Fitur', icon: '⚡' },
@@ -332,6 +372,7 @@ const toggleComponent = (id: string) => {
   } else {
     wizardState.components.push(id);
   }
+  updateCreditBreakdown();
 };
 
 const isComponentSelected = (id: string) => wizardState.components.includes(id);
@@ -404,7 +445,7 @@ const satsetSummaryDefaults = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-12">
     <!-- ========== MODE TOGGLE ========== -->
     <div class="flex flex-col items-center gap-4">
       <div class="inline-flex items-center p-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-2xl border border-slate-200 dark:border-slate-600 shadow-sm">
@@ -484,7 +525,7 @@ const satsetSummaryDefaults = computed(() => {
           ]"
         >
           <div :class="`w-12 h-12 bg-gradient-to-br ${cat.color} rounded-lg flex items-center justify-center text-white mb-3 group-hover:scale-110 transition-transform`">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-6 h-6" :fill="cat.filledIcon ? 'currentColor' : 'none'" :stroke="cat.filledIcon ? 'none' : 'currentColor'" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="cat.icon" />
             </svg>
           </div>
@@ -494,7 +535,7 @@ const satsetSummaryDefaults = computed(() => {
           <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
             {{ currentLang === 'en' ? cat.descEn : cat.descId }}
           </p>
-          <div v-if="wizardState.category === cat.id" class="absolute top-3 right-3">
+          <div v-if="wizardState.category === cat.id" class="absolute top-3 right-3 bg-white dark:bg-slate-700 rounded-full shadow-md">
             <svg class="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
             </svg>
@@ -503,7 +544,7 @@ const satsetSummaryDefaults = computed(() => {
       </div>
 
       <!-- ===== Important category-specific input (Satset + Expert) ===== -->
-      <div v-if="wizardState.category === 'company-profile'" class="mt-5 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
+      <div v-if="wizardState.category === 'company-profile'" class="mt-8 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
           <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
             {{ currentLang === 'en' ? 'Company Information' : 'Informasi Perusahaan' }}
           </h3>
@@ -563,11 +604,6 @@ const satsetSummaryDefaults = computed(() => {
             <span class="text-slate-600 dark:text-slate-400">Font:</span>
             <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.font }}</span>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 bg-teal-500 rounded-full"></span>
-            <span class="text-slate-600 dark:text-slate-400">{{ currentLang === 'en' ? 'Components:' : 'Komponen:' }}</span>
-            <span class="font-medium text-slate-900 dark:text-white">{{ satsetSummaryDefaults.components }}</span>
-          </div>
         </div>
         <div class="mt-3 pt-3 border-t border-blue-200/50 dark:border-blue-700/50">
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{{ currentLang === 'en' ? 'Pages:' : 'Halaman:' }}</p>
@@ -587,7 +623,7 @@ const satsetSummaryDefaults = computed(() => {
       </div>
 
       <!-- ===== Category-Specific Inputs (Satset + Expert) ===== -->
-      <div v-if="wizardState.category === 'e-commerce'" class="mt-5 bg-green-50 dark:bg-green-900/10 rounded-xl p-5 border border-green-200 dark:border-green-800">
+      <div v-if="wizardState.category === 'e-commerce'" class="mt-8 bg-green-50 dark:bg-green-900/10 rounded-xl p-5 border border-green-200 dark:border-green-800">
           <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
             {{ currentLang === 'en' ? 'Store Information' : 'Informasi Toko' }}
           </h3>
@@ -609,7 +645,7 @@ const satsetSummaryDefaults = computed(() => {
           </div>
       </div>
 
-      <div v-if="wizardState.category === 'mobile-apps' || wizardState.category === 'dashboard'" class="mt-5 bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-5 border border-cyan-200 dark:border-cyan-800">
+      <div v-if="wizardState.category === 'mobile-apps' || wizardState.category === 'dashboard'" class="mt-8 bg-cyan-50 dark:bg-cyan-900/10 rounded-xl p-5 border border-cyan-200 dark:border-cyan-800">
           <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
             {{ wizardState.category === 'dashboard' 
               ? (currentLang === 'en' ? 'Dashboard Information' : 'Informasi Dashboard')
@@ -621,6 +657,28 @@ const satsetSummaryDefaults = computed(() => {
             </label>
             <input v-model="appName" type="text" :placeholder="currentLang === 'en' ? 'e.g. MyApp' : 'contoh: AplikasiKu'"
               class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent max-w-md" />
+          </div>
+      </div>
+
+      <div v-if="wizardState.category === 'blog-content-site'" class="mt-8 bg-amber-50 dark:bg-amber-900/10 rounded-xl p-5 border border-amber-200 dark:border-amber-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-3 text-sm">
+            {{ currentLang === 'en' ? 'Blog Information' : 'Informasi Blog' }}
+          </h3>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Blog Name' : 'Nama Blog' }}
+              </label>
+              <input v-model="blogName" type="text" :placeholder="currentLang === 'en' ? 'e.g. My Dev Blog' : 'contoh: Blog Saya'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                {{ currentLang === 'en' ? 'Topic / Niche' : 'Topik / Niche' }}
+              </label>
+              <input v-model="blogTopic" type="text" :placeholder="currentLang === 'en' ? 'e.g. Web Development' : 'contoh: Pengembangan Web'"
+                class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent" />
+            </div>
           </div>
       </div>
 
@@ -681,7 +739,7 @@ const satsetSummaryDefaults = computed(() => {
     </section>
 
     <!-- ========== SECTION 2: Technology Stack (EXPERT MODE ONLY) ========== -->
-    <section v-if="isExpert">
+    <section v-if="isExpert" class="border-t border-slate-200 dark:border-slate-700 pt-4">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -814,7 +872,7 @@ const satsetSummaryDefaults = computed(() => {
     </section>
 
     <!-- ========== SECTION 3: Theme & Colors (EXPERT MODE ONLY) ========== -->
-    <section v-if="isExpert">
+    <section v-if="isExpert" class="border-t border-slate-200 dark:border-slate-700 pt-4">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">3</div>
         <div>
@@ -932,7 +990,7 @@ const satsetSummaryDefaults = computed(() => {
     </section>
 
     <!-- ========== SECTION 4: Custom Modifications (EXPERT MODE ONLY) ========== -->
-    <section v-if="isExpert">
+    <section v-if="isExpert" class="border-t border-slate-200 dark:border-slate-700 pt-4">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">4</div>
         <div>
@@ -954,6 +1012,41 @@ const satsetSummaryDefaults = computed(() => {
           </svg>
         </button>
       </div>
+
+      <!-- Custom modification text inputs -->
+      <div class="mt-4">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          {{ currentLang === 'en' ? 'Custom modifications (optional)' : 'Modifikasi kustom (opsional)' }}
+        </label>
+        <!-- Existing custom modifications -->
+        <div v-if="wizardState.customComponents.length" class="flex flex-wrap gap-2 mb-3">
+          <span
+            v-for="cc in wizardState.customComponents"
+            :key="cc.id"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 text-sm text-green-700 dark:text-green-300"
+          >
+            ✏️ {{ cc.name }}
+            <button @click="removeCustomComponent(cc.id)" class="ml-1 text-green-400 hover:text-red-500 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </span>
+        </div>
+        <!-- Add new custom modification -->
+        <div class="flex items-center gap-2">
+          <input
+            v-model="customModificationInput"
+            type="text"
+            :placeholder="currentLang === 'en' ? 'e.g. sticky header, animated hero, dark sidebar...' : 'mis. header sticky, hero animasi, sidebar gelap...'"
+            class="flex-1 max-w-sm px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            @keyup.enter="addCustomModificationHandler"
+          />
+          <button @click="addCustomModificationHandler" :disabled="!customModificationInput.trim() || customModificationInput.trim().length < 2"
+            class="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 disabled:dark:bg-slate-700 text-white text-sm rounded-lg transition-colors">
+            +
+          </button>
+        </div>
+      </div>
+
       <div class="mt-4">
         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
           {{ currentLang === 'en' ? 'Additional instructions (optional)' : 'Instruksi tambahan (opsional)' }}

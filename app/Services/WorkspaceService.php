@@ -109,7 +109,8 @@ class WorkspaceService
             File::put($filePath, $file->file_content);
         }
 
-        // Tailwind v4 cleanup: remove v3-era config files that crash Vite
+        // Migrate Tailwind v4 workspaces to v3 — v4 generates CSS lazily via HMR
+        // which is disabled in the preview proxy, causing empty utility classes.
         $this->cleanupTailwindV3Artifacts($workspaceDir);
 
         // Normalize entry files so preview keeps working when generated scaffold
@@ -122,6 +123,11 @@ class WorkspaceService
         // Normalize Tailwind utility classes that are invalid in Tailwind v4
         // and can fail dev-server style transforms.
         $this->normalizeTailwindPreviewUtilities($workspaceDir);
+
+        // Scan all generated source files for missing npm dependencies and inject
+        // them into package.json so npm install picks them up. This handles any
+        // package the LLM decides to import that wasn't in the scaffold.
+        $this->patchMissingDependencies($workspaceDir);
 
         Log::info("Workspace created for generation {$generation->id}", [
             'path' => $workspaceDir,
@@ -591,10 +597,11 @@ class WorkspaceService
     // ========================================================================
 
     /**
-     * Remove Tailwind CSS v3-era config files (postcss.config.js, tailwind.config.*)
-     * when the project uses @tailwindcss/vite (Tailwind v4).
-     *
-     * Also patches vite.config.ts to include the @tailwindcss/vite plugin if missing.
+     * Migrate workspaces that were scaffolded with Tailwind v4 (@tailwindcss/vite)
+     * to Tailwind v3 (PostCSS-based). Tailwind v4 generates utilities lazily via HMR
+     * which is incompatible with the preview proxy (HMR disabled). Tailwind v3 uses
+     * PostCSS to scan content files synchronously on every request, so all utility
+     * classes are available immediately without HMR.
      */
     private function cleanupTailwindV3Artifacts(string $workspaceDir): void
     {
@@ -606,28 +613,22 @@ class WorkspaceService
         $packageJson = json_decode(File::get($packageJsonPath), true);
         $devDeps = $packageJson['devDependencies'] ?? [];
 
-        // Only clean up if using @tailwindcss/vite (Tailwind v4)
+        // Only migrate workspaces that still use @tailwindcss/vite (Tailwind v4)
         if (! isset($devDeps['@tailwindcss/vite'])) {
             return;
         }
 
-        // Remove postcss.config.js — not needed with @tailwindcss/vite
-        $postcssConfig = $workspaceDir.DIRECTORY_SEPARATOR.'postcss.config.js';
-        if (File::exists($postcssConfig)) {
-            File::delete($postcssConfig);
-            Log::info("Removed stale postcss.config.js from workspace {$workspaceDir}");
-        }
+        Log::info("Migrating workspace from Tailwind v4 to v3: {$workspaceDir}");
 
-        // Remove tailwind.config.* — Tailwind v4 uses CSS-first config
-        foreach (['tailwind.config.ts', 'tailwind.config.js'] as $configFile) {
-            $configPath = $workspaceDir.DIRECTORY_SEPARATOR.$configFile;
-            if (File::exists($configPath)) {
-                File::delete($configPath);
-                Log::info("Removed stale {$configFile} from workspace {$workspaceDir}");
-            }
-        }
+        // 1. Update package.json devDependencies
+        unset($packageJson['devDependencies']['@tailwindcss/vite']);
+        $packageJson['devDependencies']['tailwindcss'] = '^3.4.0';
+        $packageJson['devDependencies']['postcss'] = '^8.4.0';
+        $packageJson['devDependencies']['autoprefixer'] = '^10.4.0';
+        File::put($packageJsonPath, json_encode($packageJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        Log::info('Updated package.json devDependencies to Tailwind v3');
 
-        // Ensure vite.config includes @tailwindcss/vite plugin
+        // 2. Patch vite.config: remove @tailwindcss/vite import and plugin usage
         foreach (['vite.config.ts', 'vite.config.js'] as $viteFile) {
             $vitePath = $workspaceDir.DIRECTORY_SEPARATOR.$viteFile;
             if (! File::exists($vitePath)) {
@@ -635,18 +636,91 @@ class WorkspaceService
             }
 
             $viteContent = File::get($vitePath);
-            if (! str_contains($viteContent, '@tailwindcss/vite')) {
-                // Inject tailwindcss import and plugin
-                $viteContent = "import tailwindcss from '@tailwindcss/vite'\n".$viteContent;
-                $viteContent = preg_replace(
-                    '/plugins:\s*\[/',
-                    'plugins: [tailwindcss(), ',
-                    $viteContent,
-                    1
-                );
-                File::put($vitePath, $viteContent);
-                Log::info("Patched {$viteFile} with @tailwindcss/vite plugin in {$workspaceDir}");
+
+            // Remove import line
+            $viteContent = preg_replace("/^import tailwindcss from '@tailwindcss\/vite'\n?/m", '', $viteContent);
+
+            // Remove tailwindcss() from plugins array (handles "tailwindcss(), " or ", tailwindcss()" patterns)
+            $viteContent = preg_replace('/,?\s*tailwindcss\(\)\s*,?/', '', $viteContent);
+
+            // Clean up any double commas left behind
+            $viteContent = preg_replace('/\[\s*,/', '[', $viteContent);
+            $viteContent = preg_replace('/,\s*\]/', ']', $viteContent);
+
+            File::put($vitePath, $viteContent);
+            Log::info("Removed @tailwindcss/vite from {$viteFile}");
+        }
+
+        // 3. Patch main CSS: replace @import "tailwindcss" with @tailwind directives
+        $cssCandidates = [
+            'src/assets/main.css',
+            'src/styles/globals.css',
+            'src/app.css',
+            'src/styles.css',
+        ];
+
+        foreach ($cssCandidates as $cssFile) {
+            $cssPath = $workspaceDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $cssFile);
+            if (! File::exists($cssPath)) {
+                continue;
             }
+
+            $cssContent = File::get($cssPath);
+            if (str_contains($cssContent, '@import "tailwindcss"')) {
+                $cssContent = str_replace(
+                    '@import "tailwindcss";',
+                    "@tailwind base;\n@tailwind components;\n@tailwind utilities;",
+                    $cssContent
+                );
+                $cssContent = str_replace(
+                    "@import \"tailwindcss\"\n",
+                    "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n",
+                    $cssContent
+                );
+                File::put($cssPath, $cssContent);
+                Log::info("Patched {$cssFile} with @tailwind directives");
+            }
+        }
+
+        // 4. Create tailwind.config.js if missing
+        $tailwindConfigPath = $workspaceDir.DIRECTORY_SEPARATOR.'tailwind.config.js';
+        if (! File::exists($tailwindConfigPath)) {
+            File::put($tailwindConfigPath, <<<'CONFIG'
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx,vue,svelte}",
+  ],
+  darkMode: 'class',
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+CONFIG);
+            Log::info('Created tailwind.config.js for v3');
+        }
+
+        // 5. Create postcss.config.js if missing
+        $postcssConfigPath = $workspaceDir.DIRECTORY_SEPARATOR.'postcss.config.js';
+        if (! File::exists($postcssConfigPath)) {
+            File::put($postcssConfigPath, <<<'CONFIG'
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+CONFIG);
+            Log::info('Created postcss.config.js for v3');
+        }
+
+        // 6. Delete node_modules so npm install fetches tailwindcss v3 packages
+        $nodeModulesPath = $workspaceDir.DIRECTORY_SEPARATOR.'node_modules';
+        if (File::isDirectory($nodeModulesPath)) {
+            File::deleteDirectory($nodeModulesPath);
+            Log::info('Removed node_modules for fresh v3 install');
         }
     }
 
@@ -1126,5 +1200,131 @@ class WorkspaceService
         $setup = implode(' && ', $parts);
 
         return "cmd /c \"{$setup} && {$command}\"";
+    }
+
+    /**
+     * Scan all generated source files for npm imports not declared in package.json
+     * and inject them so npm install picks them up.
+     *
+     * The LLM sometimes imports packages that weren't in the scaffold despite the
+     * MCP constraint. Rather than failing at runtime, we detect and add them here.
+     * If any packages were added and node_modules already exists (from prewarm),
+     * we remove the prewarm skip-marker so npm install re-runs with the new deps.
+     */
+    private function patchMissingDependencies(string $workspaceDir): void
+    {
+        $packageJsonPath = $workspaceDir.DIRECTORY_SEPARATOR.'package.json';
+        if (! File::exists($packageJsonPath)) {
+            return;
+        }
+
+        $packageJson = json_decode(File::get($packageJsonPath), true);
+        if (! is_array($packageJson)) {
+            return;
+        }
+
+        // Collect all declared dependencies (deps + devDeps)
+        $declared = array_merge(
+            array_keys($packageJson['dependencies'] ?? []),
+            array_keys($packageJson['devDependencies'] ?? [])
+        );
+
+        // Node.js built-in modules — never need to be installed
+        $builtins = [
+            'fs', 'path', 'os', 'url', 'http', 'https', 'crypto', 'stream',
+            'buffer', 'events', 'util', 'assert', 'child_process', 'cluster',
+            'dns', 'net', 'querystring', 'readline', 'string_decoder', 'timers',
+            'tls', 'zlib', 'module', 'process', 'v8', 'vm', 'worker_threads',
+        ];
+
+        // Scan all JS/TS/Vue/Svelte/JSX source files for ES module imports
+        $srcDir = $workspaceDir.DIRECTORY_SEPARATOR.'src';
+        $extensions = ['vue', 'ts', 'tsx', 'js', 'jsx', 'svelte'];
+        $pattern = $workspaceDir.DIRECTORY_SEPARATOR.'**'.DIRECTORY_SEPARATOR.'*.{'.
+            implode(',', $extensions).'}';
+
+        // Build a flat list of all matching files under src/ and root
+        $sourceFiles = [];
+        foreach ($extensions as $ext) {
+            $found = File::glob($srcDir.DIRECTORY_SEPARATOR.'**'.DIRECTORY_SEPARATOR."*.{$ext}");
+            if ($found) {
+                $sourceFiles = array_merge($sourceFiles, $found);
+            }
+        }
+
+        // Regex: match ES static imports — import ... from 'pkg' or import('pkg')
+        $importRegex = '/(?:^|\n)\s*import\s[\s\S]*?from\s+[\'"]([^\'"]+)[\'"]|import\([\'"]([^\'"]+)[\'"]/m';
+
+        $missing = [];
+        foreach ($sourceFiles as $file) {
+            $content = File::get($file);
+            if (preg_match_all($importRegex, $content, $matches)) {
+                $specifiers = array_filter(
+                    array_merge($matches[1], $matches[2]),
+                    fn ($s) => $s !== ''
+                );
+                foreach ($specifiers as $specifier) {
+                    // Skip relative and absolute path imports
+                    if (str_starts_with($specifier, '.') || str_starts_with($specifier, '/')) {
+                        continue;
+                    }
+
+                    // Skip virtual modules (vite:, \0, etc.)
+                    if (str_starts_with($specifier, 'vite:') || str_starts_with($specifier, '\\0')) {
+                        continue;
+                    }
+
+                    // Skip Vite/webpack path aliases (e.g. @/, ~/, #/) — these are
+                    // not npm package names.
+                    if (preg_match('/^[@~#]\//', $specifier)) {
+                        continue;
+                    }
+
+                    // Extract the package name (handles scoped packages like @org/pkg)
+                    $parts = explode('/', $specifier);
+                    $pkgName = $specifier[0] === '@' && count($parts) >= 2
+                        ? $parts[0].'/'.$parts[1]
+                        : $parts[0];
+
+                    if (
+                        ! in_array($pkgName, $declared, true) &&
+                        ! in_array($pkgName, $builtins, true) &&
+                        ! isset($missing[$pkgName])
+                    ) {
+                        $missing[$pkgName] = 'latest';
+                    }
+                }
+            }
+        }
+
+        if (empty($missing)) {
+            return;
+        }
+
+        Log::warning('patchMissingDependencies: injecting undeclared packages into package.json', [
+            'workspace' => $workspaceDir,
+            'packages' => array_keys($missing),
+        ]);
+
+        // Inject into dependencies section
+        $packageJson['dependencies'] = array_merge(
+            $packageJson['dependencies'] ?? [],
+            $missing
+        );
+
+        File::put($packageJsonPath, json_encode($packageJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        // If node_modules already exists (prewarm), force npm install to re-run
+        // by removing the inner .package-lock.json marker and trimming dirs below
+        // the threshold used by the skip check (> 5 subdirectories).
+        // Simplest reliable approach: remove node_modules entirely so npm install
+        // rebuilds. The npm cache makes this fast even on subsequent runs.
+        $nodeModulesDir = $workspaceDir.DIRECTORY_SEPARATOR.'node_modules';
+        if (File::isDirectory($nodeModulesDir)) {
+            Log::info('patchMissingDependencies: removing prewarm node_modules to force reinstall', [
+                'workspace' => $workspaceDir,
+            ]);
+            File::deleteDirectory($nodeModulesDir);
+        }
     }
 }

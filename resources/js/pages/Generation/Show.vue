@@ -274,6 +274,18 @@ async function startStreamGeneration() {
             selectedPage.value = data.page;
           }
           updatePreview();
+
+          // For framework output: start preview as soon as the first page is done.
+          // The dev server is already prewarmed in the background; starting it now
+          // lets users preview each page as it completes without waiting for all pages.
+          if (isFrameworkOutput.value && livePreviewRef.value) {
+            const completedCount = Object.values(generationData.value.progress_data || {}).filter(
+              (p) => p.status === 'completed'
+            ).length;
+            if (completedCount === 1) {
+              livePreviewRef.value.setupPreview();
+            }
+          }
         }
 
         if (data.type === 'page_error') {
@@ -801,12 +813,17 @@ onMounted(() => {  // Load stored refinement messages first
               <button
                 v-for="page in pageNames"
                 :key="page"
-                @click="selectPage(page)"
+                @click="generationData.progress_data[page]?.status === 'completed' || generationData.progress_data[page]?.status === 'failed' ? selectPage(page) : undefined"
+                :disabled="generationData.progress_data[page]?.status !== 'completed' && generationData.progress_data[page]?.status !== 'failed'"
                 :class="[
                   'px-2.5 py-1 text-xs rounded-md font-medium transition-all',
                   selectedPage === page
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-300'
+                    : generationData.progress_data[page]?.status === 'completed'
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-300'
+                      : generationData.progress_data[page]?.status === 'failed'
+                        ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/30'
+                        : 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-600'
                 ]"
               >
                 {{ page }}
@@ -817,7 +834,7 @@ onMounted(() => {  // Load stored refinement messages first
                     generationData.progress_data[page].status === 'completed' ? 'bg-green-400' :
                     generationData.progress_data[page].status === 'generating' ? 'bg-blue-400 animate-pulse' :
                     generationData.progress_data[page].status === 'failed' ? 'bg-red-400' :
-                    'bg-slate-600'
+                    'bg-slate-500'
                   ]"
                 ></span>
               </button>

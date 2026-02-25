@@ -17,6 +17,11 @@ export default defineConfig({
                   host: 'localhost',
                   port: 5173,
               },
+              watch: {
+                  // Polling is required for Docker on Windows (inotify doesn't work on volume mounts)
+                  usePolling: true,
+                  interval: 300,
+              },
           }
         : {},
     plugins: [

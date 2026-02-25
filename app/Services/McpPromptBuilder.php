@@ -664,6 +664,10 @@ class McpPromptBuilder
             $constraints[] = '- No other chart libraries (including D3.js, Recharts, etc.)';
         }
 
+        // Icon library constraints — external icon packages are NOT pre-installed
+        $constraints[] = '- DO NOT import external icon libraries such as @heroicons/vue, lucide-vue-next, @radix-ui/react-icons, react-icons, vue-feather-icons, @phosphor-icons/vue, etc.';
+        $constraints[] = '- For icons: copy inline SVG markup directly (e.g. from heroicons.com). Never import from a separate npm icon package.';
+
         // Output format constraints
         $constraints[] = '- No backend logic (frontend templates only)';
         $constraints[] = '- All imports must be valid (no placeholders)';

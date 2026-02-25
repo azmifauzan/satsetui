@@ -66,6 +66,12 @@ php artisan storage:link 2>/dev/null || true
 # This ensures /public/build has the latest assets.
 # Vite dev server (managed by supervisor) will create public/hot automatically
 # when it starts, enabling HMR. If Vite fails, Laravel falls back to these.
+echo ">>> Clearing Vite module cache (prevents stale cache after git pull)..."
+rm -rf node_modules/.vite
+
+echo ">>> Resetting Vite log..."
+> storage/logs/vite.log 2>/dev/null || true
+
 echo ">>> Building frontend assets..."
 rm -f public/hot
 npm run build 2>/dev/null || echo "WARN: npm run build failed, Vite HMR will be the only source"
