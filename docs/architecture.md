@@ -125,13 +125,12 @@ No AI decision-making. No prompt interpretation. Pure translation.
 │ 5. MODEL SELECTION + BILLING (Platform Logic)               │
 │                                                              │
 │  Service: CreditService + CreditEstimationService           │
-│  ├─ Determine membership tier (free/premium)                │
-│  ├─ Free: force Gemini 2.5 Flash                            │
-│  ├─ Premium: allow admin-defined model choices              │
-│  ├─ Calculate base cost (model + extras)                    │
+│  ├─ User selects model type (satset or expert)              │
+│  ├─ Look up model config from llm_models table              │
+│  ├─ Calculate base cost (model credits + extras)            │
 │  ├─ Apply error margin (default 10%, admin configurable)    │
 │  ├─ Apply profit margin (default 5%, admin configurable)    │
-│  ├─ Validate premium credit balance                         │
+│  ├─ Validate user credit balance                            │
 │  └─ Reserve/charge credits atomically                       │
 └──────────────────────┬───────────────────────────────────────┘
                        │

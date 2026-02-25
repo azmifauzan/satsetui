@@ -64,7 +64,7 @@ Tanggal: 25 Februari 2026 (Updated)
 
 #### Database Seeder
 - ✅ `AdminUserSeeder` - Create admin user pertama
-  - Email: admin@templategen.com
+  - Email: admin@satsetui.com
   - Password: admin123
   - Credits: 1000
   - is_premium: true

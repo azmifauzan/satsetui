@@ -184,7 +184,7 @@ php artisan test --compact --filter=WorkspaceService
 php artisan db:seed
 
 # Individual seeders
-php artisan db:seed --class=AdminUserSeeder     # admin@templategen.com / admin123
+php artisan db:seed --class=AdminUserSeeder     # admin@satsetui.com / admin123
 php artisan db:seed --class=LlmModelSeeder      # 2 model types
 php artisan db:seed --class=AdminSettingSeeder   # platform settings
 ```

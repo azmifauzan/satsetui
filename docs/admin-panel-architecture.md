@@ -94,8 +94,8 @@ Halaman admin SatsetUI dirancang untuk memberikan kontrol penuh kepada administr
 
 **Konsep**:
 - Sistem memiliki **tepat 2 tipe model** yang tidak bisa ditambah atau dihapus:
-  - **satset** — Model cepat (e.g., Gemini 2.5 Flash)
-  - **expert** — Model berkualitas tinggi (e.g., GPT-4)
+  - **satset** — Model cepat (default: `gemini-2.0-flash-exp`, 6 credits)
+  - **expert** — Model berkualitas tinggi (default: `gemini-2.5-pro-preview`, 15 credits)
 - Admin hanya bisa **mengedit konfigurasi** dan **toggle active/inactive**
 
 **Fitur**:
