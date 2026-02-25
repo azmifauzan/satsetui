@@ -21,6 +21,9 @@ Platform wizard-driven untuk menghasilkan template frontend yang konsisten, dapa
 - **Credit Learning**: Estimasi kredit makin akurat berdasarkan data historis
 - **Cost Tracking**: Pelacakan biaya LLM aktual (USD + IDR) per halaman
 - **Retry Otomatis**: 3x retry dengan exponential backoff untuk error timeout
+- **Live Preview**: Preview hasil generasi langsung di browser via workspace server
+- **Multi-File Output**: Dukungan output React, Vue, Svelte, Angular (bukan hanya HTML)
+- **File Tree Navigation**: Navigasi file tree untuk project multi-file
 - **ZIP Download**: Download seluruh hasil generasi dalam format ZIP
 - **Bilingual**: Bahasa Indonesia (default) & English
 - **Dark/Light Mode**: Tema terang dan gelap dengan persistensi localStorage
@@ -84,9 +87,10 @@ php artisan db:seed
 ```
 
 Seeder akan membuat:
-- Admin user (`admin@templategen.com` / `admin123`)
+- Admin user (`admin@satsetui.com` / `admin123`)
 - 2 model LLM (Satset & Expert)
-- Admin settings default
+- Admin settings default (billing, generation, email, notification)
+- Test users (Indonesia & English)
 
 6. Start development servers
 ```bash
@@ -210,7 +214,9 @@ satsetui/
 │   │   │   └── HandleInertiaRequests.php
 │   │   └── Requests/            # Form requests & validasi
 │   ├── Jobs/
-│   │   └── ProcessTemplateGeneration.php  # Background generation (30min timeout)
+│   │   ├── ProcessTemplateGeneration.php  # Background generation (30min timeout)
+│   │   ├── PrepareWorkspaceDependencies.php # Workspace dependency setup
+│   │   └── SetupPreviewSession.php        # Preview session initialization
 │   ├── Models/
 │   │   ├── User.php             # credits, is_premium, is_admin, is_active
 │   │   ├── Generation.php       # Template generation record
@@ -220,9 +226,12 @@ satsetui/
 │   │   ├── CreditTransaction.php # charge, refund, topup, bonus, adjustment
 │   │   ├── CreditEstimation.php # Historical credit learning
 │   │   ├── GenerationCost.php   # Actual LLM costs (USD + IDR)
+│   │   ├── GenerationFile.php    # Multi-file generation output
 │   │   ├── GenerationFailure.php # Failure tracking with stack traces
 │   │   ├── CustomPageStatistic.php # Custom page usage tracking
 │   │   ├── RefinementMessage.php # Chat refinement messages
+│   │   ├── PreviewSession.php   # Live preview session lifecycle
+│   │   ├── Template.php         # Template records
 │   │   └── Project.php          # User projects
 │   ├── Notifications/
 │   │   ├── TemplateGenerationCompleted.php  # Database notification
@@ -238,6 +247,8 @@ satsetui/
 │       ├── CreditEstimationService.php # Historical learning for estimates
 │       ├── CostTrackingService.php    # LLM cost recording & analytics
 │       ├── AdminStatisticsService.php # Admin dashboard statistics
+│       ├── WorkspaceService.php       # Live preview workspace management
+│       ├── ScaffoldGeneratorService.php # Framework project scaffolding
 │       └── TelegramService.php        # Telegram bot messaging
 ├── resources/js/
 │   ├── pages/
@@ -247,7 +258,12 @@ satsetui/
 │   │   ├── Wizard/Index.vue      # 3-step wizard
 │   │   ├── Generation/Show.vue   # SSE streaming, refinement chat, ZIP download
 │   │   ├── Templates/Index.vue   # Paginated template list
-│   │   └── Admin/                # Dashboard, Users, Models, Settings, Generations
+│   │   └── Admin/
+│   │       ├── Index.vue          # Admin dashboard
+│   │       ├── Users/             # Index, Edit, Show
+│   │       ├── Models/            # Index, Edit, Create, Show
+│   │       ├── Generations/       # Index, Show
+│   │       └── Settings/Index.vue # Grouped settings
 │   ├── wizard/
 │   │   ├── wizardState.ts        # Central wizard state management
 │   │   ├── types.ts              # TypeScript interfaces
@@ -257,17 +273,19 @@ satsetui/
 │   │       └── Step3LlmModel.vue
 │   ├── layouts/
 │   │   ├── AppLayout.vue         # Authenticated layout with sidebar
-│   │   └── AdminLayout.vue       # Admin layout
+│   │   ├── AdminLayout.vue       # Admin panel layout
+│   │   └── GuestLayout.vue       # Guest/public layout
 │   ├── components/
 │   │   ├── admin/StatCard.vue
 │   │   ├── dashboard/            # Card, StatCard
+│   │   ├── generation/           # LivePreview, FileTree
 │   │   └── landing/              # Navbar, Hero, Features, HowItWorks, FAQ, CTA, Footer
 │   └── lib/
 │       ├── i18n.ts               # Bilingual (ID/EN) translations
 │       └── theme.ts              # Dark/Light/System theme
 ├── routes/web.php                # All application routes
 ├── database/
-│   ├── migrations/               # 17 migration files
+│   ├── migrations/               # 21 migration files
 │   ├── factories/UserFactory.php
 │   └── seeders/                  # Admin, LlmModel, AdminSetting, User seeders
 ├── docs/                         # Dokumentasi lengkap
@@ -365,7 +383,7 @@ Admin panel tersedia di `/admin` (requires `is_admin = true`):
 | **Settings** | Grouped settings (billing, generation, email, notification), reset to default |
 | **Generation History** | Filterable list, detail view, prompts/responses, refund/retry actions |
 
-Default admin: `admin@templategen.com` / `admin123`
+Default admin: `admin@satsetui.com` / `admin123`
 
 ## 🌍 Bilingual Support
 
@@ -384,7 +402,7 @@ Theme preference tersimpan di localStorage. Semua komponen menggunakan Tailwind 
 ## 🧪 Testing
 
 ```bash
-# Run all tests (13 test files: 9 Feature + 4 Unit)
+# Run all tests (26 test files: 21 Feature + 5 Unit)
 php artisan test --compact
 
 # Run specific test file
@@ -403,8 +421,8 @@ npm run test
 ### Test Coverage
 | Kategori | Test Files |
 |----------|-----------|
-| Feature | Admin Dashboard, Admin Menu, Email Verification, Dashboard Controller, Generation Controller, Generation Flow, Refinement Message, Credit Estimation Service |
-| Unit | MCP Prompt Builder, Generation Service Context, OpenAI Compatible Service |
+| Feature | Admin Dashboard, Admin Menu, LLM Model Update, Email Verification, Dashboard Controller, Generation Controller, Generation Flow, Retry Failed Pages, Refinement Message, Template Controller, Preview Controller, Preview HTML Normalization, Preview Vite Client Stub, Preview Proxy Fallback, Preview Proxy Rewrite, Preview Progress State, Workspace Service Preview Normalization, Workspace Service Npm Detection, ScaffoldGeneratorService, Credit Estimation Service, Example |
+| Unit | MCP Prompt Builder, Generation Service Context, OpenAI Compatible Service, Workspace Service Npm Detection, Example |
 
 ## 📝 License
 
