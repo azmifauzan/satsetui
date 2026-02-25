@@ -112,18 +112,23 @@ See `/docs/product-instruction.md` for complete wizard specification.
 
 ### Other Platform Requirements
 
-- **Membership**:
-    - Free uses Gemini 2.5 Flash (no model choice)
-    - Premium can choose admin-defined models
-- **Billing**: 
-    - Premium uses credits
+- **Credits & Models**:
+    - All users start with 100 credits at registration
+    - 2 model types: **Satset** (6 credits, fast) and **Expert** (15 credits, premium)
+    - Model name, provider, API key, base URL admin-configurable per model type
     - Credit calculation includes error margin (10% default) and profit margin (5% default)
     - Margins are admin-configurable
 - **Admin Panel**: 
     - Statistics and settings
     - Custom page statistics for promotion candidates
+    - Satset/Expert model configuration (provider, model name, API key, base URL, credits)
     - Margin configuration (error %, profit %)
     - Generation history with prompts/responses
+- **Live Preview**:
+    - Server-side workspace with Vite dev server for JS framework output
+    - Static HTML preview via iframe for HTML+CSS output
+    - Device switcher (desktop/tablet/mobile)
+    - WorkspaceService manages lifecycle, PreviewController handles endpoints
 
 ## Code Generation Rules
 
@@ -132,10 +137,15 @@ See `/docs/product-instruction.md` for complete wizard specification.
 - **Controllers**: Keep thin. Delegate to Services.
 - **Services**: Business logic lives here. Key services:
   - `McpPromptBuilder`: Core prompt generation (per-page)
-  - `GenerationService`: Orchestrates per-page generation
-  - `CreditService`: Credit management
-  - `CostTrackingService`: LLM cost tracking
+  - `GenerationService`: Orchestrates per-page generation with retry & context
+  - `CreditService`: Credit management (charge, refund, admin adjustment)
+  - `CreditEstimationService`: Token estimation with historical learning
+  - `CostTrackingService`: LLM cost tracking (USD + IDR)
   - `AdminStatisticsService`: Admin dashboard stats
+  - `WorkspaceService`: Live preview workspace lifecycle
+  - `ScaffoldGeneratorService`: Deterministic framework scaffolding
+  - `OpenAICompatibleService`: Primary LLM API gateway
+  - `TelegramService`: Telegram bot messaging
 - **Validation**: Use Form Requests for wizard input validation.
 - **Routes**: RESTful structure. Use route model binding where appropriate.
 - **Blueprint Schema**: Must match `/app/Blueprints/template-blueprint.schema.json` exactly.
@@ -214,8 +224,18 @@ app/
 ├── Http/
 │   ├── Controllers/      # Wizard controllers
 │   │   ├── Admin/        # Admin panel controllers
+│   │   │   ├── DashboardController.php
+│   │   │   ├── UserManagementController.php
+│   │   │   ├── LlmModelController.php
+│   │   │   ├── SettingsController.php
+│   │   │   └── GenerationHistoryController.php
 │   │   └── Auth/         # Authentication controllers
+│   ├── Middleware/
+│   │   ├── AdminMiddleware.php
+│   │   └── HandleInertiaRequests.php
 │   └── Requests/         # Wizard validation
+├── Jobs/
+│   └── ProcessTemplateGeneration.php  # Background generation (30min timeout)
 ├── Services/
 │   ├── McpPromptBuilder.php         # Per-page MCP generation
 │   ├── GenerationService.php        # Generation orchestration
@@ -223,28 +243,37 @@ app/
 │   ├── CreditEstimationService.php  # Token estimation
 │   ├── CostTrackingService.php      # Cost tracking
 │   ├── AdminStatisticsService.php   # Admin stats
-│   ├── GeminiService.php            # Gemini API
-│   └── OpenAICompatibleService.php  # OpenAI API
+│   ├── GeminiService.php            # Gemini API (legacy)
+│   ├── OpenAICompatibleService.php  # OpenAI-compatible API
+│   ├── WorkspaceService.php         # Live preview workspace management
+│   ├── ScaffoldGeneratorService.php # Framework project scaffolding
+│   └── TelegramService.php         # Telegram bot messaging
 └── Models/
     ├── User.php
     ├── Generation.php
     ├── PageGeneration.php
-    ├── LlmModel.php
+    ├── GenerationFile.php     # Multi-file generation output
+    ├── GenerationCost.php
+    ├── GenerationFailure.php
+    ├── LlmModel.php           # 2 types: satset, expert
     ├── AdminSetting.php
     ├── CreditTransaction.php
     ├── CreditEstimation.php
     ├── CustomPageStatistic.php
-    └── GenerationCost.php
+    ├── PreviewSession.php     # Live preview lifecycle
+    ├── RefinementMessage.php  # Chat refinement messages
+    ├── Project.php
+    └── Template.php
 
 resources/js/
 ├── pages/                # Inertia pages
 │   ├── Home.vue
-│   ├── Auth/
+│   ├── Auth/             # Login, Register, VerifyEmail
 │   ├── Dashboard/
 │   ├── Wizard/
 │   ├── Generation/
 │   ├── Templates/
-│   └── Admin/
+│   └── Admin/            # Dashboard, Users, Models, Generations, Settings
 ├── wizard/               # Wizard-specific components
 │   ├── steps/
 │   │   ├── Step1FrameworkCategoryOutput.vue
@@ -253,15 +282,32 @@ resources/js/
 │   ├── wizardState.ts    # Central state management
 │   └── types.ts          # TypeScript interfaces
 ├── components/           # Shared components
-├── layouts/              # Layout wrappers
-└── lib/                  # Utilities (i18n, theme)
+│   ├── admin/            # StatCard
+│   ├── dashboard/        # Card, StatCard
+│   ├── generation/       # LivePreview, FileTree
+│   └── landing/          # Navbar, Hero, Features, HowItWorks, FAQ, CTA, Footer
+├── layouts/
+│   ├── AppLayout.vue     # Authenticated layout with sidebar
+│   └── AdminLayout.vue   # Admin panel layout
+└── lib/
+    ├── i18n.ts           # Internationalization
+    ├── i18n/             # Translation files (en/, id/)
+    ├── theme.ts          # Theme management
+    └── utils.ts          # Utility functions
 
 docs/
 ├── product-instruction.md  # 3-step wizard spec
-├── architecture.md         # Per-page generation
+├── architecture.md         # Per-page generation + live preview
 ├── mvp-plan.md
 ├── llm-credit-system.md    # Credit calculation
-└── admin-panel-architecture.md
+├── admin-panel-architecture.md
+├── plan-js-framework-output-live-preview.md  # JS framework & live preview
+├── credit-refund-and-cost-tracking.md
+├── llm-quick-reference.md
+├── CHANGELOG.md
+├── ADMIN-IMPLEMENTATION.md
+├── EMAIL-TELEGRAM-SETUP.md
+└── TROUBLESHOOTING-419.md
 ```
 
 ## Behavior Guidelines for Copilot
