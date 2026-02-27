@@ -85,6 +85,17 @@ class McpPromptBuilder
             $sections[] = $this->buildSharedLayoutInjection($sharedLayout, $pageName);
         }
 
+        // Add custom instructions if provided (from wizard category-specific context)
+        $customInstructions = $blueprint['customInstructions'] ?? '';
+        if (! empty(trim($customInstructions))) {
+            // Strip auto-context markers for cleaner prompt
+            $cleanInstructions = preg_replace('/\[AUTO_CONTEXT\](.*?)\[\/AUTO_CONTEXT\]/s', '$1', $customInstructions);
+            $cleanInstructions = trim($cleanInstructions);
+            if (! empty($cleanInstructions)) {
+                $sections[] = "ADDITIONAL CONTEXT & INSTRUCTIONS:\n{$cleanInstructions}";
+            }
+        }
+
         // Filter out empty sections
         return implode("\n\n", array_filter($sections, fn ($s) => ! empty(trim($s))));
     }
@@ -245,6 +256,16 @@ class McpPromptBuilder
         $outputSection[] = '- Use realistic, professional styling';
 
         $sections[] = implode("\n", $outputSection);
+
+        // Add custom instructions if provided (blog name, company name, etc. for navigation branding)
+        $customInstructions = $blueprint['customInstructions'] ?? '';
+        if (! empty(trim($customInstructions))) {
+            $cleanInstructions = preg_replace('/\[AUTO_CONTEXT\](.*?)\[\/AUTO_CONTEXT\]/s', '$1', $customInstructions);
+            $cleanInstructions = trim($cleanInstructions);
+            if (! empty($cleanInstructions)) {
+                $sections[] = "ADDITIONAL CONTEXT & INSTRUCTIONS:\n{$cleanInstructions}";
+            }
+        }
 
         return implode("\n\n", array_filter($sections, fn ($s) => ! empty(trim($s))));
     }
@@ -583,6 +604,18 @@ class McpPromptBuilder
             $section[] = '  → Use this for store tagline and about content';
         }
 
+        // Blog Info
+        if (! empty($projectInfo['blogName'])) {
+            $section[] = "- Blog/Site Name: {$projectInfo['blogName']}";
+            $section[] = '  → Use this as the site title in headers, navigation logo/text, page titles, and footer';
+        }
+
+        if (! empty($projectInfo['blogTopic'])) {
+            $section[] = "- Blog Topic/Niche: {$projectInfo['blogTopic']}";
+            $section[] = '  → Use this to generate relevant placeholder content, article titles, categories, and taglines';
+            $section[] = '  → All dummy/placeholder content should be related to this topic';
+        }
+
         $section[] = '';
         $section[] = 'IMPORTANT CONSISTENCY RULES:';
         $section[] = '1. Use the EXACT names provided above - do NOT make up different names';
@@ -859,11 +892,72 @@ class McpPromptBuilder
             $effectiveStyling = $blueprint['frameworkConfig']['styling'] ?? $framework;
         }
 
+        // Include color scheme name if available for better LLM understanding
+        $colorSchemeName = $blueprint['colorScheme'] ?? null;
+        $colorSchemeNames = [
+            'blue' => 'Ocean Blue',
+            'green' => 'Forest Green',
+            'purple' => 'Royal Purple',
+            'red' => 'Ruby Red',
+            'amber' => 'Warm Amber',
+            'slate' => 'Slate Gray',
+        ];
+        $colorLabel = $colorSchemeNames[$colorSchemeName] ?? ($colorSchemeName === 'custom' ? 'Custom' : null);
+
+        // Include style preset for design direction
+        $stylePreset = $blueprint['stylePreset'] ?? null;
+        $stylePresetNames = [
+            'modern' => 'Modern & Clean',
+            'minimal' => 'Minimalist',
+            'bold' => 'Bold & Vibrant',
+            'elegant' => 'Elegant',
+            'playful' => 'Playful',
+        ];
+        $styleLabel = $stylePresetNames[$stylePreset] ?? null;
+
+        // Include font family for typography
+        $fontFamily = $blueprint['fontFamily'] ?? null;
+        $fontFamilyNames = [
+            'inter' => 'Inter',
+            'poppins' => 'Poppins',
+            'roboto' => 'Roboto',
+            'playfair' => 'Playfair Display',
+            'mono' => 'JetBrains Mono',
+        ];
+        $fontLabel = null;
+        if ($fontFamily) {
+            if (str_starts_with($fontFamily, 'custom:')) {
+                $fontLabel = substr($fontFamily, 7);
+            } else {
+                $fontLabel = $fontFamilyNames[$fontFamily] ?? ucfirst($fontFamily);
+            }
+        }
+
         $section = ['THEME SPECIFICATION:'];
-        $section[] = "- Primary Color: {$theme['primary']}";
-        $section[] = "- Secondary Color: {$theme['secondary']}";
+        if ($colorLabel) {
+            $section[] = "- Color Theme: {$colorLabel}";
+        }
+        $section[] = "- Primary Color: {$theme['primary']} — USE THIS as the dominant accent color for buttons, links, active states, highlights, and key UI elements";
+        $section[] = "- Secondary Color: {$theme['secondary']} — USE THIS for secondary accents, hover states, and complementary elements";
         $section[] = '- Color Mode: '.ucfirst($theme['mode']);
         $section[] = '- Background Style: '.ucfirst($theme['background']);
+
+        if ($styleLabel) {
+            $section[] = "- Design Style: {$styleLabel}";
+        }
+
+        if ($fontLabel) {
+            $section[] = "- Font Family: {$fontLabel}";
+            $section[] = '  → Import this font (Google Fonts or CDN) and apply as the primary font-family';
+        }
+
+        $section[] = '';
+        $section[] = 'CRITICAL COLOR REQUIREMENTS:';
+        $section[] = "- The primary color ({$theme['primary']}) MUST be prominently visible in the design";
+        $section[] = '- Apply primary color to: navigation active states, buttons, links, headings accents, icons, badges';
+        $section[] = '- Apply secondary color to: hover states, secondary buttons, subtle accents, gradients';
+        $section[] = '- Do NOT use generic blue (#3B82F6) unless it IS the selected primary color';
+        $section[] = '- Define CSS variables: --color-primary and --color-secondary with the exact hex values above';
 
         if ($effectiveStyling === 'tailwind') {
             $section[] = "\nTailwind Implementation:";

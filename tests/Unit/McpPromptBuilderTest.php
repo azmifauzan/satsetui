@@ -622,3 +622,169 @@ test('shared layout injection includes correct page name in data-page', function
     $result2 = $builder->buildForPage($blueprint, 'custom:inventory', 0, $sharedLayout);
     expect($result2)->toContain('data-page="inventory"');
 });
+
+// ========================================================================
+// Blog Name & Topic Tests
+// ========================================================================
+
+test('buildForPage includes blog name and topic in project info section', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'category' => 'blog-content-site',
+        'projectInfo' => [
+            'blogName' => 'Tech Insights',
+            'blogTopic' => 'Artificial Intelligence',
+        ],
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('Blog/Site Name: Tech Insights');
+    expect($result)->toContain('Blog Topic/Niche: Artificial Intelligence');
+    expect($result)->toContain('headers, navigation logo/text');
+    expect($result)->toContain('relevant placeholder content');
+});
+
+// ========================================================================
+// Enhanced Theme Section Tests
+// ========================================================================
+
+test('buildForPage includes color scheme name in theme section', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'colorScheme' => 'green',
+        'theme' => [
+            'primary' => '#10B981',
+            'secondary' => '#059669',
+            'mode' => 'dark',
+            'background' => 'solid',
+        ],
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('Color Theme: Forest Green');
+    expect($result)->toContain('#10B981');
+    expect($result)->toContain('CRITICAL COLOR REQUIREMENTS');
+});
+
+test('buildForPage includes style preset in theme section', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'stylePreset' => 'minimal',
+        'theme' => [
+            'primary' => '#3B82F6',
+            'secondary' => '#10B981',
+            'mode' => 'light',
+            'background' => 'solid',
+        ],
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('Design Style: Minimalist');
+});
+
+test('buildForPage includes font family in theme section', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'fontFamily' => 'poppins',
+        'theme' => [
+            'primary' => '#3B82F6',
+            'secondary' => '#10B981',
+            'mode' => 'light',
+            'background' => 'solid',
+        ],
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('Font Family: Poppins');
+    expect($result)->toContain('Google Fonts');
+});
+
+test('buildForPage theme section emphasizes primary color usage', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'theme' => [
+            'primary' => '#EF4444',
+            'secondary' => '#F59E0B',
+            'mode' => 'light',
+            'background' => 'solid',
+        ],
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('Primary Color: #EF4444');
+    expect($result)->toContain('CRITICAL COLOR REQUIREMENTS');
+    expect($result)->toContain('MUST be prominently visible');
+});
+
+// ========================================================================
+// Custom Instructions Tests
+// ========================================================================
+
+test('buildForPage includes custom instructions in prompt', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'customInstructions' => 'This is a tech blog about AI and machine learning.',
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('ADDITIONAL CONTEXT & INSTRUCTIONS');
+    expect($result)->toContain('This is a tech blog about AI and machine learning.');
+});
+
+test('buildForPage strips auto-context markers from custom instructions', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'customInstructions' => '[AUTO_CONTEXT]Blog: Tech Insights, Topic: AI[/AUTO_CONTEXT]',
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->toContain('Blog: Tech Insights, Topic: AI');
+    expect($result)->not->toContain('[AUTO_CONTEXT]');
+    expect($result)->not->toContain('[/AUTO_CONTEXT]');
+});
+
+test('buildForPage omits custom instructions section when empty', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'customInstructions' => '',
+    ]);
+
+    $result = $builder->buildForPage($blueprint, 'dashboard', 0);
+
+    expect($result)->not->toContain('ADDITIONAL CONTEXT & INSTRUCTIONS');
+});
+
+test('buildLayoutGenerationPrompt includes custom instructions', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'customInstructions' => 'Blog name is Tech Insights. Use this in navigation.',
+    ]);
+
+    $result = $builder->buildLayoutGenerationPrompt($blueprint);
+
+    expect($result)->toContain('ADDITIONAL CONTEXT & INSTRUCTIONS');
+    expect($result)->toContain('Blog name is Tech Insights');
+});
+
+test('buildLayoutGenerationPrompt includes blog info in project info', function () {
+    $builder = new McpPromptBuilder;
+    $blueprint = createValidBlueprint([
+        'category' => 'blog-content-site',
+        'projectInfo' => [
+            'blogName' => 'My Tech Blog',
+            'blogTopic' => 'Web Development',
+        ],
+    ]);
+
+    $result = $builder->buildLayoutGenerationPrompt($blueprint);
+
+    expect($result)->toContain('Blog/Site Name: My Tech Blog');
+    expect($result)->toContain('Blog Topic/Niche: Web Development');
+});

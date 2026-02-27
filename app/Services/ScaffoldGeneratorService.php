@@ -33,6 +33,7 @@ class ScaffoldGeneratorService
      * @param  array  $pages  List of page names to include in routing
      * @param  array  $theme  Theme configuration (primary, secondary, mode)
      * @param  array  $layout  Layout configuration (navigation, footer, etc.)
+     * @param  array  $projectInfo  Project information (blogName, companyName, appName, etc.)
      * @return array<GenerationFile> Created scaffold file records
      */
     public function generateScaffold(
@@ -41,13 +42,16 @@ class ScaffoldGeneratorService
         array $frameworkConfig,
         array $pages,
         array $theme,
-        array $layout
+        array $layout,
+        array $projectInfo = []
     ): array {
+        $brandName = $this->getBrandName($projectInfo);
+
         $files = match ($outputFormat) {
-            'react' => $this->generateReactScaffold($frameworkConfig, $pages, $theme, $layout),
-            'vue' => $this->generateVueScaffold($frameworkConfig, $pages, $theme, $layout),
-            'svelte' => $this->generateSvelteScaffold($frameworkConfig, $pages, $theme, $layout),
-            'angular' => $this->generateAngularScaffold($frameworkConfig, $pages, $theme, $layout),
+            'react' => $this->generateReactScaffold($frameworkConfig, $pages, $theme, $layout, $brandName),
+            'vue' => $this->generateVueScaffold($frameworkConfig, $pages, $theme, $layout, $brandName),
+            'svelte' => $this->generateSvelteScaffold($frameworkConfig, $pages, $theme, $layout, $brandName),
+            'angular' => $this->generateAngularScaffold($frameworkConfig, $pages, $theme, $layout, $brandName),
             default => [], // HTML+CSS = no scaffold needed
         };
 
@@ -111,7 +115,7 @@ class ScaffoldGeneratorService
     // React Scaffold
     // ========================================================================
 
-    private function generateReactScaffold(array $config, array $pages, array $theme, array $layout): array
+    private function generateReactScaffold(array $config, array $pages, array $theme, array $layout, string $brandName = 'Template'): array
     {
         $isTs = ($config['language'] ?? 'typescript') === 'typescript';
         $styling = $config['styling'] ?? 'tailwind';
@@ -146,7 +150,15 @@ class ScaffoldGeneratorService
         }
 
         // Layout
-        $files["src/layouts/MainLayout.{$ext}"] = $this->generateReactLayout($pages, $layout, $theme, $isTs);
+        $files["src/layouts/MainLayout.{$ext}"] = $this->generateReactLayout($pages, $layout, $theme, $isTs, $brandName);
+
+        // Placeholder stub pages — prevent Vite dep-scan ENOENT errors while
+        // LLM generates real page content one-by-one.
+        foreach ($pages as $page) {
+            $componentName = $this->toComponentName($page);
+            $filePath = "src/pages/{$componentName}.{$ext}";
+            $files[$filePath] = $this->generateReactPlaceholderPage($componentName);
+        }
 
         // Global CSS
         $files['src/styles/globals.css'] = $this->generateGlobalCss($styling, $theme);
@@ -341,21 +353,22 @@ export default function AppRouter() {
 ROUTER;
     }
 
-    private function generateReactLayout(array $pages, array $layout, array $theme, bool $isTs): string
+    private function generateReactLayout(array $pages, array $layout, array $theme, bool $isTs, string $brandName = 'Template'): string
     {
         $navigation = $layout['navigation'] ?? 'sidebar';
         $navItems = $this->generateNavItems($pages);
 
         if ($navigation === 'sidebar' || $navigation === 'hybrid') {
-            return $this->generateReactSidebarLayout($navItems, $theme, $isTs);
+            return $this->generateReactSidebarLayout($navItems, $theme, $isTs, $brandName);
         }
 
-        return $this->generateReactTopbarLayout($navItems, $theme, $isTs);
+        return $this->generateReactTopbarLayout($navItems, $theme, $isTs, $brandName);
     }
 
-    private function generateReactSidebarLayout(string $navItems, array $theme, bool $isTs): string
+    private function generateReactSidebarLayout(string $navItems, array $theme, bool $isTs, string $brandName = 'Template'): string
     {
         $primary = $theme['primary'] ?? '#3B82F6';
+        $brandNameJs = addslashes($brandName);
 
         return <<<LAYOUT
 import { useState } from 'react'
@@ -380,7 +393,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         className={\`\${sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col\`}
       >
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-          {sidebarOpen && <span className="text-xl font-bold text-gray-900 dark:text-white">Template</span>}
+          {sidebarOpen && <span className="text-xl font-bold text-primary dark:text-white">{$brandNameJs}</span>}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -397,7 +410,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               to={item.path}
               className={\`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors \${
                 location.pathname === item.path
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }\`}
             >
@@ -424,8 +437,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
 LAYOUT;
     }
 
-    private function generateReactTopbarLayout(string $navItems, array $theme, bool $isTs): string
+    private function generateReactTopbarLayout(string $navItems, array $theme, bool $isTs, string $brandName = 'Template'): string
     {
+        $brandNameJs = addslashes($brandName);
+
         return <<<LAYOUT
 import { Link, useLocation } from 'react-router-dom'
 
@@ -445,7 +460,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <span className="text-xl font-bold text-gray-900 dark:text-white">Template</span>
+            <span className="text-xl font-bold text-primary dark:text-white">{$brandNameJs}</span>
             <nav className="flex gap-4">
               {navItems.map((item) => (
                 <Link
@@ -453,7 +468,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                   to={item.path}
                   className={\`px-3 py-2 rounded-lg text-sm font-medium transition-colors \${
                     location.pathname === item.path
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                      ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }\`}
                 >
@@ -473,11 +488,31 @@ export default function MainLayout({ children }: MainLayoutProps) {
 LAYOUT;
     }
 
+    /**
+     * Generate a placeholder React page component.
+     * Will be overwritten when the LLM generates the actual page.
+     */
+    private function generateReactPlaceholderPage(string $componentName): string
+    {
+        return <<<PAGE
+export default function {$componentName}() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-gray-500 dark:text-gray-400">Generating {$componentName}...</p>
+      </div>
+    </div>
+  )
+}
+PAGE;
+    }
+
     // ========================================================================
     // Vue Scaffold
     // ========================================================================
 
-    private function generateVueScaffold(array $config, array $pages, array $theme, array $layout): array
+    private function generateVueScaffold(array $config, array $pages, array $theme, array $layout, string $brandName = 'Template'): array
     {
         $isTs = ($config['language'] ?? 'typescript') === 'typescript';
         $styling = $config['styling'] ?? 'tailwind';
@@ -503,7 +538,16 @@ LAYOUT;
             $files["src/router/index.{$ext}"] = $this->generateVueRouter($pages, $isTs);
         }
 
-        $files['src/layouts/MainLayout.vue'] = $this->generateVueLayout($pages, $layout, $theme);
+        $files['src/layouts/MainLayout.vue'] = $this->generateVueLayout($pages, $layout, $theme, $brandName);
+
+        // Placeholder stub pages — prevent Vite dep-scan ENOENT errors while
+        // LLM generates real page content one-by-one.
+        foreach ($pages as $page) {
+            $componentName = $this->toComponentName($page);
+            $filePath = "src/pages/{$componentName}.vue";
+            $files[$filePath] = $this->generateVuePlaceholderPage($componentName);
+        }
+
         $files['src/assets/main.css'] = $this->generateGlobalCss($styling, $theme);
 
         if ($styling === 'tailwind') {
@@ -705,20 +749,22 @@ export default router
 ROUTER;
     }
 
-    private function generateVueLayout(array $pages, array $layout, array $theme): string
+    private function generateVueLayout(array $pages, array $layout, array $theme, string $brandName = 'Template'): string
     {
         $navigation = $layout['navigation'] ?? 'sidebar';
         $navItemsArray = $this->generateVueNavItems($pages);
 
         if ($navigation === 'sidebar' || $navigation === 'hybrid') {
-            return $this->generateVueSidebarLayout($navItemsArray, $theme);
+            return $this->generateVueSidebarLayout($navItemsArray, $theme, $brandName);
         }
 
-        return $this->generateVueTopbarLayout($navItemsArray, $theme);
+        return $this->generateVueTopbarLayout($navItemsArray, $theme, $brandName);
     }
 
-    private function generateVueSidebarLayout(string $navItems, array $theme): string
+    private function generateVueSidebarLayout(string $navItems, array $theme, string $brandName = 'Template'): string
     {
+        $escapedBrand = htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8');
+
         return <<<'LAYOUT'
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -740,7 +786,8 @@ LAYOUT."\n{$navItems}".<<<'LAYOUT'
       :class="[sidebarOpen ? 'w-64' : 'w-16', 'transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col']"
     >
       <div class="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-        <span v-if="sidebarOpen" class="text-xl font-bold text-gray-900 dark:text-white">Template</span>
+LAYOUT."\n        <span v-if=\"sidebarOpen\" class=\"text-xl font-bold text-primary dark:text-white\">{$escapedBrand}</span>".<<<'LAYOUT'
+
         <button
           @click="sidebarOpen = !sidebarOpen"
           class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -758,7 +805,7 @@ LAYOUT."\n{$navItems}".<<<'LAYOUT'
           :class="[
             'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
             route.path === item.path
-              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+              ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
           ]"
         >
@@ -783,8 +830,10 @@ LAYOUT."\n{$navItems}".<<<'LAYOUT'
 LAYOUT;
     }
 
-    private function generateVueTopbarLayout(string $navItems, array $theme): string
+    private function generateVueTopbarLayout(string $navItems, array $theme, string $brandName = 'Template'): string
     {
+        $escapedBrand = htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8');
+
         return <<<'LAYOUT'
 <script setup lang="ts">
 import { RouterLink, RouterView, useRoute } from 'vue-router'
@@ -802,7 +851,8 @@ LAYOUT."\n{$navItems}".<<<'LAYOUT'
     <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
-          <span class="text-xl font-bold text-gray-900 dark:text-white">Template</span>
+LAYOUT."\n          <span class=\"text-xl font-bold text-primary dark:text-white\">{$escapedBrand}</span>".<<<'LAYOUT'
+
           <nav class="flex gap-4">
             <RouterLink
               v-for="item in navItems"
@@ -811,7 +861,7 @@ LAYOUT."\n{$navItems}".<<<'LAYOUT'
               :class="[
                 'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                 route.path === item.path
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               ]"
             >
@@ -833,7 +883,29 @@ LAYOUT;
     // Svelte Scaffold
     // ========================================================================
 
-    private function generateSvelteScaffold(array $config, array $pages, array $theme, array $layout): array
+    /**
+     * Generate a placeholder Vue page component.
+     * Will be overwritten when the LLM generates the actual page.
+     */
+    private function generateVuePlaceholderPage(string $componentName): string
+    {
+        return <<<PAGE
+<script setup lang="ts">
+// Placeholder — will be replaced by LLM-generated content
+</script>
+
+<template>
+  <div class="flex items-center justify-center min-h-[60vh]">
+    <div class="text-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+      <p class="text-gray-500 dark:text-gray-400">Generating {$componentName}...</p>
+    </div>
+  </div>
+</template>
+PAGE;
+    }
+
+    private function generateSvelteScaffold(array $config, array $pages, array $theme, array $layout, string $brandName = 'Template'): array
     {
         $isTs = ($config['language'] ?? 'typescript') === 'typescript';
         $styling = $config['styling'] ?? 'tailwind';
@@ -854,7 +926,16 @@ LAYOUT;
         $files['src/routes/+page.svelte'] = $this->generateSvelteRedirectPage($pages);
 
         // Layout component
-        $files['src/lib/layouts/MainLayout.svelte'] = $this->generateSvelteLayoutComponent($pages, $layout, $theme);
+        $files['src/lib/layouts/MainLayout.svelte'] = $this->generateSvelteLayoutComponent($pages, $layout, $theme, $brandName);
+
+        // Placeholder stub pages — prevent Vite dep-scan ENOENT errors while
+        // LLM generates real page content one-by-one.
+        foreach ($pages as $page) {
+            $kebab = $this->toKebabCase($page);
+            $componentName = $this->toComponentName($page);
+            $filePath = "src/routes/{$kebab}/+page.svelte";
+            $files[$filePath] = $this->generateSveltePlaceholderPage($componentName);
+        }
 
         if ($styling === 'tailwind') {
             $files['tailwind.config.js'] = $this->generateTailwindConfig(false);
@@ -1003,9 +1084,10 @@ LAYOUT;
 SVELTE;
     }
 
-    private function generateSvelteLayoutComponent(array $pages, array $layout, array $theme): string
+    private function generateSvelteLayoutComponent(array $pages, array $layout, array $theme, string $brandName = 'Template'): string
     {
         $navigation = $layout['navigation'] ?? 'sidebar';
+        $escapedBrand = htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8');
         $navItems = "[\n";
         foreach ($pages as $page) {
             $label = $this->toLabel($page);
@@ -1028,7 +1110,7 @@ SVELTE;
   <aside class="{sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
     <div class="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
       {#if sidebarOpen}
-        <span class="text-xl font-bold text-gray-900 dark:text-white">Template</span>
+        <span class="text-xl font-bold text-primary dark:text-white">{$escapedBrand}</span>
       {/if}
       <button onclick={() => sidebarOpen = !sidebarOpen} class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
         <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1040,7 +1122,7 @@ SVELTE;
       {#each navItems as item}
         <a
           href={item.path}
-          class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {page.url.pathname === item.path ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+          class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {page.url.pathname === item.path ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
         >
           <span class="text-sm font-medium">{sidebarOpen ? item.label : item.label[0]}</span>
         </a>
@@ -1066,7 +1148,23 @@ LAYOUT;
     // Angular Scaffold
     // ========================================================================
 
-    private function generateAngularScaffold(array $config, array $pages, array $theme, array $layout): array
+    /**
+     * Generate a placeholder Svelte page component.
+     * Will be overwritten when the LLM generates the actual page.
+     */
+    private function generateSveltePlaceholderPage(string $componentName): string
+    {
+        return <<<PAGE
+<div class="flex items-center justify-center min-h-[60vh]">
+  <div class="text-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+    <p class="text-gray-500 dark:text-gray-400">Generating {$componentName}...</p>
+  </div>
+</div>
+PAGE;
+    }
+
+    private function generateAngularScaffold(array $config, array $pages, array $theme, array $layout, string $brandName = 'Template'): array
     {
         $styling = $config['styling'] ?? 'tailwind';
 
@@ -1081,9 +1179,43 @@ LAYOUT;
         $files['src/styles.css'] = $this->generateGlobalCss($styling, $theme);
         $files['src/app/app.component.ts'] = $this->generateAngularAppComponent();
         $files['src/app/app.routes.ts'] = $this->generateAngularRoutes($pages);
-        $files['src/app/layouts/main-layout.component.ts'] = $this->generateAngularLayout($pages, $layout, $theme);
+        $files['src/app/layouts/main-layout.component.ts'] = $this->generateAngularLayout($pages, $layout, $theme, $brandName);
+
+        // Placeholder stub pages — prevent Vite dep-scan ENOENT errors while
+        // LLM generates real page content one-by-one.
+        foreach ($pages as $page) {
+            $componentName = $this->toComponentName($page).'Component';
+            $kebab = $this->toKebabCase($page);
+            $filePath = "src/app/pages/{$kebab}/{$kebab}.component.ts";
+            $files[$filePath] = $this->generateAngularPlaceholderPage($componentName, $kebab);
+        }
 
         return $files;
+    }
+
+    /**
+     * Generate a placeholder Angular page component.
+     * Will be overwritten when the LLM generates the actual page.
+     */
+    private function generateAngularPlaceholderPage(string $componentName, string $selector): string
+    {
+        return <<<PAGE
+import { Component } from '@angular/core'
+
+@Component({
+  selector: 'app-{$selector}',
+  standalone: true,
+  template: \`
+    <div class="flex items-center justify-center min-h-[60vh]">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p class="text-gray-500 dark:text-gray-400">Generating...</p>
+      </div>
+    </div>
+  \`,
+})
+export class {$componentName} {}
+PAGE;
     }
 
     private function generateAngularPackageJson(array $config): string
@@ -1263,8 +1395,9 @@ export const routes: Routes = [
 ROUTES;
     }
 
-    private function generateAngularLayout(array $pages, array $layout, array $theme): string
+    private function generateAngularLayout(array $pages, array $layout, array $theme, string $brandName = 'Template'): string
     {
+        $escapedBrand = htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8');
         $navItems = [];
         foreach ($pages as $page) {
             $label = $this->toLabel($page);
@@ -1286,7 +1419,7 @@ import { CommonModule } from '@angular/common'
     <div class="flex h-screen bg-gray-100 dark:bg-gray-900">
       <aside [class]="sidebarOpen ? 'w-64' : 'w-16'" class="transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div class="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-          <span *ngIf="sidebarOpen" class="text-xl font-bold text-gray-900 dark:text-white">Template</span>
+          <span *ngIf="sidebarOpen" class="text-xl font-bold text-primary dark:text-white">{$escapedBrand}</span>
           <button (click)="sidebarOpen = !sidebarOpen" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -1294,7 +1427,7 @@ import { CommonModule } from '@angular/common'
           </button>
         </div>
         <nav class="flex-1 p-4 space-y-2">
-          <a *ngFor="let item of navItems" [routerLink]="item.path" routerLinkActive="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+          <a *ngFor="let item of navItems" [routerLink]="item.path" routerLinkActive="bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
             <span class="text-sm font-medium">{{ sidebarOpen ? item.label : item.label[0] }}</span>
           </a>
         </nav>
@@ -1367,6 +1500,43 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* Primary/secondary color utilities with opacity support */
+@layer utilities {
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  .bg-primary\/10 {
+    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+  .bg-primary\/20 {
+    background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+  .text-primary {
+    color: var(--color-primary);
+  }
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+  .bg-secondary {
+    background-color: var(--color-secondary);
+  }
+  .text-secondary {
+    color: var(--color-secondary);
+  }
+  .border-secondary {
+    border-color: var(--color-secondary);
+  }
+  .ring-primary {
+    --tw-ring-color: var(--color-primary);
+  }
+  .hover\\:bg-primary:hover {
+    background-color: var(--color-primary);
+  }
+  .hover\\:text-primary:hover {
+    color: var(--color-primary);
+  }
+}
 CSS;
         }
 
@@ -1419,7 +1589,12 @@ export default {
   ],
   darkMode: 'class',
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+      },
+    },
   },
   plugins: [],
 }
@@ -1528,6 +1703,20 @@ CONFIG;
                 str_replace([' ', '_'], '-', $str)
             ))
         );
+    }
+
+    /**
+     * Extract brand/site name from project info.
+     * Checks blogName, companyName, storeName, appName in order.
+     */
+    private function getBrandName(array $projectInfo): string
+    {
+        return $projectInfo['blogName']
+            ?? $projectInfo['companyName']
+            ?? $projectInfo['storeName']
+            ?? $projectInfo['appName']
+            ?? $projectInfo['name']
+            ?? 'Template';
     }
 
     /**

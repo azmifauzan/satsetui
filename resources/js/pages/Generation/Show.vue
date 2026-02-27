@@ -120,17 +120,68 @@ const colorSchemeLabel = computed(() => {
     blue: 'Ocean Blue', green: 'Forest Green', purple: 'Royal Purple',
     red: 'Ruby Red', amber: 'Warm Amber', slate: 'Slate Gray',
   };
-  return labels[c] || c || '-';
+  return labels[c] || (c === 'custom' ? 'Custom' : c || '-');
 });
 
-const styleLabel = computed(() => blueprint.value?.stylePreset || '-');
-const fontLabel = computed(() => blueprint.value?.fontFamily || '-');
+const primaryColor = computed(() => blueprint.value?.theme?.primary || '#3B82F6');
+
+const styleLabel = computed(() => {
+  const s = blueprint.value?.stylePreset;
+  const labels: Record<string, string> = {
+    modern: 'Modern', minimal: 'Minimalist', bold: 'Bold',
+    elegant: 'Elegant', playful: 'Playful',
+  };
+  return labels[s] || s || '-';
+});
+
+const fontLabel = computed(() => {
+  const f = blueprint.value?.fontFamily;
+  if (!f) return '-';
+  if (f.startsWith('custom:')) return f.slice(7);
+  const labels: Record<string, string> = {
+    inter: 'Inter', poppins: 'Poppins', roboto: 'Roboto',
+    playfair: 'Playfair', mono: 'JetBrains Mono',
+  };
+  return labels[f] || f;
+});
+
 const navStyleLabel = computed(() => {
   const n = blueprint.value?.navStyle;
   if (n === 'top') return 'Top Nav';
   if (n === 'sidebar') return 'Sidebar Nav';
   if (n === 'both') return 'Top + Sidebar';
   return n || '-';
+});
+
+const themeModeLabel = computed(() => {
+  const m = blueprint.value?.themeMode || blueprint.value?.theme?.mode;
+  if (m === 'dark') return 'Dark';
+  if (m === 'light') return 'Light';
+  if (m === 'both') return 'Light + Dark';
+  return m || '-';
+});
+
+const categorySpecificInfo = computed(() => {
+  const info: { label: string; value: string }[] = [];
+  const pInfo = blueprint.value?.projectInfo || {};
+  const cat = blueprint.value?.category;
+
+  if (cat === 'blog-content-site') {
+    if (pInfo.blogName) info.push({ label: 'Blog', value: pInfo.blogName });
+    if (pInfo.blogTopic) info.push({ label: currentLang.value === 'en' ? 'Topic' : 'Topik', value: pInfo.blogTopic });
+  } else if (cat === 'company-profile') {
+    if (pInfo.companyName) info.push({ label: currentLang.value === 'en' ? 'Company' : 'Perusahaan', value: pInfo.companyName });
+    if (pInfo.companyDescription) info.push({ label: currentLang.value === 'en' ? 'Desc' : 'Deskripsi', value: pInfo.companyDescription });
+  } else if (cat === 'e-commerce') {
+    if (pInfo.storeName) info.push({ label: 'Store', value: pInfo.storeName });
+    if (pInfo.storeDescription) info.push({ label: currentLang.value === 'en' ? 'Desc' : 'Deskripsi', value: pInfo.storeDescription });
+  } else if (cat === 'dashboard' || cat === 'admin-dashboard' || cat === 'saas-application') {
+    if (pInfo.appName) info.push({ label: 'App', value: pInfo.appName });
+  } else if (cat === 'mobile-apps') {
+    if (pInfo.appName) info.push({ label: 'App', value: pInfo.appName });
+  }
+
+  return info;
 });
 
 // Computed
@@ -642,14 +693,17 @@ onMounted(() => {  // Load stored refinement messages first
                 {{ modelLabel }}
               </span>
             </div>
-            <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
               <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Type' : 'Tipe' }}</span>
-                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ categoryLabel }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium truncate ml-1">{{ categoryLabel }}</span>
               </div>
-              <div class="flex justify-between">
+              <div class="flex items-center justify-between">
                 <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Color' : 'Warna' }}</span>
-                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ colorSchemeLabel }}</span>
+                <span class="flex items-center gap-1">
+                  <span class="inline-block w-2.5 h-2.5 rounded-full border border-slate-300 dark:border-slate-600 flex-shrink-0" :style="{ backgroundColor: primaryColor }"></span>
+                  <span class="text-slate-700 dark:text-slate-300 font-medium truncate">{{ colorSchemeLabel }}</span>
+                </span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Style' : 'Gaya' }}</span>
@@ -657,7 +711,7 @@ onMounted(() => {  // Load stored refinement messages first
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">Font</span>
-                <span class="text-slate-700 dark:text-slate-300 font-medium capitalize">{{ fontLabel }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium truncate ml-1">{{ fontLabel }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">Nav</span>
@@ -668,8 +722,19 @@ onMounted(() => {  // Load stored refinement messages first
                 <span class="text-slate-700 dark:text-slate-300 font-medium capitalize">{{ outputFormat }}</span>
               </div>
               <div class="flex justify-between">
+                <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Theme' : 'Tema' }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium">{{ themeModeLabel }}</span>
+              </div>
+              <div class="flex justify-between">
                 <span class="text-slate-500 dark:text-slate-500">{{ currentLang === 'en' ? 'Pages' : 'Halaman' }}</span>
                 <span class="text-slate-700 dark:text-slate-300 font-medium">{{ generationData.total_pages }}</span>
+              </div>
+            </div>
+            <!-- Category-specific info -->
+            <div v-if="categorySpecificInfo.length > 0" class="mt-1.5 pt-1.5 border-t border-slate-300/50 dark:border-slate-700/50">
+              <div v-for="item in categorySpecificInfo" :key="item.label" class="flex justify-between text-[11px] leading-relaxed">
+                <span class="text-slate-500 dark:text-slate-500 flex-shrink-0">{{ item.label }}</span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium truncate ml-2 text-right" :title="item.value">{{ item.value }}</span>
               </div>
             </div>
           </div>

@@ -1299,6 +1299,8 @@ export function generateBlueprintJson(): Record<string, unknown> {
       ...(wizardState.projectInfo.appName && { appName: wizardState.projectInfo.appName }),
       ...(wizardState.projectInfo.storeName && { storeName: wizardState.projectInfo.storeName }),
       ...(wizardState.projectInfo.storeDescription && { storeDescription: wizardState.projectInfo.storeDescription }),
+      ...(wizardState.projectInfo.blogName && { blogName: wizardState.projectInfo.blogName }),
+      ...(wizardState.projectInfo.blogTopic && { blogTopic: wizardState.projectInfo.blogTopic }),
     },
 
     // Step 2: Visual Design & Content

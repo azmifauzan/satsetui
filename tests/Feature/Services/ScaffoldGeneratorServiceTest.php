@@ -370,3 +370,142 @@ test('globals.css includes bootstrap import when styling is bootstrap', function
     expect($globalsCss)->not->toBeNull();
     expect($globalsCss->file_content)->toContain('bootstrap/dist/css/bootstrap.min.css');
 });
+
+test('scaffold includes placeholder stub pages for Vue to prevent Vite ENOENT', function () {
+    $frameworkConfig = [
+        'language' => 'typescript',
+        'styling' => 'tailwind',
+        'router' => true,
+        'stateManagement' => 'pinia',
+        'buildTool' => 'vite',
+    ];
+
+    $this->service->generateScaffold(
+        $this->generation,
+        'vue',
+        $frameworkConfig,
+        ['home', 'blog', 'post-detail', 'about', 'contact'],
+        ['mode' => 'light', 'primary' => '#3b82f6'],
+        ['navigation' => 'topbar']
+    );
+
+    $scaffoldFiles = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('is_scaffold', true)
+        ->get();
+
+    $filePaths = $scaffoldFiles->pluck('file_path')->toArray();
+
+    // All page stub files must exist so Vite dep-scan doesn't crash
+    expect($filePaths)->toContain('src/pages/Home.vue');
+    expect($filePaths)->toContain('src/pages/Blog.vue');
+    expect($filePaths)->toContain('src/pages/PostDetail.vue');
+    expect($filePaths)->toContain('src/pages/About.vue');
+    expect($filePaths)->toContain('src/pages/Contact.vue');
+
+    // Stubs should contain placeholder content
+    $stub = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('file_path', 'src/pages/PostDetail.vue')
+        ->first();
+    expect($stub)->not->toBeNull();
+    expect($stub->file_content)->toContain('Generating PostDetail');
+    expect($stub->file_content)->toContain('<template>');
+});
+
+test('scaffold includes placeholder stub pages for React to prevent Vite ENOENT', function () {
+    $frameworkConfig = [
+        'language' => 'typescript',
+        'styling' => 'tailwind',
+        'router' => true,
+        'stateManagement' => 'none',
+        'buildTool' => 'vite',
+    ];
+
+    $this->service->generateScaffold(
+        $this->generation,
+        'react',
+        $frameworkConfig,
+        ['dashboard', 'analytics', 'settings'],
+        ['mode' => 'light'],
+        ['navigation' => 'sidebar']
+    );
+
+    $scaffoldFiles = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('is_scaffold', true)
+        ->get();
+
+    $filePaths = $scaffoldFiles->pluck('file_path')->toArray();
+
+    expect($filePaths)->toContain('src/pages/Dashboard.tsx');
+    expect($filePaths)->toContain('src/pages/Analytics.tsx');
+    expect($filePaths)->toContain('src/pages/Settings.tsx');
+
+    $stub = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('file_path', 'src/pages/Dashboard.tsx')
+        ->first();
+    expect($stub)->not->toBeNull();
+    expect($stub->file_content)->toContain('Generating Dashboard');
+    expect($stub->file_content)->toContain('export default function Dashboard');
+});
+
+test('scaffold includes placeholder stub pages for Svelte to prevent Vite ENOENT', function () {
+    $frameworkConfig = [
+        'language' => 'typescript',
+        'styling' => 'tailwind',
+        'router' => true,
+        'stateManagement' => 'svelte-store',
+        'buildTool' => 'vite',
+    ];
+
+    $this->service->generateScaffold(
+        $this->generation,
+        'svelte',
+        $frameworkConfig,
+        ['dashboard', 'profile'],
+        ['mode' => 'dark'],
+        ['navigation' => 'topbar']
+    );
+
+    $scaffoldFiles = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('is_scaffold', true)
+        ->get();
+
+    $filePaths = $scaffoldFiles->pluck('file_path')->toArray();
+
+    expect($filePaths)->toContain('src/routes/dashboard/+page.svelte');
+    expect($filePaths)->toContain('src/routes/profile/+page.svelte');
+});
+
+test('scaffold includes placeholder stub pages for Angular to prevent Vite ENOENT', function () {
+    $frameworkConfig = [
+        'language' => 'typescript',
+        'styling' => 'tailwind',
+        'router' => true,
+        'stateManagement' => 'ngrx',
+        'buildTool' => 'vite',
+    ];
+
+    $this->service->generateScaffold(
+        $this->generation,
+        'angular',
+        $frameworkConfig,
+        ['dashboard', 'user-management'],
+        ['mode' => 'light'],
+        ['navigation' => 'sidebar']
+    );
+
+    $scaffoldFiles = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('is_scaffold', true)
+        ->get();
+
+    $filePaths = $scaffoldFiles->pluck('file_path')->toArray();
+
+    expect($filePaths)->toContain('src/app/pages/dashboard/dashboard.component.ts');
+    expect($filePaths)->toContain('src/app/pages/user-management/user-management.component.ts');
+
+    $stub = GenerationFile::where('generation_id', $this->generation->id)
+        ->where('file_path', 'src/app/pages/dashboard/dashboard.component.ts')
+        ->first();
+    expect($stub)->not->toBeNull();
+    expect($stub->file_content)->toContain('@Component');
+    expect($stub->file_content)->toContain('DashboardComponent');
+});

@@ -114,7 +114,8 @@ class GenerationService
                     $frameworkConfig,
                     $pages,
                     $theme,
-                    $layout
+                    $layout,
+                    $blueprint['projectInfo'] ?? []
                 );
 
                 // Ask AI once at the beginning to define all dependencies
