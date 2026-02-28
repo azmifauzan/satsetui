@@ -50,6 +50,11 @@ onMounted(() => {
     } catch (e) {
       // Ignore parse errors
     }
+  } else {
+    // Sync initial theme mode with user's current app theme
+    const userTheme = isDark.value ? 'dark' : 'light';
+    wizardState.themeMode = userTheme;
+    wizardState.theme.mode = userTheme as 'light' | 'dark';
   }
 });
 

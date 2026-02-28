@@ -40,6 +40,9 @@ class McpPromptBuilder
      */
     public function buildForPage(array $blueprint, string $pageName, int $pageIndex = 0, array $sharedLayout = []): string
     {
+        // Normalize blueprint: sync top-level wizard fields into their nested counterparts
+        $blueprint = $this->normalizeBlueprint($blueprint);
+
         // Extract auto-selected values with defaults
         $autoSelected = $blueprint['autoSelected'] ?? [];
         $blueprint['responsiveness'] = $autoSelected['responsiveness'] ?? 'fully-responsive';
@@ -116,6 +119,9 @@ class McpPromptBuilder
      */
     public function buildLayoutGenerationPrompt(array $blueprint): string
     {
+        // Normalize blueprint: sync top-level wizard fields into their nested counterparts
+        $blueprint = $this->normalizeBlueprint($blueprint);
+
         // Extract auto-selected values with defaults
         $autoSelected = $blueprint['autoSelected'] ?? [];
         $blueprint['responsiveness'] = $autoSelected['responsiveness'] ?? 'fully-responsive';
@@ -403,6 +409,9 @@ class McpPromptBuilder
      */
     public function buildFromBlueprint(array $blueprint): string
     {
+        // Normalize blueprint: sync top-level wizard fields into their nested counterparts
+        $blueprint = $this->normalizeBlueprint($blueprint);
+
         // Extract auto-selected values with defaults
         $autoSelected = $blueprint['autoSelected'] ?? [];
         $blueprint['responsiveness'] = $autoSelected['responsiveness'] ?? 'fully-responsive';
@@ -474,6 +483,26 @@ class McpPromptBuilder
     // ========================================================================
     // Section Builders
     // ========================================================================
+
+    /**
+     * Normalize blueprint: sync top-level wizard fields into their expected nested positions.
+     *
+     * The wizard stores some selections both at the top level (e.g. themeMode) and inside
+     * nested objects (e.g. theme.mode). The top-level value is the authoritative one because
+     * it is what the user actually chose in the wizard UI, so we always reconcile downward.
+     *
+     * Fields normalized:
+     * - themeMode  → theme.mode  (dark / light)
+     */
+    private function normalizeBlueprint(array $blueprint): array
+    {
+        // themeMode (top-level wizard field) → theme.mode (what McpPromptBuilder sections read)
+        if (isset($blueprint['themeMode']) && isset($blueprint['theme'])) {
+            $blueprint['theme']['mode'] = $blueprint['themeMode'];
+        }
+
+        return $blueprint;
+    }
 
     /**
      * ROLE: Define LLM expertise and behavior

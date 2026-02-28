@@ -57,6 +57,7 @@ export interface Translations {
     reset: string;
     credits: string;
     of: string;
+    deleting: string;
   };
 
   // Navigation
@@ -596,6 +597,7 @@ const id: Translations = {
     reset: 'Reset',
     credits: 'kredit',
     of: 'dari',
+    deleting: 'Menghapus…',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -1188,6 +1190,7 @@ const en: Translations = {
     reset: 'Reset',
     credits: 'credits',
     of: 'of',
+    deleting: 'Deleting…',
   },
   nav: {
     dashboard: 'Dashboard',

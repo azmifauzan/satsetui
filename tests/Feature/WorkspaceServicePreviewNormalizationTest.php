@@ -90,3 +90,98 @@ it('normalizes tailwind ring-primary utility usages for preview compatibility', 
 
     File::deleteDirectory($workspaceDir);
 });
+
+it('normalizes vue router to add default child redirect when missing', function () {
+    $workspaceDir = storage_path('app/workspaces/test-vue-router-normalize-'.uniqid());
+    File::makeDirectory($workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.'router', 0755, true);
+
+    File::put($workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.'router'.DIRECTORY_SEPARATOR.'index.ts', <<<'TS'
+import { createRouter, createWebHistory } from 'vue-router'
+import MainLayout from '@/layouts/MainLayout.vue'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      component: MainLayout,
+      children: [
+    {
+      path: 'home',
+      name: 'home',
+      component: () => import('@/pages/Home.vue'),
+      meta: { layout: 'main' },
+    },
+    {
+      path: 'blog',
+      name: 'blog',
+      component: () => import('@/pages/Blog.vue'),
+      meta: { layout: 'main' },
+    },
+      ],
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/home',
+    },
+  ],
+})
+
+export default router
+TS);
+
+    $service = new WorkspaceService;
+    $reflection = new ReflectionMethod($service, 'normalizeVueRouterDefaultChild');
+    $reflection->setAccessible(true);
+    $reflection->invoke($service, $workspaceDir);
+
+    $routerContent = File::get($workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.'router'.DIRECTORY_SEPARATOR.'index.ts');
+
+    expect($routerContent)->toContain("path: '', redirect: 'home'");
+
+    File::deleteDirectory($workspaceDir);
+});
+
+it('does not add duplicate default child redirect if already present', function () {
+    $workspaceDir = storage_path('app/workspaces/test-vue-router-no-dup-'.uniqid());
+    File::makeDirectory($workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.'router', 0755, true);
+
+    $routerContent = <<<'TS'
+import { createRouter, createWebHistory } from 'vue-router'
+import MainLayout from '@/layouts/MainLayout.vue'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      component: MainLayout,
+      children: [
+    {
+      path: 'dashboard',
+      name: 'dashboard',
+      component: () => import('@/pages/Dashboard.vue'),
+    },
+    { path: '', redirect: 'dashboard' },
+      ],
+    },
+  ],
+})
+
+export default router
+TS;
+
+    File::put($workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.'router'.DIRECTORY_SEPARATOR.'index.ts', $routerContent);
+
+    $service = new WorkspaceService;
+    $reflection = new ReflectionMethod($service, 'normalizeVueRouterDefaultChild');
+    $reflection->setAccessible(true);
+    $reflection->invoke($service, $workspaceDir);
+
+    $result = File::get($workspaceDir.DIRECTORY_SEPARATOR.'src'.DIRECTORY_SEPARATOR.'router'.DIRECTORY_SEPARATOR.'index.ts');
+
+    // Should remain unchanged — no duplicate redirect
+    expect($result)->toBe($routerContent);
+
+    File::deleteDirectory($workspaceDir);
+});

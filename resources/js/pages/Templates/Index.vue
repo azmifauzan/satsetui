@@ -3,6 +3,7 @@ import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useI18n } from '@/lib/i18n';
+import Swal from 'sweetalert2';
 
 interface Template {
   id: number;
@@ -56,6 +57,7 @@ function submitRename() {
 
 // --- Delete ---
 const deleteTarget = ref<Template | null>(null);
+const isDeleting = ref(false);
 
 function openDelete(template: Template) {
   deleteTarget.value = template;
@@ -63,12 +65,28 @@ function openDelete(template: Template) {
 
 function closeDelete() {
   deleteTarget.value = null;
+  isDeleting.value = false;
 }
 
 function submitDelete() {
   if (!deleteTarget.value) { return; }
+  isDeleting.value = true;
+  const name = deleteTarget.value.name;
   router.delete(`/templates/${deleteTarget.value.id}`, {
-    onSuccess: () => closeDelete(),
+    onSuccess: () => {
+      closeDelete();
+      Swal.fire({
+        icon: 'success',
+        title: 'Template dihapus!',
+        text: `"${name}" berhasil dihapus.`,
+        confirmButtonColor: '#2563eb',
+        timer: 3000,
+        timerProgressBar: true,
+      });
+    },
+    onError: () => {
+      isDeleting.value = false;
+    },
   });
 }
 
@@ -399,17 +417,37 @@ const getStatusIcon = (status: string) => {
           <div class="flex gap-3">
             <button
               type="button"
-              class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
+              :disabled="isDeleting"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               @click="closeDelete"
             >
               {{ t.common?.cancel || 'Cancel' }}
             </button>
             <button
               type="button"
-              class="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+              :disabled="isDeleting"
+              class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed text-white font-medium transition-colors"
               @click="submitDelete"
             >
-              {{ t.templates?.deleteConfirmBtn || 'Delete' }}
+              <svg
+                v-if="isDeleting"
+                class="w-4 h-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <svg
+                v-else
+                class="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {{ isDeleting ? (t.common?.deleting || 'Menghapus…') : (t.templates?.deleteConfirmBtn || 'Delete') }}
             </button>
           </div>
         </div>

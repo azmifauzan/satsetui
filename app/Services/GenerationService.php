@@ -106,6 +106,12 @@ class GenerationService
             if ($this->scaffoldGenerator->requiresScaffold($outputFormat)) {
                 $frameworkConfig = $blueprint['frameworkConfig'] ?? [];
                 $theme = $blueprint['theme'] ?? [];
+                // themeMode is stored at the top level of the blueprint; sync it into
+                // the theme array so ScaffoldGeneratorService can apply class="dark"
+                // to the HTML root element when dark mode is selected.
+                if (isset($blueprint['themeMode'])) {
+                    $theme['mode'] = $blueprint['themeMode'];
+                }
                 $layout = $blueprint['layout'] ?? [];
 
                 $this->scaffoldGenerator->generateScaffold(

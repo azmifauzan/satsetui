@@ -135,7 +135,7 @@ class ScaffoldGeneratorService
         }
 
         // index.html
-        $files['index.html'] = $this->generateIndexHtml('React App', $styling, 'root', '/src/main.tsx');
+        $files['index.html'] = $this->generateIndexHtml('React App', $styling, $theme, 'root', '/src/main.tsx');
 
         // Main entry
         $ext = $isTs ? 'tsx' : 'jsx';
@@ -528,7 +528,7 @@ PAGE;
             $files['tsconfig.json'] = $this->generateVueTsConfig();
         }
 
-        $files['index.html'] = $this->generateIndexHtml('Vue App', $styling, 'app', '/src/main.ts');
+        $files['index.html'] = $this->generateIndexHtml('Vue App', $styling, $theme, 'app', '/src/main.ts');
 
         $ext = $isTs ? 'ts' : 'js';
         $files["src/main.{$ext}"] = $this->generateVueMain($hasRouter, $stateManagement, $isTs);
@@ -723,6 +723,7 @@ APP;
 
         $routesStr = implode("\n", $routes);
         $defaultPage = in_array('dashboard', $pages) ? '/dashboard' : '/'.$this->toRoutePath($pages[0] ?? 'dashboard');
+        $defaultChild = in_array('dashboard', $pages) ? 'dashboard' : $this->toRoutePath($pages[0] ?? 'dashboard');
 
         return <<<ROUTER
 import { createRouter, createWebHistory } from 'vue-router'
@@ -736,6 +737,7 @@ const router = createRouter({
       component: MainLayout,
       children: [
 {$routesStr}
+    { path: '', redirect: '{$defaultChild}' },
       ],
     },
     {
@@ -920,7 +922,7 @@ PAGE;
             $files['tsconfig.json'] = $this->generateSvelteTsConfig();
         }
 
-        $files['src/app.html'] = $this->generateSvelteAppHtml($styling);
+        $files['src/app.html'] = $this->generateSvelteAppHtml($styling, $theme);
         $files['src/app.css'] = $this->generateGlobalCss($styling, $theme);
         $files['src/routes/+layout.svelte'] = $this->generateSvelteRootLayout($pages, $layout, $theme);
         $files['src/routes/+page.svelte'] = $this->generateSvelteRedirectPage($pages);
@@ -1032,11 +1034,13 @@ VITE;
         return json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
-    private function generateSvelteAppHtml(string $styling): string
+    private function generateSvelteAppHtml(string $styling, array $theme = []): string
     {
-        return <<<'HTML'
+        $darkClass = ($theme['mode'] ?? 'light') === 'dark' ? ' class="dark"' : '';
+
+        return <<<HTML
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{$darkClass}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1174,7 +1178,7 @@ PAGE;
         $files['tsconfig.json'] = $this->generateAngularTsConfig();
         $files['angular.json'] = $this->generateAngularJson();
 
-        $files['src/index.html'] = $this->generateAngularIndexHtml($styling);
+        $files['src/index.html'] = $this->generateAngularIndexHtml($styling, $theme);
         $files['src/main.ts'] = $this->generateAngularMain($pages);
         $files['src/styles.css'] = $this->generateGlobalCss($styling, $theme);
         $files['src/app/app.component.ts'] = $this->generateAngularAppComponent();
@@ -1313,11 +1317,13 @@ PAGE;
         return json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
-    private function generateAngularIndexHtml(string $styling): string
+    private function generateAngularIndexHtml(string $styling, array $theme = []): string
     {
-        return <<<'HTML'
+        $darkClass = ($theme['mode'] ?? 'light') === 'dark' ? ' class="dark"' : '';
+
+        return <<<HTML
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{$darkClass}>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1456,16 +1462,18 @@ COMPONENT;
     // Shared Helpers
     // ========================================================================
 
-    private function generateIndexHtml(string $title, string $styling, string $mountId = 'root', string $entryFile = '/src/main.tsx'): string
+    private function generateIndexHtml(string $title, string $styling, array $theme = [], string $mountId = 'root', string $entryFile = '/src/main.tsx'): string
     {
         $cdnLinks = '';
         if ($styling === 'bootstrap') {
             $cdnLinks = '    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">';
         }
 
+        $darkClass = ($theme['mode'] ?? 'light') === 'dark' ? ' class="dark"' : '';
+
         return <<<HTML
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{$darkClass}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

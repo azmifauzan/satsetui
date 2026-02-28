@@ -299,14 +299,17 @@ async function checkInitialStatus() {
       previewStatus.value = response.data.status as PreviewStatus;
       startStatusPolling();
     } else if (response.data.status === 'idle' || response.data.status === 'none' || !response.data.status) {
-      // No active session — auto-start preview only if already completed
-      if (props.isCompleted) {
+      // No active session — auto-start preview (whether generating or completed)
+      // This handles page reloads mid-generation where completedCount > 1 so
+      // Show.vue's first-page trigger already fired and won't fire again.
+      if (props.isCompleted || props.isGenerating) {
+        // Only start if there's at least one completed page
         setupPreview();
       }
     }
   } catch {
-    // No active session — auto-start preview only if already completed
-    if (props.isCompleted) {
+    // No active session
+    if (props.isCompleted || props.isGenerating) {
       setupPreview();
     }
   }
@@ -330,9 +333,12 @@ if (isFramework.value) {
 
 // Computed iframe source for framework preview
 const frameworkIframeSrc = computed(() => {
-  if (previewStatus.value === 'running' && previewUrl.value) {
+  // Use effectivePreviewStatus so terminal-log driven 'running' state shows immediately;
+  // fall back to the proxy URL when previewUrl hasn't been set yet.
+  if (effectivePreviewStatus.value === 'running') {
+    const url = previewUrl.value || `/generation/${props.generationId}/preview/proxy`;
     // Append cache-buster so the iframe reloads when the preview url is re-set
-    return `${previewUrl.value}${normalizedTargetPagePath.value}?_t=${previewLoadKey.value}`;
+    return `${url}${normalizedTargetPagePath.value}?_t=${previewLoadKey.value}`;
   }
   return '';
 });
@@ -340,11 +346,29 @@ const frameworkIframeSrc = computed(() => {
 watch(
   () => props.targetPage,
   () => {
-    if (isFramework.value && previewStatus.value === 'running') {
+    if (isFramework.value && effectivePreviewStatus.value === 'running') {
       previewLoadKey.value = Date.now();
     }
   },
 );
+
+// When terminal logs report 'running' before the status poll catches up,
+// immediately fetch status to get the confirmed URL.
+watch(effectivePreviewStatus, (status, prev) => {
+  if (status === 'running' && prev !== 'running' && previewStatus.value !== 'running') {
+    axios.get(`/generation/${props.generationId}/preview/status`).then((response) => {
+      if (response.data.status === 'running') {
+        previewStatus.value = 'running';
+        previewUrl.value = response.data.preview_url || `/generation/${props.generationId}/preview/proxy`;
+        stopStatusPolling();
+      }
+    }).catch(() => {
+      // Use proxy URL as fallback — server confirmed via logs
+      previewUrl.value = `/generation/${props.generationId}/preview/proxy`;
+      previewStatus.value = 'running';
+    });
+  }
+});
 
 // Effective iframe source
 const effectiveIframeSrc = computed(() => {
@@ -354,10 +378,11 @@ const effectiveIframeSrc = computed(() => {
   return staticIframeSrc.value;
 });
 
-// Has content to show
+// Has content to show — use effectivePreviewStatus so terminal-driven 'running'
+// shows the iframe immediately without waiting for the next status poll.
 const hasPreview = computed(() => {
   if (isFramework.value) {
-    return previewStatus.value === 'running' && !!previewUrl.value;
+    return effectivePreviewStatus.value === 'running';
   }
   return !!props.pageContent;
 });
@@ -524,7 +549,32 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
         ></iframe>
       </div>
 
-      <!-- Empty state: generating -->
+      <!-- Empty state: framework setting up during generation (takes priority over generic generating state) -->
+      <div v-else-if="isFramework && (effectivePreviewStatus === 'creating' || effectivePreviewStatus === 'installing' || effectivePreviewStatus === 'booting')" class="h-full w-full flex items-center justify-center">
+        <div class="text-center max-w-sm">
+          <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 class="text-base font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            {{ effectivePreviewStatus === 'creating'
+              ? (currentLang === 'en' ? 'Creating workspace...' : 'Membuat workspace...')
+              : effectivePreviewStatus === 'booting'
+                ? (currentLang === 'en' ? 'Starting dev server...' : 'Menjalankan dev server...')
+                : (currentLang === 'en' ? 'Installing dependencies...' : 'Menginstall dependensi...')
+            }}
+          </h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400">
+            {{ effectivePreviewStatus === 'booting'
+              ? (currentLang === 'en'
+                ? 'Dependencies are ready. Starting the development server...'
+                : 'Dependensi sudah siap. Menjalankan server pengembangan...')
+              : (currentLang === 'en'
+                ? 'This may take a minute. Setting up your project environment.'
+                : 'Ini mungkin memakan waktu satu menit. Menyiapkan lingkungan proyek Anda.')
+            }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Empty state: generating (non-framework or framework idle/not yet started) -->
       <div v-else-if="isGenerating" class="h-full w-full flex items-center justify-center">
         <div class="text-center">
           <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -563,31 +613,6 @@ defineExpose({ setupPreview, stopPreview, retryPreview, checkInitialStatus });
             </svg>
             {{ currentLang === 'en' ? 'Start Preview' : 'Mulai Preview' }}
           </button>
-        </div>
-      </div>
-
-      <!-- Empty state: framework setting up -->
-      <div v-else-if="isFramework && (effectivePreviewStatus === 'creating' || effectivePreviewStatus === 'installing' || effectivePreviewStatus === 'booting')" class="h-full w-full flex items-center justify-center">
-        <div class="text-center max-w-sm">
-          <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h3 class="text-base font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            {{ effectivePreviewStatus === 'creating'
-              ? (currentLang === 'en' ? 'Creating workspace...' : 'Membuat workspace...')
-              : effectivePreviewStatus === 'booting'
-                ? (currentLang === 'en' ? 'Starting dev server...' : 'Menjalankan dev server...')
-                : (currentLang === 'en' ? 'Installing dependencies...' : 'Menginstall dependensi...')
-            }}
-          </h3>
-          <p class="text-sm text-slate-500 dark:text-slate-400">
-            {{ effectivePreviewStatus === 'booting'
-              ? (currentLang === 'en'
-                ? 'Dependencies are ready. Starting the development server...'
-                : 'Dependensi sudah siap. Menjalankan server pengembangan...')
-              : (currentLang === 'en'
-                ? 'This may take a minute. Setting up your project environment.'
-                : 'Ini mungkin memakan waktu satu menit. Menyiapkan lingkungan proyek Anda.')
-            }}
-          </p>
         </div>
       </div>
 

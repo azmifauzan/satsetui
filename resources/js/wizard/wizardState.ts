@@ -930,9 +930,10 @@ export function resetWizard(): void {
   wizardState.theme = {
     primary: '#3B82F6',
     secondary: '#6366F1',
-    mode: 'light',
+    mode: (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) ? 'dark' : 'light',
     background: 'solid',
   };
+  wizardState.themeMode = (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) ? 'dark' : 'light';
   wizardState.ui = {
     density: 'comfortable',
     borderRadius: 'rounded',
@@ -1193,12 +1194,14 @@ export function applySatsetDefaults(): void {
   wizardState.colorScheme = defaults.colorScheme;
   wizardState.theme.primary = colorMap[defaults.colorScheme]?.primary ?? '#3B82F6';
   wizardState.theme.secondary = colorMap[defaults.colorScheme]?.secondary ?? '#6366F1';
-  wizardState.theme.mode = 'light';
+  // Sync with user's current app theme preference
+  const userAppTheme: 'light' | 'dark' = (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) ? 'dark' : 'light';
+  wizardState.theme.mode = userAppTheme;
   wizardState.theme.background = 'solid';
   wizardState.stylePreset = defaults.stylePreset;
   wizardState.fontFamily = 'inter';
   wizardState.navStyle = defaults.navStyle;
-  wizardState.themeMode = 'dark';
+  wizardState.themeMode = userAppTheme;
   wizardState.logoFile = null;
 
   // Layout

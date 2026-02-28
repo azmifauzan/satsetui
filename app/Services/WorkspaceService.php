@@ -120,6 +120,10 @@ class WorkspaceService
         // Ensure Vite emits URLs under preview proxy base path.
         $this->normalizeVitePreviewBase($workspaceDir);
 
+        // Ensure Vue Router has a default child redirect so the root path
+        // renders the first page instead of an empty <RouterView />.
+        $this->normalizeVueRouterDefaultChild($workspaceDir);
+
         // Normalize Tailwind utility classes that are invalid in Tailwind v4
         // and can fail dev-server style transforms.
         $this->normalizeTailwindPreviewUtilities($workspaceDir);
@@ -809,6 +813,67 @@ CONFIG);
         }
 
         return null;
+    }
+
+    /**
+     * Ensure Vue Router has a default child redirect so that visiting the root
+     * path renders the first page content instead of an empty <RouterView />.
+     *
+     * Without this, navigating to "/" matches the MainLayout parent route but
+     * no child route, leaving the content area blank.
+     */
+    private function normalizeVueRouterDefaultChild(string $workspaceDir): void
+    {
+        $routerCandidates = [
+            'src/router/index.ts',
+            'src/router/index.js',
+            'src/router.ts',
+            'src/router.js',
+        ];
+
+        foreach ($routerCandidates as $candidate) {
+            $routerPath = $workspaceDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $candidate);
+            if (! File::exists($routerPath)) {
+                continue;
+            }
+
+            $content = File::get($routerPath);
+
+            // Only apply to Vue Router files
+            if (! str_contains($content, 'createRouter') || ! str_contains($content, 'createWebHistory')) {
+                continue;
+            }
+
+            // Already has a default empty-path child redirect — nothing to do
+            if (preg_match("/path:\s*['\"]['\"]\\s*,\\s*redirect/", $content) === 1) {
+                continue;
+            }
+
+            // Find the first named child route to use as redirect target.
+            // Use .*? (lazy) instead of [^}]* to handle nested braces in
+            // route objects (e.g. meta: { layout: 'main' }).
+            if (preg_match("/children:\s*\[.*?path:\s*['\"]([^'\"]+)['\"]/s", $content, $match) !== 1) {
+                continue;
+            }
+
+            $firstChildPath = $match[1];
+
+            // Insert a default redirect just before the closing of the children array
+            // Look for the pattern: children: [ ... ] and add { path: '', redirect: 'firstChild' }
+            $content = preg_replace(
+                '/(children:\s*\[)(.*?)(\s*\],)/s',
+                "$1$2\n    { path: '', redirect: '{$firstChildPath}' },$3",
+                $content,
+                1
+            );
+
+            if ($content !== null) {
+                File::put($routerPath, $content);
+                Log::info("Normalized Vue Router default child redirect in {$routerPath}", [
+                    'redirect_to' => $firstChildPath,
+                ]);
+            }
+        }
     }
 
     /**
