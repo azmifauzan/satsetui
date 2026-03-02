@@ -18,7 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
-        
+
+        // Exempt Mayar webhook from CSRF verification (server-to-server call)
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/mayar',
+        ]);
+
         // Register admin middleware alias
         $middleware->alias([
             'admin' => AdminMiddleware::class,

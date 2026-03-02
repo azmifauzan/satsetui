@@ -35,6 +35,10 @@ Route::get('/wizard', function () {
     ]);
 })->name('wizard.index');
 
+// Mayar payment webhook - no CSRF, no auth (server-to-server)
+Route::post('/webhooks/mayar', [App\Http\Controllers\MayarWebhookController::class, 'handle'])
+    ->name('webhooks.mayar');
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
@@ -134,6 +138,22 @@ Route::middleware('auth')->group(function () {
         Route::delete('/templates/{generation}', [App\Http\Controllers\TemplateController::class, 'destroy'])
             ->name('templates.destroy');
 
+        // Top-up routes
+        Route::get('/credits/topup', [App\Http\Controllers\TopupController::class, 'index'])
+            ->name('topup.index');
+        Route::post('/credits/topup', [App\Http\Controllers\TopupController::class, 'initiate'])
+            ->name('topup.initiate');
+        Route::get('/credits/topup/callback/{transaction}', [App\Http\Controllers\TopupController::class, 'callback'])
+            ->name('topup.callback');
+        Route::get('/credits/history', [App\Http\Controllers\TopupController::class, 'history'])
+            ->name('topup.history');
+
+        // Profile routes
+        Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'edit'])
+            ->name('profile.edit');
+        Route::put('/profile', [App\Http\Controllers\ProfileController::class, 'update'])
+            ->name('profile.update');
+
         // Admin Panel - Protected by admin middleware
         Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
             // Dashboard
@@ -166,6 +186,28 @@ Route::middleware('auth')->group(function () {
                 ->name('settings.update');
             Route::post('settings/{key}/reset', [App\Http\Controllers\Admin\SettingsController::class, 'reset'])
                 ->name('settings.reset');
+
+            // Credit Packages Management
+            Route::get('credit-packages', [App\Http\Controllers\Admin\CreditPackageController::class, 'index'])
+                ->name('credit-packages.index');
+            Route::get('credit-packages/create', [App\Http\Controllers\Admin\CreditPackageController::class, 'create'])
+                ->name('credit-packages.create');
+            Route::post('credit-packages', [App\Http\Controllers\Admin\CreditPackageController::class, 'store'])
+                ->name('credit-packages.store');
+            Route::get('credit-packages/{creditPackage}/edit', [App\Http\Controllers\Admin\CreditPackageController::class, 'edit'])
+                ->name('credit-packages.edit');
+            Route::put('credit-packages/{creditPackage}', [App\Http\Controllers\Admin\CreditPackageController::class, 'update'])
+                ->name('credit-packages.update');
+            Route::delete('credit-packages/{creditPackage}', [App\Http\Controllers\Admin\CreditPackageController::class, 'destroy'])
+                ->name('credit-packages.destroy');
+            Route::post('credit-packages/{id}/restore', [App\Http\Controllers\Admin\CreditPackageController::class, 'restore'])
+                ->name('credit-packages.restore');
+            Route::post('credit-packages/{creditPackage}/toggle-active', [App\Http\Controllers\Admin\CreditPackageController::class, 'toggleActive'])
+                ->name('credit-packages.toggle-active');
+
+            // Topup Transactions Monitoring
+            Route::get('topup-transactions', [App\Http\Controllers\Admin\TopupTransactionController::class, 'index'])
+                ->name('topup-transactions.index');
 
             // Generation History
             Route::get('generations', [App\Http\Controllers\Admin\GenerationHistoryController::class, 'index'])

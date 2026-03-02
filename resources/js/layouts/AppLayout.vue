@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
@@ -19,6 +19,16 @@ const { toggleTheme, isDark } = useTheme();
 
 const sidebarOpen = ref(true);
 const userMenuOpen = ref(false);
+const userMenuRef = ref<HTMLElement | null>(null);
+
+const closeUserMenu = (e: MouseEvent) => {
+  if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
+    userMenuOpen.value = false;
+  }
+};
+
+onMounted(() => document.addEventListener('click', closeUserMenu));
+onUnmounted(() => document.removeEventListener('click', closeUserMenu));
 
 const logout = () => {
   router.post('/logout');
@@ -43,7 +53,7 @@ const navigation = computed(() => {
     { name: t.value?.nav?.dashboard || 'Dashboard', href: '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', current: page.url === '/dashboard' },
     { name: t.value?.nav?.templates || 'My Satsets', href: '/templates', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', current: page.url === '/templates' },
   ];
-  
+
   // Add admin menu if user is admin
   if (user.value?.is_admin) {
     nav.push({
@@ -53,9 +63,14 @@ const navigation = computed(() => {
       current: page.url.startsWith('/admin')
     });
   }
-  
+
   return nav;
 });
+
+const sidebarFooterLinks = computed(() => [
+  { name: t.value?.nav?.topupCredits || 'Top Up Credits', href: '/credits/topup', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', current: page.url.startsWith('/credits/topup') },
+  { name: t.value?.nav?.topupHistory || 'Topup History', href: '/credits/history', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', current: page.url === '/credits/history' },
+]);
 </script>
 
 <template>
@@ -63,7 +78,7 @@ const navigation = computed(() => {
     <!-- Sidebar -->
     <aside
       :class="[
-        'fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 ease-in-out',
+        'fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-200 ease-in-out',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       ]"
     >
@@ -88,7 +103,7 @@ const navigation = computed(() => {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 px-4 py-6 space-y-1">
+      <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
         <Link
           v-for="item in navigation"
           :key="item.name"
@@ -106,6 +121,26 @@ const navigation = computed(() => {
           {{ item.name }}
         </Link>
       </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="px-4 py-4 border-t border-slate-200 dark:border-slate-700 space-y-1">
+        <Link
+          v-for="item in sidebarFooterLinks"
+          :key="item.name"
+          :href="item.href"
+          :class="[
+            'flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors',
+            item.current
+              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+              : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-700 dark:hover:text-slate-300'
+          ]"
+        >
+          <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon" />
+          </svg>
+          {{ item.name }}
+        </Link>
+      </div>
     </aside>
 
     <!-- Main Content -->
@@ -181,7 +216,7 @@ const navigation = computed(() => {
             </button>
 
             <!-- User Menu -->
-            <div class="relative">
+            <div class="relative" ref="userMenuRef">
               <button
                 @click="userMenuOpen = !userMenuOpen"
                 class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -208,18 +243,25 @@ const navigation = computed(() => {
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ user?.email }}</p>
                 </div>
 
-                <Link href="/dashboard" class="flex items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                  <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                  </svg>
-                  {{ t.nav?.dashboard || 'Dashboard' }}
-                </Link>
-
                 <Link href="/profile" class="flex items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                   <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   {{ t.nav?.profile || 'Profile' }}
+                </Link>
+
+                <Link href="/credits/topup" class="flex items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                  <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{ t.nav?.topupCredits || 'Top Up Credits' }}
+                </Link>
+
+                <Link href="/credits/history" class="flex items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                  <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  {{ t.nav?.topupHistory || 'Topup History' }}
                 </Link>
 
                 <div class="border-t border-slate-200 dark:border-slate-700 my-2"></div>

@@ -66,6 +66,8 @@ export interface Translations {
     wizard: string;
     projects: string;
     templates: string;
+    topupCredits: string;
+    topupHistory: string;
     admin: string;
     profile: string;
     settings: string;
@@ -568,6 +570,67 @@ export interface Translations {
     question: string;
     answer: string;
   }>;
+
+  // Topup
+  topup: {
+    title: string;
+    subtitle: string;
+    currentBalance: string;
+    selectPackage: string;
+    credits: string;
+    buyNow: string;
+    redirecting: string;
+    paymentInfo: string;
+    recentTopups: string;
+    success: string;
+    successDesc: string;
+    creditsAdded: string;
+    amountPaid: string;
+    yourBalance: string;
+    pending: string;
+    pendingDesc: string;
+    failed: string;
+    failedDesc: string;
+    topupAgain: string;
+    toWizard: string;
+    tryAgain: string;
+    phoneRequired: string;
+    phoneRequiredDesc: string;
+    goToProfile: string;
+    noCharges: string;
+    history: string;
+    historySubtitle: string;
+    allTransactions: string;
+    package: string;
+    amount: string;
+    status: string;
+    date: string;
+    statusPending: string;
+    statusSuccess: string;
+    statusFailed: string;
+    statusExpired: string;
+    noTransactions: string;
+    noTransactionsDesc: string;
+    continuePay: string;
+    showing: string;
+    of: string;
+    transactions: string;
+  };
+
+  // Profile
+  profile: {
+    title: string;
+    subtitle: string;
+    name: string;
+    namePlaceholder: string;
+    email: string;
+    emailPlaceholder: string;
+    phone: string;
+    phoneHint: string;
+    phoneRequired: string;
+    phoneRequiredDesc: string;
+    saved: string;
+  };
 }
 
 // Indonesian translations
@@ -604,6 +667,8 @@ const id: Translations = {
     wizard: 'Wizard',
     projects: 'Proyek',
     templates: 'Template',
+    topupCredits: 'Top Up Kredit',
+    topupHistory: 'Riwayat Topup',
     admin: 'Admin',
     profile: 'Profil',
     settings: 'Pengaturan',
@@ -998,10 +1063,10 @@ const id: Translations = {
     },
     howItWorks: {
       title: 'Cara Kerja',
-      subtitle: 'Tiga langkah sederhana untuk template sempurna Anda',
+      subtitle: 'Langkah mudah untuk template sempurna Anda',
       step1: {
-        title: 'Konfigurasi Wizard 3 Langkah',
-        desc: 'Pilih Framework & Kategori (Step 1), Desain Visual & Konten (Step 2), Model LLM (Step 3). Semua keputusan eksplisit dan terstruktur.',
+        title: 'Pilih Mode & Kategori',
+        desc: 'Pilih mode Satset (⚡ cepat, pengaturan optimal otomatis) atau Expert (⚙️ kustomisasi penuh). Lalu pilih kategori template: Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, atau Blog.',
       },
       step2: {
         title: 'Sistem Menghasilkan Blueprint',
@@ -1016,20 +1081,20 @@ const id: Translations = {
       title: 'Kategori Template',
       subtitle: 'Pilih dari berbagai kategori template yang telah disesuaikan atau buat custom',
       admin: {
-        title: 'Admin Dashboard',
-        desc: 'Internal tools, data-heavy, operasi CRUD',
+        title: 'Dashboard',
+        desc: 'Dashboard admin dengan grafik, tabel, dan navigasi sidebar',
       },
       company: {
         title: 'Company Profile',
-        desc: 'Public-facing, showcase konten perusahaan',
+        desc: 'Website perusahaan profesional dengan tim, layanan, kontak',
       },
       landing: {
         title: 'Landing Page',
         desc: 'Marketing-focused, conversion-optimized',
       },
       saas: {
-        title: 'SaaS Application',
-        desc: 'User accounts, fitur lengkap, pricing',
+        title: 'Mobile App UI',
+        desc: 'Interface aplikasi responsif mobile-first',
       },
       blog: {
         title: 'Blog / Content',
@@ -1044,7 +1109,7 @@ const id: Translations = {
       title: 'Siap Membuat Template Profesional?',
       subtitle: 'Bergabunglah dengan developer yang telah mempercepat workflow mereka',
       button: 'Mulai Membuat Template',
-      free: 'Gratis untuk memulai, dapat kredit awal 25 kredit',
+      free: 'Gratis untuk memulai, dapat kredit awal 100 kredit',
     },
     footer: {
       product: 'Produk',
@@ -1083,13 +1148,13 @@ const id: Translations = {
     browseTemplates: 'Jelajahi Template',
     browseTemplatesDesc: 'Lihat dan kelola template Anda',
     gettingStarted: 'Memulai',
-    gettingStartedDesc: 'Baru menggunakan SatsetUI? Ikuti 3 langkah berikut',
-    step1Title: 'Step 1: Framework, Kategori & Output Format',
-    step1Desc: 'Pilih CSS framework (Tailwind/Bootstrap/Pure CSS), kategori template, dan format output (HTML+CSS, React, Vue, Angular, Svelte, atau Custom).',
-    step2Title: 'Step 2: Desain Visual & Konten',
-    step2Desc: 'Pilih halaman, konfigurasi layout & navigasi, atur tema (warna, mode dark/light), dan pilih komponen yang dibutuhkan.',
-    step3Title: 'Step 3: Pilih Model LLM',
-    step3Desc: 'Pilih model AI untuk generasi (Free: Gemini Flash, Premium: GPT-4, Claude, dll). Lihat estimasi biaya kredit sebelum generate.',
+    gettingStartedDesc: 'Baru menggunakan SatsetUI? Ikuti langkah-langkah berikut',
+    step1Title: 'Step 1: Pilih Mode — Satset atau Expert',
+    step1Desc: 'Mode Satset (⚡ 6 kredit): Cepat & efisien, pilih kategori dan langsung generate dengan pengaturan optimal. Mode Expert (⚙️ 15 kredit): Kustomisasi detail — pilih halaman, framework, tema, dan komponen sesuai kebutuhan.',
+    step2Title: 'Step 2: Konfigurasi Template',
+    step2Desc: 'Pilih kategori (Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, Blog). Di mode Expert, atur framework CSS, output format, layout, tema warna, dan komponen secara detail.',
+    step3Title: 'Step 3: Generate & Download',
+    step3Desc: 'Review estimasi kredit, lalu generate. Setiap halaman di-generate terpisah dengan progress real-time. Setelah selesai, preview dan download hasilnya.',
     startCreating: 'Mulai Membuat Template',
     faqTitle: 'Pertanyaan yang Sering Diajukan (FAQ)',
     faqDesc: 'Temukan jawaban untuk pertanyaan umum tentang SatsetUI',
@@ -1102,23 +1167,27 @@ const id: Translations = {
   faq: [
     {
       question: 'Apa itu SatsetUI?',
-      answer: 'SatsetUI ("sat-set" = cepat & efisien) adalah platform wizard-driven untuk menghasilkan template frontend yang deterministic dan siap produksi. Berbeda dengan sistem prompt-to-design, kami menggunakan konfigurasi terstruktur melalui wizard 3 langkah yang menjamin hasil identik untuk pilihan yang sama. LLM hanya mengimplementasikan keputusan Anda, tidak menebak atau menginterpretasi.'
+      answer: 'SatsetUI ("sat-set" = cepat & efisien) adalah platform wizard-driven untuk menghasilkan template frontend yang deterministic dan siap produksi. Berbeda dengan sistem prompt-to-design, kami menggunakan konfigurasi terstruktur melalui wizard unified yang menjamin hasil identik untuk pilihan yang sama. Tersedia 2 mode: Satset (cepat) dan Expert (kustomisasi penuh). LLM hanya mengimplementasikan keputusan Anda, tidak menebak atau menginterpretasi.'
     },
     {
       question: 'Bagaimana cara menggunakan SatsetUI?',
-      answer: 'Klik "Mulai Membuat Template" di dashboard. Wizard 3 langkah akan memandu Anda: (1) Pilih Framework CSS (Tailwind/Bootstrap/Pure CSS), Kategori Template, dan Output Format (HTML+CSS/React/Vue/Angular/Svelte), (2) Konfigurasi Desain Visual & Konten - pilih halaman, layout navigasi, tema warna, UI density, dan komponen UI, (3) Pilih Model LLM. Estimasi kredit ditampilkan sebelum generate.'
+      answer: 'Klik "Mulai Membuat Template" di dashboard. Wizard unified akan memandu Anda dalam satu halaman: (1) Pilih mode Satset (⚡ cepat) atau Expert (⚙️ detail), (2) Pilih kategori template (Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, Blog), (3) Di mode Expert, kustomisasi framework CSS, output format, halaman, layout, tema, dan komponen. Review estimasi kredit lalu generate.'
+    },
+    {
+      question: 'Apa perbedaan mode Satset dan Expert?',
+      answer: 'Mode Satset (⚡ 6 kredit): Pilih kategori, dan sistem otomatis menerapkan pengaturan optimal — cocok untuk generate cepat dengan kualitas bagus. Mode Expert (⚙️ 15 kredit): Kustomisasi penuh — pilih halaman, framework CSS (Tailwind/Bootstrap/Pure CSS), output format (HTML+CSS/React/Vue/Angular/Svelte), konfigurasi layout & navigasi, tema warna, dan komponen UI. Kualitas output premium dan production-ready.'
     },
     {
       question: 'Framework dan teknologi apa saja yang didukung?',
-      answer: 'CSS Framework: Tailwind CSS (utility-first), Bootstrap (component-based), Pure CSS (vanilla tanpa framework). Output Format: HTML+CSS (static), React JS (JSX + Hooks), Vue.js (Composition API), Angular (TypeScript), Svelte, atau Custom Format. Chart Library: Chart.js atau Apache ECharts. Untuk HTML+CSS, jika Anda pilih Tailwind/Bootstrap, CDN akan otomatis di-embed di <head>.'
+      answer: 'CSS Framework: Tailwind CSS (utility-first), Bootstrap (component-based), Pure CSS (vanilla tanpa framework). Output Format: HTML+CSS (static), React JS (JSX + Hooks), Vue.js (Composition API), Angular (TypeScript), Svelte, atau Custom Format. Chart Library: Chart.js atau Apache ECharts. Output format JS framework mendapat multiplier kredit (React/Vue: 1.3x, Svelte: 1.2x, Angular: 1.5x).'
     },
     {
-      question: 'Apa perbedaan user Gratis dan Premium?',
-      answer: 'User Gratis: Dapat kredit awal 25 kredit saat registrasi, hanya bisa menggunakan Gemini 2.5 Flash (3 kredit per generasi standar). User Premium: Bisa membeli kredit tambahan (1 kredit = Rp 1.000), akses ke 5 model LLM premium (GPT-5.1 Codex Mini: 2 kredit, Claude Haiku 4.5: 6 kredit, GPT-5.1 Codex: 10 kredit, Gemini 3 Pro: 12 kredit, Claude Sonnet 4.5: 15 kredit).'
+      question: 'Bagaimana sistem kredit bekerja?',
+      answer: 'Semua user mendapat 100 kredit gratis saat registrasi. Biaya per generasi: Satset = 6 kredit, Expert = 15 kredit (base). Kredit tambahan bisa dibeli via top-up. Formula: (Biaya Model + Extra Halaman) × Multiplier Framework × (1 + Error Margin 10%) × (1 + Profit Margin 5%), dibulatkan ke atas. Kuota dasar: 5 halaman (gratis), +1 kredit per halaman tambahan.'
     },
     {
-      question: 'Bagaimana perhitungan kredit bekerja?',
-      answer: 'Formula: (Biaya Model + Extra Halaman + Extra Komponen) × (1 + Error Margin 10%) × (1 + Profit Margin 5%), dibulatkan ke atas. Kuota Dasar: 5 halaman (free), 6 komponen (free). Extra: +1 kredit per halaman tambahan, +0.5 kredit per komponen tambahan. Contoh: Gemini Flash (3kr) + 4 halaman (0kr) + 5 komponen (0kr) = 3kr × 1.10 × 1.05 = 4 kredit. Margin dapat dikonfigurasi admin.'
+      question: 'Bagaimana perhitungan kredit untuk JS framework?',
+      answer: 'Output format JS framework lebih kompleks dan membutuhkan lebih banyak token LLM, sehingga ada multiplier kredit: HTML+CSS (1.0x, tanpa tambahan), React (1.3x), Vue.js (1.3x), Svelte (1.2x), Angular (1.5x). Contoh: Expert (15kr) + 4 halaman (0kr) × 1.3 (React) = 19.5kr × 1.10 × 1.05 = 23 kredit.'
     },
     {
       question: 'Apa itu per-page generation dan kenapa penting?',
@@ -1133,34 +1202,87 @@ const id: Translations = {
       answer: 'Setiap halaman memakan waktu ~30-60 detik, tergantung kompleksitas dan model yang dipilih. Proses: Submit wizard → Validasi blueprint → Queue background job → Generate per halaman → Simpan code → Notifikasi selesai. Total waktu: jumlah halaman × 30-60 detik. Proses async, Anda tidak perlu tunggu di browser. Notifikasi dikirim saat selesai.'
     },
     {
-      question: 'Bisakah saya custom kategori, halaman, dan komponen?',
-      answer: 'Sangat bisa! Kategori: 6 preset (Admin Dashboard, Company Profile, Landing Page, SaaS, Blog, E-Commerce) + opsi Custom dengan nama dan deskripsi sendiri. Halaman: 10 preset (Login, Register, Dashboard, User Management, Charts, Tables, dll) + custom pages tanpa batas. Komponen: 8 preset (Buttons, Forms, Modals, Charts, dll) + custom components. Custom pages ditrack untuk statistik admin - yang populer bisa jadi preset di masa depan!'
+      question: 'Bisakah saya custom kategori dan halaman?',
+      answer: 'Tentu! Kategori: 6 preset (Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, Blog) + opsi Custom dengan nama dan deskripsi sendiri. Di mode Expert, halaman bisa ditambah dan dikustomisasi sesuai kebutuhan. Custom pages ditrack untuk statistik admin — yang populer bisa jadi preset di masa depan!'
     },
     {
       question: 'Bagaimana sistem layout dan tema bekerja?',
-      answer: 'Layout: Pilih navigasi (Sidebar/Top Navigation/Hybrid), sidebar state (collapsed/expanded default), breadcrumbs (on/off), footer (minimal/full), custom nav items. Tema: Primary color (preset atau color picker), secondary color, mode (light/dark), background (solid/gradient). UI: Density (compact/comfortable/spacious), Border radius (sharp/rounded). Semua tersimpan di blueprint dan diterapkan konsisten ke semua halaman.'
+      answer: 'Di mode Expert: Layout — Pilih navigasi (Sidebar/Top Navigation/Hybrid), sidebar state (collapsed/expanded default), breadcrumbs (on/off), footer (minimal/full). Tema — Primary & secondary color, mode (light/dark), background (solid/gradient). UI — Density (compact/comfortable/spacious), Border radius (sharp/rounded). Di mode Satset, semua ini otomatis optimal berdasarkan kategori.'
     },
     {
       question: 'Bagaimana jika generasi gagal atau error?',
-      answer: 'Sistem kami punya mekanisme refund otomatis. Jika generasi gagal: (1) Kredit dikembalikan 100%, (2) Error detail dicatat di GenerationFailure table, (3) History tetap tersimpan untuk debugging, (4) Anda bisa lihat last error lewat dashboard, (5) Retry tanpa charge ulang. Semua cost tracking transparan di CreditTransaction dan GenerationCost tables. Admin bisa monitor failure rate.'
-    },
-    {
-      question: 'Apa itu History Recording dan Credit Learning?',
-      answer: 'Setiap generasi mencatat: Full MCP prompt yang dikirim ke LLM, Response code yang dihasilkan, Token usage aktual (input/output), Waktu proses, Model yang digunakan. Data ini dipakai untuk: (1) Transparansi - Anda bisa lihat apa yang di-generate, (2) Debugging - Admin bisa cek kenapa generasi gagal, (3) Credit Learning - Estimasi kredit jadi lebih akurat dari data historis, (4) Model comparison - Analisa performa tiap model.'
+      answer: 'Sistem kami punya mekanisme refund otomatis. Jika generasi gagal: (1) Kredit dikembalikan 100%, (2) Error detail dicatat untuk debugging, (3) History tetap tersimpan, (4) Retry tanpa charge ulang. Semua cost tracking transparan dan bisa dilihat di riwayat template.'
     },
     {
       question: 'Apakah template yang sudah dibuat bisa diakses lagi?',
       answer: 'Ya! Semua template tersimpan permanen di menu "Templates". Anda bisa: (1) Lihat detail lengkap blueprint, (2) Preview code yang digenerate, (3) Download ulang tanpa biaya kredit tambahan, (4) Lihat history generasi (tanggal, model, kredit terpakai), (5) Generate ulang dengan konfigurasi sama atau berbeda. Template tidak expire.'
     },
     {
-      question: 'Apa keuntungan wizard-based dibanding prompt-to-design?',
-      answer: 'Prompt-based: "Buat admin dashboard modern dengan chart" → Hasil bervariasi, tidak reproducible, AI menebak apa arti "modern". Wizard-based: Framework=Tailwind, Category=Admin, Pages=[Dashboard,Charts], Layout=Sidebar, Theme=Blue/Dark, Density=Comfortable, Model=Gemini → Hasil identik setiap kali, no guessing, full control. Wizard memaksa Anda membuat keputusan eksplisit, menghasilkan output yang predictable dan professional.'
+      question: 'Bagaimana cara menambah kredit?',
+      answer: 'Kredit tambahan bisa dibeli melalui menu Top-up Credits di sidebar. Pilih paket kredit yang sesuai, lalu bayar melalui Mayar (payment gateway). Kredit akan otomatis ditambahkan ke akun Anda setelah pembayaran berhasil. Riwayat top-up bisa dilihat di halaman yang sama.'
     },
     {
-      question: 'Bagaimana model LLM dipilih dan apa perbedaannya?',
-      answer: 'Free tier: Otomatis pakai Gemini 2.5 Flash (cepat, kualitas good, cocok testing/basic template). Premium: Bisa pilih sesuai kebutuhan. GPT-5.1 Codex Mini (2kr, very good, landing page), Claude Haiku 4.5 (6kr, excellent balance, dashboard), GPT-5.1 Codex (10kr, excellent, complex apps), Gemini 3 Pro (12kr, outstanding, enterprise), Claude Sonnet 4.5 (15kr, outstanding, production-ready critical projects). Trade-off: Speed vs Quality vs Cost.'
+      question: 'Apa keuntungan wizard-based dibanding prompt-to-design?',
+      answer: 'Prompt-based: "Buat admin dashboard modern" → Hasil bervariasi, tidak reproducible, AI menebak. Wizard-based SatsetUI: Pilih kategori, konfigurasi detail (mode Expert) atau langsung generate (mode Satset) → Hasil identik setiap kali, no guessing, full control. Wizard memaksa keputusan eksplisit, menghasilkan output yang predictable dan professional.'
     }
   ],
+  topup: {
+    title: 'Top-up Kredit',
+    subtitle: 'Pilih paket kredit yang sesuai kebutuhanmu',
+    currentBalance: 'Saldo kredit kamu saat ini',
+    selectPackage: 'Pilih Paket Terlebih Dahulu',
+    credits: 'kredit',
+    buyNow: 'Bayar Sekarang →',
+    redirecting: 'Mengarahkan ke Mayar...',
+    paymentInfo: 'Pembayaran aman melalui Mayar. Kredit ditambahkan otomatis setelah pembayaran sukses.',
+    recentTopups: 'Riwayat Topup Terakhir',
+    success: 'Pembayaran Berhasil!',
+    successDesc: 'telah ditambahkan ke akun kamu.',
+    creditsAdded: 'Kredit ditambahkan',
+    amountPaid: 'Jumlah dibayar',
+    yourBalance: 'Saldo kredit kamu',
+    pending: 'Pembayaran Diproses',
+    pendingDesc: 'Pembayaran masih diverifikasi. Kredit akan ditambahkan otomatis setelah konfirmasi dari Mayar.',
+    failed: 'Pembayaran Gagal',
+    failedDesc: 'Pembayaran tidak berhasil atau kadaluarsa. Tidak ada kredit yang ditambahkan.',
+    topupAgain: 'Top-up Lagi',
+    toWizard: 'Ke Wizard →',
+    tryAgain: 'Coba Lagi',
+    phoneRequired: 'Nomor HP Diperlukan',
+    phoneRequiredDesc: 'Silakan lengkapi nomor HP di profil kamu terlebih dahulu. Mayar menggunakan nomor HP untuk mengirim notifikasi pembayaran via WhatsApp.',
+    goToProfile: 'Ke Profil',
+    noCharges: 'Tidak ada biaya yang dikenakan.',
+    history: 'Riwayat Topup',
+    historySubtitle: 'Daftar semua transaksi topup kredit kamu',
+    allTransactions: 'Semua Transaksi',
+    package: 'Paket',
+    amount: 'Jumlah',
+    status: 'Status',
+    date: 'Tanggal',
+    statusPending: 'Menunggu',
+    statusSuccess: 'Berhasil',
+    statusFailed: 'Gagal',
+    statusExpired: 'Kadaluarsa',
+    noTransactions: 'Belum ada transaksi',
+    noTransactionsDesc: 'Kamu belum pernah melakukan topup kredit.',
+    continuePay: 'Lanjut Bayar',
+    showing: 'Menampilkan',
+    of: 'dari',
+    transactions: 'transaksi',
+  },
+  profile: {
+    title: 'Profil',
+    subtitle: 'Perbarui informasi profil kamu.',
+    name: 'Nama',
+    namePlaceholder: 'Nama lengkap kamu',
+    email: 'Email',
+    emailPlaceholder: 'email@kamu.com',
+    phone: 'Nomor HP',
+    phoneHint: 'Digunakan untuk notifikasi pembayaran via WhatsApp dari Mayar.',
+    phoneRequired: 'Nomor HP diperlukan untuk top-up',
+    phoneRequiredDesc: 'Silakan tambahkan nomor HP kamu sebelum menggunakan fitur top-up. Mayar menggunakannya untuk mengirim notifikasi pembayaran via WhatsApp.',
+    saved: 'Profil berhasil diperbarui.',
+  },
 };
 
 // English translations
@@ -1197,6 +1319,8 @@ const en: Translations = {
     wizard: 'Wizard',
     projects: 'Projects',
     templates: 'Templates',
+    topupCredits: 'Top Up Credits',
+    topupHistory: 'Topup History',
     admin: 'Admin',
     profile: 'Profile',
     settings: 'Settings',
@@ -1591,10 +1715,10 @@ const en: Translations = {
     },
     howItWorks: {
       title: 'How It Works',
-      subtitle: 'Three simple steps to your perfect template',
+      subtitle: 'Simple steps to your perfect template',
       step1: {
-        title: '3-Step Wizard Configuration',
-        desc: 'Choose Framework & Category (Step 1), Visual Design & Content (Step 2), LLM Model (Step 3). All decisions are explicit and structured.',
+        title: 'Choose Mode & Category',
+        desc: 'Pick Satset mode (⚡ quick, auto-optimal settings) or Expert mode (⚙️ full customization). Then select a template category: Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, or Blog.',
       },
       step2: {
         title: 'System Generates Blueprint',
@@ -1609,20 +1733,20 @@ const en: Translations = {
       title: 'Template Categories',
       subtitle: 'Choose from various tailored template categories or create custom',
       admin: {
-        title: 'Admin Dashboard',
-        desc: 'Internal tools, data-heavy, CRUD operations',
+        title: 'Dashboard',
+        desc: 'Admin dashboard with charts, tables, and sidebar navigation',
       },
       company: {
         title: 'Company Profile',
-        desc: 'Public-facing, company content showcase',
+        desc: 'Professional company website with team, services, contact',
       },
       landing: {
         title: 'Landing Page',
         desc: 'Marketing-focused, conversion-optimized',
       },
       saas: {
-        title: 'SaaS Application',
-        desc: 'User accounts, full features, pricing',
+        title: 'Mobile App UI',
+        desc: 'Mobile-first responsive app interface',
       },
       blog: {
         title: 'Blog / Content',
@@ -1637,7 +1761,7 @@ const en: Translations = {
       title: 'Ready to Create Professional Templates?',
       subtitle: 'Join developers who have accelerated their workflow',
       button: 'Start Creating Templates',
-      free: 'Free to start, get 25 initial credits',
+      free: 'Free to start, get 100 initial credits',
     },
     footer: {
       product: 'Product',
@@ -1676,13 +1800,13 @@ const en: Translations = {
     browseTemplates: 'Browse Templates',
     browseTemplatesDesc: 'View and manage your templates',
     gettingStarted: 'Getting Started',
-    gettingStartedDesc: 'New to SatsetUI? Follow these 3 steps',
-    step1Title: 'Step 1: Framework, Category & Output Format',
-    step1Desc: 'Choose CSS framework (Tailwind/Bootstrap/Pure CSS), template category, and output format (HTML+CSS, React, Vue, Angular, Svelte, or Custom).',
-    step2Title: 'Step 2: Visual Design & Content',
-    step2Desc: 'Select pages, configure layout & navigation, set theme (colors, dark/light mode), and choose needed components.',
-    step3Title: 'Step 3: Choose LLM Model',
-    step3Desc: 'Select AI model for generation (Free: Gemini Flash, Premium: GPT-4, Claude, etc). View credit cost estimate before generating.',
+    gettingStartedDesc: 'New to SatsetUI? Follow these steps',
+    step1Title: 'Step 1: Choose Mode — Satset or Expert',
+    step1Desc: 'Satset mode (⚡ 6 credits): Quick & efficient, pick a category and generate instantly with optimal settings. Expert mode (⚙️ 15 credits): Full customization — choose pages, framework, theme, and components to your needs.',
+    step2Title: 'Step 2: Configure Your Template',
+    step2Desc: 'Select a category (Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, Blog). In Expert mode, customize CSS framework, output format, layout, color theme, and components in detail.',
+    step3Title: 'Step 3: Generate & Download',
+    step3Desc: 'Review credit estimate, then generate. Each page is generated separately with real-time progress. Once complete, preview and download the results.',
     startCreating: 'Start Creating Template',
     faqTitle: 'Frequently Asked Questions (FAQ)',
     faqDesc: 'Find answers to common questions about SatsetUI',
@@ -1695,23 +1819,27 @@ const en: Translations = {
   faq: [
     {
       question: 'What is SatsetUI?',
-      answer: 'SatsetUI ("sat-set" = quick & efficient in Indonesian slang) is a wizard-driven platform for generating deterministic, production-ready frontend templates. Unlike prompt-to-design systems, we use structured configuration through a 3-step wizard that guarantees identical results for the same choices. The LLM only implements your decisions, never guesses or interprets.'
+      answer: 'SatsetUI ("sat-set" = quick & efficient in Indonesian slang) is a wizard-driven platform for generating deterministic, production-ready frontend templates. Unlike prompt-to-design systems, we use structured configuration through a unified wizard that guarantees identical results for the same choices. Choose between 2 modes: Satset (quick) and Expert (full customization). The LLM only implements your decisions, never guesses or interprets.'
     },
     {
       question: 'How to use SatsetUI?',
-      answer: 'Click "Start Creating Template" on dashboard. The 3-step wizard guides you: (1) Choose CSS Framework (Tailwind/Bootstrap/Pure CSS), Template Category, and Output Format (HTML+CSS/React/Vue/Angular/Svelte), (2) Configure Visual Design & Content - select pages, navigation layout, theme colors, UI density, and UI components, (3) Choose LLM Model. Credit estimate shown before generation.'
+      answer: 'Click "Start Creating Template" on dashboard. The unified wizard guides you on a single page: (1) Choose Satset mode (⚡ quick) or Expert mode (⚙️ detailed), (2) Select a template category (Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, Blog), (3) In Expert mode, customize CSS framework, output format, pages, layout, theme, and components. Review credit estimate then generate.'
+    },
+    {
+      question: 'What is the difference between Satset and Expert modes?',
+      answer: 'Satset mode (⚡ 6 credits): Pick a category and the system automatically applies optimal settings — great for quick generation with good quality. Expert mode (⚙️ 15 credits): Full customization — choose pages, CSS framework (Tailwind/Bootstrap/Pure CSS), output format (HTML+CSS/React/Vue/Angular/Svelte), configure layout & navigation, color theme, and UI components. Premium quality, production-ready output.'
     },
     {
       question: 'What frameworks and technologies are supported?',
-      answer: 'CSS Frameworks: Tailwind CSS (utility-first), Bootstrap (component-based), Pure CSS (vanilla without framework). Output Format: HTML+CSS (static), React JS (JSX + Hooks), Vue.js (Composition API), Angular (TypeScript), Svelte, or Custom Format. Chart Libraries: Chart.js or Apache ECharts. For HTML+CSS, if you choose Tailwind/Bootstrap, CDN will be auto-embedded in <head>.'
+      answer: 'CSS Frameworks: Tailwind CSS (utility-first), Bootstrap (component-based), Pure CSS (vanilla without framework). Output Format: HTML+CSS (static), React JS (JSX + Hooks), Vue.js (Composition API), Angular (TypeScript), Svelte, or Custom Format. Chart Libraries: Chart.js or Apache ECharts. JS framework outputs have credit multipliers (React/Vue: 1.3x, Svelte: 1.2x, Angular: 1.5x).'
     },
     {
-      question: 'What is the difference between Free and Premium users?',
-      answer: 'Free Users: Get 25 initial credits upon registration, can only use Gemini 2.5 Flash (3 credits per standard generation). Premium Users: Can purchase additional credits (1 credit = Rp 1,000), access to 5 premium LLM models (GPT-5.1 Codex Mini: 2 credits, Claude Haiku 4.5: 6 credits, GPT-5.1 Codex: 10 credits, Gemini 3 Pro: 12 credits, Claude Sonnet 4.5: 15 credits).'
+      question: 'How does the credit system work?',
+      answer: 'All users get 100 free credits upon registration. Cost per generation: Satset = 6 credits, Expert = 15 credits (base). Additional credits can be purchased via top-up. Formula: (Model Cost + Extra Pages) × Framework Multiplier × (1 + Error Margin 10%) × (1 + Profit Margin 5%), rounded up. Base quota: 5 pages (free), +1 credit per additional page.'
     },
     {
-      question: 'How does credit calculation work?',
-      answer: 'Formula: (Model Cost + Extra Pages + Extra Components) × (1 + Error Margin 10%) × (1 + Profit Margin 5%), rounded up. Base Quota: 5 pages (free), 6 components (free). Extra: +1 credit per additional page, +0.5 credit per additional component. Example: Gemini Flash (3cr) + 4 pages (0cr) + 5 components (0cr) = 3cr × 1.10 × 1.05 = 4 credits. Margins are admin-configurable.'
+      question: 'How does credit calculation work for JS frameworks?',
+      answer: 'JS framework outputs are more complex and use more LLM tokens, so credit multipliers apply: HTML+CSS (1.0x, no extra), React (1.3x), Vue.js (1.3x), Svelte (1.2x), Angular (1.5x). Example: Expert (15cr) + 4 pages (0cr) × 1.3 (React) = 19.5cr × 1.10 × 1.05 = 23 credits.'
     },
     {
       question: 'What is per-page generation and why is it important?',
@@ -1726,34 +1854,87 @@ const en: Translations = {
       answer: 'Each page takes ~30-60 seconds, depending on complexity and chosen model. Process: Submit wizard → Validate blueprint → Queue background job → Generate per page → Save code → Completion notification. Total time: number of pages × 30-60 seconds. Async process, no need to wait in browser. Notification sent when complete.'
     },
     {
-      question: 'Can I customize categories, pages, and components?',
-      answer: 'Absolutely! Categories: 6 presets (Admin Dashboard, Company Profile, Landing Page, SaaS, Blog, E-Commerce) + Custom option with your own name and description. Pages: 10 presets (Login, Register, Dashboard, User Management, Charts, Tables, etc) + unlimited custom pages. Components: 8 presets (Buttons, Forms, Modals, Charts, etc) + custom components. Custom pages are tracked for admin statistics - popular ones may become presets in future!'
+      question: 'Can I customize categories and pages?',
+      answer: 'Absolutely! Categories: 6 presets (Landing Page, Company Profile, Mobile App UI, E-Commerce, Dashboard, Blog) + Custom option with your own name and description. In Expert mode, pages can be added and customized as needed. Custom pages are tracked for admin statistics — popular ones may become presets in the future!'
     },
     {
       question: 'How do layout and theme systems work?',
-      answer: 'Layout: Choose navigation (Sidebar/Top Navigation/Hybrid), sidebar state (collapsed/expanded default), breadcrumbs (on/off), footer (minimal/full), custom nav items. Theme: Primary color (preset or color picker), secondary color, mode (light/dark), background (solid/gradient). UI: Density (compact/comfortable/spacious), Border radius (sharp/rounded). All saved in blueprint and applied consistently to all pages.'
+      answer: 'In Expert mode: Layout — Choose navigation (Sidebar/Top Navigation/Hybrid), sidebar state (collapsed/expanded default), breadcrumbs (on/off), footer (minimal/full). Theme — Primary & secondary color, mode (light/dark), background (solid/gradient). UI — Density (compact/comfortable/spacious), Border radius (sharp/rounded). In Satset mode, all of these are automatically optimized based on category.'
     },
     {
       question: 'What if generation fails or errors occur?',
-      answer: 'Our system has automatic refund mechanism. If generation fails: (1) Credits refunded 100%, (2) Error details recorded in GenerationFailure table, (3) History still saved for debugging, (4) You can view last error via dashboard, (5) Retry without additional charge. All cost tracking transparent in CreditTransaction and GenerationCost tables. Admin can monitor failure rate.'
-    },
-    {
-      question: 'What is History Recording and Credit Learning?',
-      answer: 'Every generation records: Full MCP prompt sent to LLM, Generated response code, Actual token usage (input/output), Processing time, Model used. This data is used for: (1) Transparency - You can see what was generated, (2) Debugging - Admin can check why generation failed, (3) Credit Learning - Credit estimates become more accurate from historical data, (4) Model comparison - Analyze performance of each model.'
+      answer: 'Our system has automatic refund mechanism. If generation fails: (1) Credits refunded 100%, (2) Error details recorded for debugging, (3) History still saved, (4) Retry without additional charge. All cost tracking is transparent and can be viewed in template history.'
     },
     {
       question: 'Can previously created templates be accessed again?',
       answer: 'Yes! All templates are saved permanently in "Templates" menu. You can: (1) View complete blueprint details, (2) Preview generated code, (3) Re-download without additional credit cost, (4) View generation history (date, model, credits used), (5) Re-generate with same or different configuration. Templates don\'t expire.'
     },
     {
-      question: 'What are the advantages of wizard-based vs prompt-to-design?',
-      answer: 'Prompt-based: "Create modern admin dashboard with charts" → Varying results, not reproducible, AI guesses what "modern" means. Wizard-based: Framework=Tailwind, Category=Admin, Pages=[Dashboard,Charts], Layout=Sidebar, Theme=Blue/Dark, Density=Comfortable, Model=Gemini → Identical results every time, no guessing, full control. Wizard forces you to make explicit decisions, producing predictable and professional output.'
+      question: 'How do I add more credits?',
+      answer: 'Additional credits can be purchased through the Top-up Credits menu in the sidebar. Choose a credit package that fits your needs, then pay through Mayar (payment gateway). Credits are automatically added to your account after successful payment. Top-up history can be viewed on the same page.'
     },
     {
-      question: 'How are LLM models chosen and what are their differences?',
-      answer: 'Free tier: Automatically uses Gemini 2.5 Flash (fast, good quality, suitable for testing/basic templates). Premium: Can choose based on needs. GPT-5.1 Codex Mini (2cr, very good, landing pages), Claude Haiku 4.5 (6cr, excellent balance, dashboards), GPT-5.1 Codex (10cr, excellent, complex apps), Gemini 3 Pro (12cr, outstanding, enterprise), Claude Sonnet 4.5 (15cr, outstanding, production-ready critical projects). Trade-off: Speed vs Quality vs Cost.'
+      question: 'What are the advantages of wizard-based vs prompt-to-design?',
+      answer: 'Prompt-based: "Create modern admin dashboard" → Varying results, not reproducible, AI guesses. Wizard-based SatsetUI: Pick a category, configure in detail (Expert mode) or generate instantly (Satset mode) → Identical results every time, no guessing, full control. The wizard forces explicit decisions, producing predictable and professional output.'
     }
   ],
+  topup: {
+    title: 'Top-up Credits',
+    subtitle: 'Choose a credit package that suits your needs',
+    currentBalance: 'Your current credit balance',
+    selectPackage: 'Select a Package First',
+    credits: 'credits',
+    buyNow: 'Pay Now →',
+    redirecting: 'Redirecting to Mayar...',
+    paymentInfo: 'Secure payment via Mayar. Credits added automatically after successful payment.',
+    recentTopups: 'Recent Top-ups',
+    success: 'Payment Successful!',
+    successDesc: 'have been added to your account.',
+    creditsAdded: 'Credits added',
+    amountPaid: 'Amount paid',
+    yourBalance: 'Your credit balance',
+    pending: 'Payment Processing',
+    pendingDesc: 'Payment is still being verified. Credits will be added automatically after confirmation from Mayar.',
+    failed: 'Payment Failed',
+    failedDesc: 'Payment was unsuccessful or expired. No credits were added.',
+    topupAgain: 'Top-up Again',
+    toWizard: 'Go to Wizard →',
+    tryAgain: 'Try Again',
+    phoneRequired: 'Phone Number Required',
+    phoneRequiredDesc: 'Please add your phone number in your profile first. Mayar uses it to send payment notifications via WhatsApp.',
+    goToProfile: 'Go to Profile',
+    noCharges: 'No charges were applied.',
+    history: 'Topup History',
+    historySubtitle: 'All your credit topup transactions',
+    allTransactions: 'All Transactions',
+    package: 'Package',
+    amount: 'Amount',
+    status: 'Status',
+    date: 'Date',
+    statusPending: 'Pending',
+    statusSuccess: 'Success',
+    statusFailed: 'Failed',
+    statusExpired: 'Expired',
+    noTransactions: 'No transactions yet',
+    noTransactionsDesc: 'You haven\'t made any credit top-ups yet.',
+    continuePay: 'Continue Payment',
+    showing: 'Showing',
+    of: 'of',
+    transactions: 'transactions',
+  },
+  profile: {
+    title: 'Profile',
+    subtitle: 'Update your profile information.',
+    name: 'Name',
+    namePlaceholder: 'Your full name',
+    email: 'Email',
+    emailPlaceholder: 'your@email.com',
+    phone: 'Phone Number',
+    phoneHint: 'Used for payment notifications via WhatsApp from Mayar.',
+    phoneRequired: 'Phone number required for top-up',
+    phoneRequiredDesc: 'Please add your phone number before using the top-up feature. Mayar uses it to send payment notifications via WhatsApp.',
+    saved: 'Profile updated successfully.',
+  },
 };
 
 const translations: Record<Language, Translations> = { id, en };

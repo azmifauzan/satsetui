@@ -52,4 +52,10 @@ return [
         'npm_path' => env('NPM_BINARY_PATH'),
     ],
 
+    'mayar' => [
+        'api_key' => env('MAYAR_API_KEY', ''),
+        'webhook_secret' => env('MAYAR_WEBHOOK_SECRET', ''),
+        'base_url' => env('MAYAR_BASE_URL', 'https://api.mayar.id/hl/v1'),
+    ],
+
 ];
